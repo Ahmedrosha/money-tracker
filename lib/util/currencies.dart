@@ -1,0 +1,36 @@
+/// Common currencies offered in pickers. Any 3-letter code returned by the
+/// exchange-rate service can also be used.
+const Map<String, String> kCurrencyNames = {
+  'EGP': 'Egyptian Pound',
+  'USD': 'US Dollar',
+  'EUR': 'Euro',
+  'GBP': 'British Pound',
+  'SAR': 'Saudi Riyal',
+  'AED': 'UAE Dirham',
+  'KWD': 'Kuwaiti Dinar',
+  'QAR': 'Qatari Riyal',
+  'BHD': 'Bahraini Dinar',
+  'OMR': 'Omani Rial',
+  'JOD': 'Jordanian Dinar',
+  'LBP': 'Lebanese Pound',
+  'MAD': 'Moroccan Dirham',
+  'TND': 'Tunisian Dinar',
+  'TRY': 'Turkish Lira',
+  'CHF': 'Swiss Franc',
+  'JPY': 'Japanese Yen',
+  'CNY': 'Chinese Yuan',
+  'INR': 'Indian Rupee',
+  'CAD': 'Canadian Dollar',
+  'AUD': 'Australian Dollar',
+  'SEK': 'Swedish Krona',
+  'NOK': 'Norwegian Krone',
+  'DKK': 'Danish Krone',
+  'RUB': 'Russian Ruble',
+  'ZAR': 'South African Rand',
+  'SGD': 'Singapore Dollar',
+  'HKD': 'Hong Kong Dollar',
+  'MYR': 'Malaysian Ringgit',
+  'PKR': 'Pakistani Rupee',
+};
+
+String currencyName(String code) => kCurrencyNames[code] ?? code;

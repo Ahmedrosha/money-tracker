@@ -575,10 +575,10 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               style: Theme.of(context).textTheme.headlineSmall,
               decoration: InputDecoration(
                 labelText: _installments ? 'Total amount' : 'Amount',
-                helperText: _type == TxType.expense &&
-                        (parseAmount(_amount.text) ?? 0) < 0
-                    ? 'Negative = refund'
-                    : null,
+                helperText: _amountHelper(state, account),
+                helperStyle: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w600),
                 suffixText: account?.currency,
                 border: const OutlineInputBorder(),
               ),
@@ -733,6 +733,26 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
         ),
       ),
     );
+  }
+
+  /// Small line under the amount: the EGP (main currency) equivalent for
+  /// foreign-currency expenses and income, and a refund hint.
+  String? _amountHelper(AppState state, Account? account) {
+    final parts = <String>[];
+    final amt = parseAmount(_amount.text);
+    final base = state.baseCurrency;
+    if (account != null &&
+        _type != TxType.transfer &&
+        account.currency != base &&
+        amt != null &&
+        amt != 0) {
+      final v = state.convert(amt, account.currency, base);
+      parts.add(v == null
+          ? 'No $base rate for ${account.currency} yet'
+          : '≈ ${fmtMoney(v, base)}');
+    }
+    if (_type == TxType.expense && (amt ?? 0) < 0) parts.add('negative = refund');
+    return parts.isEmpty ? null : parts.join(' · ');
   }
 
   String get _dateLabel {

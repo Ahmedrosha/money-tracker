@@ -31,6 +31,8 @@ jobs:
           rm -rf build_app/lib build_app/test build_app/analysis_options.yaml
           cp -r lib build_app/lib
           cp pubspec.yaml build_app/pubspec.yaml
+          cp -r assets build_app/assets
+          python3 ci/patch_android.py
           MANIFEST=build_app/android/app/src/main/AndroidManifest.xml
           sed -i 's/android:label="money_tracker"/android:label="Money Tracker"/' "$MANIFEST"
           sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' "$MANIFEST"
@@ -42,6 +44,10 @@ jobs:
       - name: Get packages
         working-directory: build_app
         run: flutter pub get
+
+      - name: App icon
+        working-directory: build_app
+        run: dart run flutter_launcher_icons
 
       - name: Analyze
         working-directory: build_app
@@ -58,6 +64,14 @@ jobs:
         run: |
           set -o pipefail
           flutter build apk --release --build-name=$APP_VERSION --build-number=${{ github.run_number }} 2>&1 | tee ../build.log
+
+      - name: Check APK is signed with the fixed key
+        run: |
+          APKSIGNER=$(ls -d $ANDROID_HOME/build-tools/*/ | sort -V | tail -1)apksigner
+          GOT=$($APKSIGNER verify --print-certs build_app/build/app/outputs/flutter-apk/app-release.apk | grep -m1 'SHA-256' | awk '{print $NF}')
+          WANT=$(keytool -list -v -keystore ci/debug.keystore -storepass android -alias androiddebugkey | grep 'SHA256:' | awk '{print $2}' | tr -d ':' | tr 'A-F' 'a-f')
+          echo "APK cert: $GOT"; echo "Expected: $WANT"
+          test "$GOT" = "$WANT"
 
       - name: Rename APK
         run: |

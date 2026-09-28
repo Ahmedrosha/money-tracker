@@ -23,6 +23,10 @@ class TransactionEditScreen extends StatefulWidget {
     this.planTxn,
     this.rule,
     this.occurrence,
+    this.initialType,
+    this.initialToAccountId,
+    this.initialAmount,
+    this.initialNote,
   });
 
   final Txn? txn;
@@ -31,6 +35,12 @@ class TransactionEditScreen extends StatefulWidget {
   final Txn? planTxn;
   final RecurringRule? rule;
   final Occurrence? occurrence;
+
+  // Prefill for new entries (e.g. paying a credit card).
+  final TxType? initialType;
+  final int? initialToAccountId;
+  final double? initialAmount;
+  final String? initialNote;
 
   @override
   State<TransactionEditScreen> createState() => _TransactionEditScreenState();
@@ -110,6 +120,12 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       _fillFromTxn(widget.txn!);
     } else {
       _mode = _Mode.newTxn;
+      _type = widget.initialType ?? TxType.expense;
+      _toAccountId = widget.initialToAccountId;
+      if (widget.initialAmount != null) {
+        _amount.text = widget.initialAmount!.toStringAsFixed(2);
+      }
+      _note.text = widget.initialNote ?? '';
     }
     _startMonth = DateTime(_date.year, _date.month + 1);
   }
@@ -162,6 +178,19 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     final active = state.activeAccounts;
     if (_accountId == null && active.isNotEmpty) {
       _accountId = active.first.id;
+    }
+    // A prefilled transfer amount is in the destination's currency (e.g.
+    // a card payment). If the source differs, convert and fix what arrives.
+    final want = widget.initialAmount;
+    if (_mode == _Mode.newTxn && want != null && _type == TxType.transfer) {
+      final from = state.accountById(_accountId);
+      final to = state.accountById(_toAccountId);
+      if (from != null && to != null && from.currency != to.currency) {
+        final conv = state.convert(want, to.currency, from.currency);
+        if (conv != null) _amount.text = conv.toStringAsFixed(2);
+        _toAmount.text = want.toStringAsFixed(2);
+        _toAmountEdited = true;
+      }
     }
   }
 

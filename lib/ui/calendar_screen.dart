@@ -4,9 +4,11 @@ import 'package:intl/intl.dart';
 import '../data/models.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
+import 'pay_card.dart';
 import 'transaction_edit.dart';
 import 'widgets.dart';
 
+/// Calendar tab: all accounts, or one picked from the filter.
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
 
@@ -14,16 +16,71 @@ class CalendarScreen extends StatefulWidget {
   State<CalendarScreen> createState() => _CalendarScreenState();
 }
 
-class _DayInfo {
-  double expense = 0;
-  double income = 0;
-  bool hasUpcoming = false;
-  bool hasDue = false;
-  final List<Txn> txns = [];
-  final List<Occurrence> pending = [];
+class _CalendarScreenState extends State<CalendarScreen> {
+  int? _accountId;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final account = state.accountById(_accountId);
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Calendar'),
+        actions: [
+          TextButton.icon(
+            icon: const Icon(Icons.filter_list),
+            label: Text(account?.name ?? 'All accounts',
+                overflow: TextOverflow.ellipsis),
+            onPressed: () async {
+              final id = await pickAccount(context,
+                  current: _accountId,
+                  title: 'Show calendar for',
+                  allowAll: true);
+              if (id == null) return;
+              setState(() => _accountId = id == -1 ? null : id);
+            },
+          ),
+        ],
+      ),
+      body: CalendarView(key: ValueKey(_accountId), accountId: _accountId),
+    );
+  }
 }
 
-class _CalendarScreenState extends State<CalendarScreen> {
+class _DayInfo {
+  double outflow = 0;
+  double inflow = 0;
+  bool hasUpcoming = false;
+  bool hasDue = false;
+  bool hasCard = false;
+  final List<Txn> txns = [];
+  final List<Occurrence> pending = [];
+  final List<_CardEvent> cardEvents = [];
+}
+
+class _CardEvent {
+  final CardSummary card;
+  final String label;
+  final double? amount;
+  final bool payable;
+  _CardEvent(this.card, this.label, this.amount, {this.payable = false});
+}
+
+/// Month grid + list for the selected day. When [accountId] is set, only
+/// that account is shown and transfers count as money in / out of it.
+class CalendarView extends StatefulWidget {
+  const CalendarView({super.key, this.accountId, this.shrinkWrap = false});
+
+  final int? accountId;
+
+  /// Use inside another scrollable.
+  final bool shrinkWrap;
+
+  @override
+  State<CalendarView> createState() => _CalendarViewState();
+}
+
+class _CalendarViewState extends State<CalendarView> {
   late DateTime _month;
   late DateTime _selected;
   Future<List<Txn>>? _future;
@@ -47,6 +104,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
     });
   }
 
+  bool _touches(int? a, int? b) =>
+      widget.accountId == null || a == widget.accountId || b == widget.accountId;
+
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
@@ -56,150 +116,232 @@ class _CalendarScreenState extends State<CalendarScreen> {
       _future = state.db.transactions(
         from: _month,
         to: DateTime(_month.year, _month.month + 1),
+        accountId: widget.accountId,
       );
     }
+    final monthEnd = DateTime(_month.year, _month.month + 1);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Calendar'),
-        actions: [
-          IconButton(
-            tooltip: 'Today',
-            icon: const Icon(Icons.today),
-            onPressed: () {
-              final now = DateTime.now();
-              setState(() {
-                _month = DateTime(now.year, now.month);
-                _selected = DateTime(now.year, now.month, now.day);
-              });
-            },
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        tooltip: 'Add on selected day',
-        onPressed: () {
-          final now = DateTime.now();
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => TransactionEditScreen(
-                initialDate: DateTime(_selected.year, _selected.month,
-                    _selected.day, now.hour, now.minute),
-              ),
-            ),
-          );
-        },
-        child: const Icon(Icons.add),
-      ),
-      body: FutureBuilder<List<Txn>>(
-        future: _future,
-        builder: (context, snap) {
-          final days = <int, _DayInfo>{};
-          _DayInfo info(int d) => days.putIfAbsent(d, () => _DayInfo());
-          for (final t in snap.data ?? const <Txn>[]) {
-            final i = info(t.date.day);
-            i.txns.add(t);
+    return FutureBuilder<List<Txn>>(
+      future: _future,
+      builder: (context, snap) {
+        final days = <int, _DayInfo>{};
+        _DayInfo info(int d) => days.putIfAbsent(d, () => _DayInfo());
+
+        for (final t in snap.data ?? const <Txn>[]) {
+          final i = info(t.date.day);
+          i.txns.add(t);
+          if (t.isFuture) i.hasUpcoming = true;
+          if (widget.accountId == null) {
             final cur = state.accountById(t.accountId)?.currency ??
                 state.baseCurrency;
-            if (t.type == TxType.expense) i.expense += state.toBase(t.amount, cur);
-            if (t.type == TxType.income) i.income += state.toBase(t.amount, cur);
-            if (t.isFuture) i.hasUpcoming = true;
-          }
-          for (final o in state.pendingOccurrences(
-              _month, DateTime(_month.year, _month.month + 1))) {
-            final i = info(o.date.day);
-            i.pending.add(o);
-            if (o.isDue) {
-              i.hasDue = true;
-            } else {
-              i.hasUpcoming = true;
+            if (t.type == TxType.expense) i.outflow += state.toBase(t.amount, cur);
+            if (t.type == TxType.income) i.inflow += state.toBase(t.amount, cur);
+          } else {
+            final id = widget.accountId!;
+            if (t.type == TxType.income) {
+              i.inflow += t.amount;
+            } else if (t.type == TxType.expense) {
+              i.outflow += t.amount;
+            } else if (t.toAccountId == id && t.accountId != id) {
+              i.inflow += t.toAmount ?? t.amount;
+            } else if (t.accountId == id && t.toAccountId != id) {
+              i.outflow += t.amount;
             }
           }
+        }
 
-          final sel = _selected.month == _month.month &&
-                  _selected.year == _month.year
-              ? days[_selected.day]
-              : null;
-          final selItems = <(DateTime, Object)>[
-            for (final t in sel?.txns ?? const <Txn>[]) (t.date, t),
-            for (final o in sel?.pending ?? const <Occurrence>[]) (o.date, o),
-          ]..sort((a, b) => a.$1.compareTo(b.$1));
+        for (final o in state.pendingOccurrences(_month, monthEnd)) {
+          if (!_touches(o.rule.accountId, o.rule.toAccountId)) continue;
+          final i = info(o.date.day);
+          i.pending.add(o);
+          if (o.isDue) {
+            i.hasDue = true;
+          } else {
+            i.hasUpcoming = true;
+          }
+        }
 
-          return ListView(
-            padding: const EdgeInsets.only(bottom: 96),
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Row(
-                  children: [
-                    IconButton(
-                        onPressed: () => _shift(-1),
-                        icon: const Icon(Icons.chevron_left)),
-                    Expanded(
-                      child: Center(
-                        child: Text(monthFmt.format(_month),
-                            style: Theme.of(context).textTheme.titleMedium),
-                      ),
+        // Credit card closing and due dates.
+        for (final c in state.cards.values) {
+          final a = c.card;
+          if (a.archived || !a.hasCycle) continue;
+          if (widget.accountId != null && a.id != widget.accountId) continue;
+          void add(DateTime d, _CardEvent e) {
+            if (d.isBefore(_month) || !d.isBefore(monthEnd)) return;
+            final i = info(d.day);
+            i.cardEvents.add(e);
+            i.hasCard = true;
+          }
+
+          final last = c.last;
+          if (last != null) {
+            add(last.closeDate,
+                _CardEvent(c, 'Statement closed', last.amount));
+            add(
+                last.dueDate,
+                _CardEvent(
+                    c,
+                    last.settled ? 'Statement paid' : 'Payment due',
+                    last.settled ? last.amount : last.remaining,
+                    payable: !last.settled));
+          }
+          if (c.nextClose != null) {
+            add(c.nextClose!, _CardEvent(c, 'Statement closes', null));
+            add(dueDateAfter(c.nextClose!, a.dueDay!),
+                _CardEvent(c, 'Next payment due', null));
+          }
+          // Show the cycle days for months further away as well.
+          final close = cycleCloseIn(_month.year, _month.month, a.statementDay!);
+          if (c.nextClose != null && close.isAfter(c.nextClose!)) {
+            add(close, _CardEvent(c, 'Statement closes', null));
+            final due = dueDateAfter(
+                cycleCloseIn(_month.year, _month.month - 1, a.statementDay!),
+                a.dueDay!);
+            if (due.isAfter(dueDateAfter(c.nextClose!, a.dueDay!))) {
+              add(due, _CardEvent(c, 'Payment due', null));
+            }
+          }
+        }
+
+        final sel = _selected.month == _month.month &&
+                _selected.year == _month.year
+            ? days[_selected.day]
+            : null;
+        final selItems = <(DateTime, Object)>[
+          for (final t in sel?.txns ?? const <Txn>[]) (t.date, t),
+          for (final o in sel?.pending ?? const <Occurrence>[]) (o.date, o),
+        ]..sort((a, b) => a.$1.compareTo(b.$1));
+        final currency = widget.accountId == null
+            ? state.baseCurrency
+            : (state.accountById(widget.accountId)?.currency ?? '');
+
+        final children = <Widget>[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              children: [
+                IconButton(
+                    onPressed: () => _shift(-1),
+                    icon: const Icon(Icons.chevron_left)),
+                Expanded(
+                  child: Center(
+                    child: TextButton(
+                      onPressed: () {
+                        final now = DateTime.now();
+                        setState(() {
+                          _month = DateTime(now.year, now.month);
+                          _selected = DateTime(now.year, now.month, now.day);
+                        });
+                      },
+                      child: Text(monthFmt.format(_month),
+                          style: Theme.of(context).textTheme.titleMedium),
                     ),
-                    IconButton(
-                        onPressed: () => _shift(1),
-                        icon: const Icon(Icons.chevron_right)),
-                  ],
+                  ),
                 ),
-              ),
-              _Grid(
-                month: _month,
-                weekStart: state.weekStart,
-                selected: _selected,
-                days: days,
-                onTap: (d) => setState(() => _selected = d),
-              ),
-              const Divider(height: 24),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(dayFmt.format(_selected),
-                          style: Theme.of(context).textTheme.titleSmall),
-                    ),
-                    if (sel != null && sel.expense > 0)
-                      Text('-${fmtAmount(sel.expense)}',
-                          style: const TextStyle(
-                              color: kExpenseColor,
-                              fontWeight: FontWeight.w600)),
-                    if (sel != null && sel.income > 0) ...[
-                      const SizedBox(width: 12),
-                      Text('+${fmtAmount(sel.income)}',
-                          style: const TextStyle(
-                              color: kIncomeColor,
-                              fontWeight: FontWeight.w600)),
-                    ],
-                  ],
+                IconButton(
+                    onPressed: () => _shift(1),
+                    icon: const Icon(Icons.chevron_right)),
+              ],
+            ),
+          ),
+          _Grid(
+            month: _month,
+            weekStart: state.weekStart,
+            selected: _selected,
+            days: days,
+            onTap: (d) => setState(() => _selected = d),
+          ),
+          const Divider(height: 24),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 8, 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(dayFmt.format(_selected),
+                      style: Theme.of(context).textTheme.titleSmall),
                 ),
-              ),
-              if (selItems.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Center(child: Text('Nothing on this day')),
-                ),
-              for (final (_, item) in selItems)
-                if (item is Txn)
-                  TxnTile(
-                    txn: item,
-                    onTap: () => Navigator.push(
+                if (sel != null && sel.outflow > 0)
+                  Text('-${fmtAmount(sel.outflow)}',
+                      style: const TextStyle(
+                          color: kExpenseColor, fontWeight: FontWeight.w600)),
+                if (sel != null && sel.inflow > 0) ...[
+                  const SizedBox(width: 12),
+                  Text('+${fmtAmount(sel.inflow)}',
+                      style: const TextStyle(
+                          color: kIncomeColor, fontWeight: FontWeight.w600)),
+                ],
+                IconButton(
+                  tooltip: 'Add on this day',
+                  icon: const Icon(Icons.add_circle_outline),
+                  onPressed: () {
+                    final now = DateTime.now();
+                    Navigator.push(
                       context,
                       MaterialPageRoute(
-                          builder: (_) => TransactionEditScreen(txn: item)),
-                    ),
-                  )
-                else if (item is Occurrence)
-                  OccurrenceTile(occurrence: item),
-            ],
-          );
-        },
-      ),
+                        builder: (_) => TransactionEditScreen(
+                          initialAccountId: widget.accountId,
+                          initialDate: DateTime(_selected.year,
+                              _selected.month, _selected.day, now.hour,
+                              now.minute),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          if (widget.accountId != null && currency.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+              child: Text('Amounts in $currency',
+                  style: Theme.of(context).textTheme.bodySmall),
+            ),
+          for (final e in sel?.cardEvents ?? const <_CardEvent>[])
+            Card(
+              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: ListTile(
+                leading: const Icon(Icons.credit_card),
+                title: Text('${e.label} · ${e.card.card.name}'),
+                subtitle: e.amount == null
+                    ? null
+                    : Text(fmtMoney(e.amount!, e.card.card.currency)),
+                trailing: e.payable
+                    ? FilledButton.tonal(
+                        onPressed: () => showPayCard(context, e.card),
+                        child: const Text('Pay'),
+                      )
+                    : null,
+              ),
+            ),
+          if (selItems.isEmpty && (sel?.cardEvents.isEmpty ?? true))
+            const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: Text('Nothing on this day')),
+            ),
+          for (final (_, item) in selItems)
+            if (item is Txn)
+              TxnTile(
+                txn: item,
+                perspectiveAccountId: widget.accountId,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => TransactionEditScreen(txn: item)),
+                ),
+              )
+            else if (item is Occurrence)
+              OccurrenceTile(occurrence: item),
+        ];
+
+        if (widget.shrinkWrap) {
+          return Column(children: children);
+        }
+        return ListView(
+          padding: const EdgeInsets.only(bottom: 96),
+          children: children,
+        );
+      },
     );
   }
 }
@@ -299,15 +441,16 @@ class _Grid extends StatelessWidget {
                         fontSize: 12,
                         fontWeight: isToday ? FontWeight.bold : FontWeight.w500)),
                 const Spacer(),
+                if (info?.hasCard ?? false) _dot(scheme.secondary),
                 if (info?.hasDue ?? false) _dot(scheme.error),
                 if (info?.hasUpcoming ?? false) _dot(scheme.tertiary),
               ],
             ),
             const Spacer(),
-            if ((info?.expense ?? 0) > 0)
-              _amt('-${_compact(info!.expense)}', kExpenseColor),
-            if ((info?.income ?? 0) > 0)
-              _amt('+${_compact(info!.income)}', kIncomeColor),
+            if ((info?.outflow ?? 0) > 0)
+              _amt('-${_compact(info!.outflow)}', kExpenseColor),
+            if ((info?.inflow ?? 0) > 0)
+              _amt('+${_compact(info!.inflow)}', kIncomeColor),
           ],
         ),
       ),

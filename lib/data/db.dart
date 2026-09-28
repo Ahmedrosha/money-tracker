@@ -8,7 +8,7 @@ class AppDb {
 
   final Database db;
 
-  static const int schemaVersion = 2;
+  static const int schemaVersion = 3;
 
   static Future<AppDb> open() async {
     final dir = await getDatabasesPath();
@@ -22,10 +22,12 @@ class AppDb {
       onCreate: (db, version) async {
         await _createV1(db);
         await _migrateToV2(db);
+        await _migrateToV3(db);
         await _seed(db);
       },
       onUpgrade: (db, oldV, newV) async {
         if (oldV < 2) await _migrateToV2(db);
+        if (oldV < 3) await _migrateToV3(db);
       },
     );
     return AppDb._(db);
@@ -123,6 +125,13 @@ class AppDb {
     ''');
   }
 
+  static Future<void> _migrateToV3(Database db) async {
+    await db.execute('ALTER TABLE accounts ADD COLUMN credit_limit REAL');
+    await db.execute('ALTER TABLE accounts ADD COLUMN statement_day INTEGER');
+    await db.execute('ALTER TABLE accounts ADD COLUMN due_day INTEGER');
+    await db.execute('ALTER TABLE accounts ADD COLUMN min_pay_pct REAL');
+  }
+
   static Future<void> _seed(Database db) async {
     const expense = [
       ['Food & Dining', 'food', 0xFFFB8C00],
@@ -215,6 +224,63 @@ class AppDb {
       await tx.execute(
           'DELETE FROM plans WHERE id NOT IN (SELECT DISTINCT plan_id FROM transactions WHERE plan_id IS NOT NULL)');
     });
+  }
+
+  /// Balance of one account as of [asOf] (inclusive).
+  Future<double> balanceAsOf(int accountId, DateTime asOf) async {
+    final t = asOf.millisecondsSinceEpoch;
+    final r = await db.rawQuery('''
+      SELECT a.opening_balance
+        + COALESCE((SELECT SUM(amount) FROM transactions
+            WHERE account_id = a.id AND type = 'income' AND date <= ?), 0)
+        - COALESCE((SELECT SUM(amount) FROM transactions
+            WHERE account_id = a.id AND type IN ('expense', 'transfer') AND date <= ?), 0)
+        + COALESCE((SELECT SUM(COALESCE(to_amount, amount)) FROM transactions
+            WHERE to_account_id = a.id AND type = 'transfer' AND date <= ?), 0)
+        AS balance
+      FROM accounts a WHERE a.id = ?
+    ''', [t, t, t, accountId]);
+    if (r.isEmpty) return 0;
+    final v = r.first['balance'];
+    return v is num ? v.toDouble() : 0;
+  }
+
+  /// Money coming into an account (income + incoming transfers) with dates
+  /// in (from, to].
+  Future<double> creditsBetween(int accountId, DateTime from, DateTime to) async {
+    final f = from.millisecondsSinceEpoch;
+    final t = to.millisecondsSinceEpoch;
+    final r = await db.rawQuery('''
+      SELECT
+        COALESCE((SELECT SUM(amount) FROM transactions
+          WHERE account_id = ? AND type = 'income' AND date > ? AND date <= ?), 0)
+        + COALESCE((SELECT SUM(COALESCE(to_amount, amount)) FROM transactions
+          WHERE to_account_id = ? AND type = 'transfer' AND date > ? AND date <= ?), 0)
+        AS credits
+    ''', [accountId, f, t, accountId, f, t]);
+    final v = r.first['credits'];
+    return v is num ? v.toDouble() : 0;
+  }
+
+  /// Money going out of an account (expenses + outgoing transfers) with
+  /// dates in (from, to].
+  Future<double> debitsBetween(int accountId, DateTime from, DateTime to) async {
+    final r = await db.rawQuery('''
+      SELECT COALESCE(SUM(amount), 0) AS debits FROM transactions
+      WHERE account_id = ? AND type IN ('expense', 'transfer') AND date > ? AND date <= ?
+    ''', [accountId, from.millisecondsSinceEpoch, to.millisecondsSinceEpoch]);
+    final v = r.first['debits'];
+    return v is num ? v.toDouble() : 0;
+  }
+
+  /// Installments on an account dated after [now] (not billed yet).
+  Future<double> futureInstallments(int accountId, DateTime now) async {
+    final r = await db.rawQuery('''
+      SELECT COALESCE(SUM(amount), 0) AS s FROM transactions
+      WHERE account_id = ? AND plan_id IS NOT NULL AND type = 'expense' AND date > ?
+    ''', [accountId, now.millisecondsSinceEpoch]);
+    final v = r.first['s'];
+    return v is num ? v.toDouble() : 0;
   }
 
   Future<List<String>> bankNames() async {

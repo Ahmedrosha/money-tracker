@@ -87,7 +87,7 @@ class SettingsScreen extends StatelessWidget {
             leading: Icon(Icons.info_outline),
             title: Text('Money Tracker'),
             subtitle: Text(
-                'Version 0.2 — banks, installments, recurring, calendar'),
+                'Version 0.3 — credit cards, statements, account types'),
           ),
         ],
       ),

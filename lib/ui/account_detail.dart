@@ -4,6 +4,8 @@ import '../data/models.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
 import 'account_edit.dart';
+import 'calendar_screen.dart';
+import 'card_panel.dart';
 import 'transaction_edit.dart';
 import 'widgets.dart';
 
@@ -19,6 +21,7 @@ class AccountDetailScreen extends StatefulWidget {
 class _AccountDetailScreenState extends State<AccountDetailScreen> {
   Future<List<Txn>>? _future;
   int _loadedVersion = -1;
+  bool _calendar = false;
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +39,11 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
       appBar: AppBar(
         title: Text(account.fullName),
         actions: [
+          IconButton(
+            tooltip: _calendar ? 'List view' : 'Calendar view',
+            icon: Icon(_calendar ? Icons.view_list : Icons.calendar_month),
+            onPressed: () => setState(() => _calendar = !_calendar),
+          ),
           IconButton(
             tooltip: 'Edit account',
             icon: const Icon(Icons.edit_outlined),
@@ -58,7 +66,17 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
         ),
         child: const Icon(Icons.add),
       ),
-      body: FutureBuilder<List<Txn>>(
+      body: _calendar
+          ? ListView(
+              padding: const EdgeInsets.only(bottom: 96),
+              children: [
+                _header(context, state, account, null),
+                if (state.cards[account.id] != null)
+                  CardPanel(summary: state.cards[account.id]!),
+                CalendarView(accountId: account.id, shrinkWrap: true),
+              ],
+            )
+          : FutureBuilder<List<Txn>>(
         future: _future,
         builder: (context, snap) {
           final txns = snap.data ?? const <Txn>[];
@@ -78,7 +96,16 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
             padding: const EdgeInsets.only(bottom: 96),
             itemCount: txns.length + 1,
             itemBuilder: (context, i) {
-              if (i == 0) return _header(context, state, account, txns.length);
+              if (i == 0) {
+                final card = state.cards[account.id];
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _header(context, state, account, txns.length),
+                    if (card != null) CardPanel(summary: card),
+                  ],
+                );
+              }
               final t = txns[i - 1];
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -128,7 +155,9 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
   }
 
   Widget _header(
-      BuildContext context, AppState state, Account account, int count) {
+      BuildContext context, AppState state, Account account, int? count) {
+    final liability = account.type.isLiability;
+    final shown = liability ? -account.balance : account.balance;
     final scheme = Theme.of(context).colorScheme;
     return Card(
       margin: const EdgeInsets.all(16),
@@ -138,11 +167,13 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${account.type.label} · ${account.currency}',
+            Text(
+                '${account.type.label} · ${account.currency}'
+                '${liability ? ' · amount owed' : ''}',
                 style: TextStyle(color: scheme.onPrimaryContainer)),
             const SizedBox(height: 4),
             Text(
-              fmtMoney(account.balance, account.currency),
+              fmtMoney(shown, account.currency),
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   color: scheme.onPrimaryContainer,
                   fontWeight: FontWeight.bold),
@@ -153,11 +184,13 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                 '≈ ${fmtMoney(state.toBase(account.balance, account.currency), state.baseCurrency)}',
                 style: TextStyle(color: scheme.onPrimaryContainer),
               ),
-            const SizedBox(height: 8),
-            Text('$count transaction(s)',
-                style: TextStyle(
-                    color: scheme.onPrimaryContainer.withValues(alpha: 0.75),
-                    fontSize: 12)),
+            if (count != null) ...[
+              const SizedBox(height: 8),
+              Text('$count transaction(s)',
+                  style: TextStyle(
+                      color: scheme.onPrimaryContainer.withValues(alpha: 0.75),
+                      fontSize: 12)),
+            ],
           ],
         ),
       ),

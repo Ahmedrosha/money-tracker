@@ -18,7 +18,7 @@ All builds use the same signing key (`ci/debug.keystore`), so new versions insta
 ## Roadmap
 1. ✅ Accounts, transactions, transfers, multi-currency
 1b. ✅ Banks, installments, recurring items, calendar (v0.2)
-2. Credit cards: limit, statement day, due date, installments (up to 24 months)
+2. ✅ Credit cards: limit, statement cycle, due amounts, payments (v0.3)
 3. Assets: stocks & crypto holdings with prices
 4. Import from Home Budget (Excel)
 5. Reports & charts

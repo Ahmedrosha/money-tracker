@@ -6,6 +6,7 @@ import '../util/format.dart';
 import 'account_detail.dart';
 import 'account_edit.dart';
 import 'due_screen.dart';
+import 'pay_card.dart';
 import 'widgets.dart';
 
 class AccountsScreen extends StatelessWidget {
@@ -23,13 +24,13 @@ class AccountsScreen extends StatelessWidget {
     if (byBank) {
       sections = groupByBank(active);
     } else {
-      final g = <AccountType, List<Account>>{};
+      final g = <AccountFamily, List<Account>>{};
       for (final a in active) {
-        g.putIfAbsent(a.type, () => []).add(a);
+        g.putIfAbsent(a.type.family, () => []).add(a);
       }
       sections = [
-        for (final t in AccountType.values)
-          if (g[t] != null) MapEntry(t.label, g[t]!),
+        for (final f in AccountFamily.values)
+          if (g[f] != null) MapEntry(f.label, g[f]!),
       ];
     }
     final due = state.dueOccurrences;
@@ -72,6 +73,27 @@ class AccountsScreen extends StatelessWidget {
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const DueScreen()),
+                  ),
+                ),
+              ),
+            ),
+          for (final c in state.cardsDue)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Card(
+                color: c.last!.overdue
+                    ? Theme.of(context).colorScheme.errorContainer
+                    : Theme.of(context).colorScheme.secondaryContainer,
+                child: ListTile(
+                  leading: const Icon(Icons.credit_card),
+                  title: Text(
+                      '${c.card.fullName}: ${fmtMoney(c.last!.remaining, c.card.currency)} due'),
+                  subtitle: Text(
+                      '${c.last!.overdue ? 'Overdue since' : 'Due'} ${shortDateFmt.format(c.last!.dueDate)}'
+                      ' · minimum ${fmtAmount(c.last!.minimumDue)}'),
+                  trailing: FilledButton.tonal(
+                    onPressed: () => showPayCard(context, c),
+                    child: const Text('Pay'),
                   ),
                 ),
               ),
@@ -189,7 +211,7 @@ class _NetWorthCard extends StatelessWidget {
                 ),
                 Expanded(
                   child: _MiniStat(
-                      label: 'Debts',
+                      label: 'Liabilities',
                       value: fmtAmount(debts),
                       color: scheme.onPrimaryContainer),
                 ),
@@ -264,6 +286,7 @@ class _AccountTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
+    final card = state.cards[account.id];
     final showBase = account.currency != state.baseCurrency &&
         state.convert(account.balance, account.currency, state.baseCurrency) !=
             null;
@@ -271,9 +294,11 @@ class _AccountTile extends StatelessWidget {
       leading: CircleAvatar(child: Icon(accountTypeIcon(account.type))),
       title: Text(account.name),
       subtitle: Text([
+        account.type.label,
         if (showBank && account.bank.isNotEmpty) account.bank,
-        if (!showBank) account.type.label,
         account.currency,
+        if (card?.available != null)
+          'Available ${fmtAmount(card!.available!)}',
       ].join(' · ')),
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.center,

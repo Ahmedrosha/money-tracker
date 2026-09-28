@@ -1,4 +1,47 @@
-enum AccountType { cash, bank, savings, creditCard, investment, other }
+/// Account types. Stored by name, so existing keys (cash, bank, savings,
+/// creditCard, investment, other) must never be renamed.
+enum AccountType {
+  cash,
+  ewallet,
+  bank,
+  savings,
+  certificate,
+  debitCard,
+  creditCard,
+  loan,
+  investment,
+  funds,
+  crypto,
+  gold,
+  property,
+  car,
+  otherAsset,
+  receivable,
+  other,
+}
+
+enum AccountFamily { cash, bank, credit, investments, assets, receivables, other }
+
+extension AccountFamilyX on AccountFamily {
+  String get label {
+    switch (this) {
+      case AccountFamily.cash:
+        return 'Cash & wallets';
+      case AccountFamily.bank:
+        return 'Bank';
+      case AccountFamily.credit:
+        return 'Credit & loans';
+      case AccountFamily.investments:
+        return 'Investments';
+      case AccountFamily.assets:
+        return 'Assets';
+      case AccountFamily.receivables:
+        return 'Receivables';
+      case AccountFamily.other:
+        return 'Other';
+    }
+  }
+}
 
 extension AccountTypeX on AccountType {
   String get key => name;
@@ -7,18 +50,80 @@ extension AccountTypeX on AccountType {
     switch (this) {
       case AccountType.cash:
         return 'Cash';
+      case AccountType.ewallet:
+        return 'E-wallet';
       case AccountType.bank:
-        return 'Bank account';
+        return 'Current account';
       case AccountType.savings:
-        return 'Savings';
+        return 'Savings account';
+      case AccountType.certificate:
+        return 'Certificate / Deposit';
+      case AccountType.debitCard:
+        return 'Debit / Prepaid card';
       case AccountType.creditCard:
         return 'Credit card';
+      case AccountType.loan:
+        return 'Loan';
       case AccountType.investment:
-        return 'Investment';
+        return 'Stocks / Brokerage';
+      case AccountType.funds:
+        return 'Funds';
+      case AccountType.crypto:
+        return 'Crypto';
+      case AccountType.gold:
+        return 'Gold';
+      case AccountType.property:
+        return 'Property';
+      case AccountType.car:
+        return 'Car';
+      case AccountType.otherAsset:
+        return 'Other asset';
+      case AccountType.receivable:
+        return 'Money lent';
       case AccountType.other:
         return 'Other';
     }
   }
+
+  AccountFamily get family {
+    switch (this) {
+      case AccountType.cash:
+      case AccountType.ewallet:
+        return AccountFamily.cash;
+      case AccountType.bank:
+      case AccountType.savings:
+      case AccountType.certificate:
+      case AccountType.debitCard:
+        return AccountFamily.bank;
+      case AccountType.creditCard:
+      case AccountType.loan:
+        return AccountFamily.credit;
+      case AccountType.investment:
+      case AccountType.funds:
+      case AccountType.crypto:
+      case AccountType.gold:
+        return AccountFamily.investments;
+      case AccountType.property:
+      case AccountType.car:
+      case AccountType.otherAsset:
+        return AccountFamily.assets;
+      case AccountType.receivable:
+        return AccountFamily.receivables;
+      case AccountType.other:
+        return AccountFamily.other;
+    }
+  }
+
+  /// Types where the balance is normally money you owe.
+  bool get isLiability =>
+      this == AccountType.creditCard || this == AccountType.loan;
+
+  /// Types that usually have no bank.
+  bool get hasBank =>
+      this != AccountType.cash &&
+      this != AccountType.property &&
+      this != AccountType.car &&
+      this != AccountType.receivable;
 
   static AccountType fromKey(String? key) {
     for (final t in AccountType.values) {
@@ -40,6 +145,18 @@ class Account {
   final bool archived;
   final int sortOrder;
 
+  // Credit card settings (null for other types).
+  final double? creditLimit;
+
+  /// Day of month the statement cycle closes (1-31, clamped to month end).
+  final int? statementDay;
+
+  /// Day of month the payment is due, after the closing date.
+  final int? dueDay;
+
+  /// Minimum payment as % of the statement.
+  final double? minPayPct;
+
   /// Computed current balance in the account's own currency (not stored).
   /// Only includes transactions dated up to now.
   final double balance;
@@ -53,11 +170,20 @@ class Account {
     this.openingBalance = 0,
     this.archived = false,
     this.sortOrder = 0,
+    this.creditLimit,
+    this.statementDay,
+    this.dueDay,
+    this.minPayPct,
     this.balance = 0,
   });
 
   /// "CIB · Visa Gold" or just the name when there is no bank.
   String get fullName => bank.isEmpty ? name : '$bank · $name';
+
+  bool get isCard => type == AccountType.creditCard;
+
+  /// Card with a statement cycle configured.
+  bool get hasCycle => isCard && statementDay != null && dueDay != null;
 
   Map<String, Object?> toMap() => {
         if (id != null) 'id': id,
@@ -68,6 +194,10 @@ class Account {
         'opening_balance': openingBalance,
         'archived': archived ? 1 : 0,
         'sort_order': sortOrder,
+        'credit_limit': creditLimit,
+        'statement_day': statementDay,
+        'due_day': dueDay,
+        'min_pay_pct': minPayPct,
       };
 
   factory Account.fromMap(Map<String, Object?> m) => Account(
@@ -79,8 +209,103 @@ class Account {
         openingBalance: _toDouble(m['opening_balance']),
         archived: (m['archived'] as int? ?? 0) == 1,
         sortOrder: m['sort_order'] as int? ?? 0,
+        creditLimit:
+            m['credit_limit'] == null ? null : _toDouble(m['credit_limit']),
+        statementDay: m['statement_day'] as int?,
+        dueDay: m['due_day'] as int?,
+        minPayPct:
+            m['min_pay_pct'] == null ? null : _toDouble(m['min_pay_pct']),
         balance: _toDouble(m['balance']),
       );
+}
+
+/// One statement cycle of a credit card.
+class CardStatement {
+  /// Closing moment (end of the closing day).
+  final DateTime closeDate;
+  final DateTime dueDate;
+
+  /// Amount owed at closing (positive = owed).
+  final double amount;
+
+  /// Payments / credits received after closing (up to now).
+  final double paid;
+  final double minPct;
+
+  const CardStatement({
+    required this.closeDate,
+    required this.dueDate,
+    required this.amount,
+    required this.paid,
+    required this.minPct,
+  });
+
+  double get remaining => (amount - paid) > 0.004 ? amount - paid : 0;
+
+  double get minimumDue {
+    if (amount <= 0) return 0;
+    final m = amount * minPct / 100 - paid;
+    if (m <= 0) return 0;
+    return m > remaining ? remaining : (m * 100).ceilToDouble() / 100;
+  }
+
+  bool get settled => remaining <= 0;
+  bool get overdue => !settled && DateTime.now().isAfter(dueDate);
+}
+
+/// Everything the app shows about a credit card right now.
+class CardSummary {
+  final Account card;
+
+  /// Most recent closed statement (null if the card has no cycle yet).
+  final CardStatement? last;
+  final DateTime? nextClose;
+
+  /// Owed right now (positive).
+  final double owedNow;
+
+  /// Future installments still to be billed on this card.
+  final double futureInstallments;
+
+  /// Spent in the current (open) cycle so far.
+  final double cycleSpent;
+
+  const CardSummary({
+    required this.card,
+    this.last,
+    this.nextClose,
+    required this.owedNow,
+    required this.futureInstallments,
+    required this.cycleSpent,
+  });
+
+  double? get available => card.creditLimit == null
+      ? null
+      : card.creditLimit! - owedNow - futureInstallments;
+
+  double get used => owedNow + futureInstallments;
+}
+
+/// End of the closing day for the cycle that closes in [year]/[month].
+DateTime cycleCloseIn(int year, int month, int day) {
+  final d = dateInMonth(year, month, day);
+  return DateTime(d.year, d.month, d.day, 23, 59, 59, 999);
+}
+
+/// Most recent closing moment at or before [now].
+DateTime lastCloseBefore(DateTime now, int day) {
+  var c = cycleCloseIn(now.year, now.month, day);
+  if (c.isAfter(now)) c = cycleCloseIn(now.year, now.month - 1, day);
+  return c;
+}
+
+/// First date with day-of-month [dueDay] strictly after [close].
+DateTime dueDateAfter(DateTime close, int dueDay) {
+  var d = dateInMonth(close.year, close.month, dueDay);
+  if (!d.isAfter(DateTime(close.year, close.month, close.day))) {
+    d = dateInMonth(close.year, close.month + 1, dueDay);
+  }
+  return d;
 }
 
 enum TxType { expense, income, transfer }

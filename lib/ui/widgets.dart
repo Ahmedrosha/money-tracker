@@ -406,14 +406,36 @@ IconData accountTypeIcon(AccountType t) {
   switch (t) {
     case AccountType.cash:
       return Icons.payments;
+    case AccountType.ewallet:
+      return Icons.phone_iphone;
     case AccountType.bank:
       return Icons.account_balance;
     case AccountType.savings:
       return Icons.savings;
+    case AccountType.certificate:
+      return Icons.workspace_premium;
+    case AccountType.debitCard:
+      return Icons.credit_card_outlined;
     case AccountType.creditCard:
       return Icons.credit_card;
+    case AccountType.loan:
+      return Icons.request_quote;
     case AccountType.investment:
       return Icons.show_chart;
+    case AccountType.funds:
+      return Icons.pie_chart_outline;
+    case AccountType.crypto:
+      return Icons.currency_bitcoin;
+    case AccountType.gold:
+      return Icons.diamond_outlined;
+    case AccountType.property:
+      return Icons.home_work_outlined;
+    case AccountType.car:
+      return Icons.directions_car;
+    case AccountType.otherAsset:
+      return Icons.inventory_2_outlined;
+    case AccountType.receivable:
+      return Icons.handshake_outlined;
     case AccountType.other:
       return Icons.wallet;
   }
@@ -492,8 +514,10 @@ class AccountField extends StatelessWidget {
   }
 }
 
+/// Returns the chosen account id, or -1 for "All accounts" when
+/// [allowAll] is set.
 Future<int?> pickAccount(BuildContext context,
-    {int? current, int? keepId, String title = 'Account'}) {
+    {int? current, int? keepId, String title = 'Account', bool allowAll = false}) {
   final state = AppScope.read(context);
   final list =
       state.accounts.where((a) => !a.archived || a.id == keepId).toList();
@@ -510,6 +534,13 @@ Future<int?> pickAccount(BuildContext context,
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: Text(title, style: Theme.of(ctx).textTheme.titleMedium),
           ),
+          if (allowAll)
+            ListTile(
+              leading: const Icon(Icons.select_all),
+              title: const Text('All accounts'),
+              selected: current == null,
+              onTap: () => Navigator.pop(ctx, -1),
+            ),
           for (final g in groups) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),

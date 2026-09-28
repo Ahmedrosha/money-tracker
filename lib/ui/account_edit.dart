@@ -59,6 +59,10 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
   late String _currency;
   late bool _archived;
   bool _saving = false;
+  late final TextEditingController _limit;
+  late final TextEditingController _statementDay;
+  late final TextEditingController _dueDay;
+  late final TextEditingController _minPct;
 
   bool get _isNew => widget.account == null;
 
@@ -67,9 +71,22 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
     super.initState();
     final a = widget.account;
     _name = TextEditingController(text: a?.name ?? '');
-    _opening = TextEditingController(
-        text: a == null ? '' : fmtAmount(a.openingBalance).replaceAll(',', ''));
     _type = a?.type ?? AccountType.bank;
+    // Liabilities are entered as a positive "amount owed".
+    final opening = a == null
+        ? null
+        : (_type.isLiability ? -a.openingBalance : a.openingBalance);
+    _opening = TextEditingController(
+        text: opening == null ? '' : fmtAmount(opening).replaceAll(',', ''));
+    _limit = TextEditingController(
+        text: a?.creditLimit == null
+            ? ''
+            : fmtAmount(a!.creditLimit!).replaceAll(',', ''));
+    _statementDay =
+        TextEditingController(text: a?.statementDay?.toString() ?? '');
+    _dueDay = TextEditingController(text: a?.dueDay?.toString() ?? '');
+    _minPct = TextEditingController(
+        text: a?.minPayPct == null ? '5' : _trimNum(a!.minPayPct!));
     _bank = a?.bank ?? '';
     _archived = a?.archived ?? false;
     _currency = a?.currency ?? 'EGP';
@@ -90,22 +107,43 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
   void dispose() {
     _name.dispose();
     _opening.dispose();
+    _limit.dispose();
+    _statementDay.dispose();
+    _dueDay.dispose();
+    _minPct.dispose();
     super.dispose();
+  }
+
+  static String _trimNum(double v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
+
+  static String? _dayValidator(String? v, {bool required = false}) {
+    final t = (v ?? '').trim();
+    if (t.isEmpty) return required ? 'Required' : null;
+    final n = int.tryParse(t);
+    if (n == null || n < 1 || n > 31) return '1–31';
+    return null;
   }
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     final state = AppScope.read(context);
+    final opening = parseAmount(_opening.text) ?? 0;
+    final card = _type == AccountType.creditCard;
     final a = Account(
       id: widget.account?.id,
       name: _name.text.trim(),
-      bank: _type == AccountType.cash ? '' : _bank.trim(),
+      bank: _type.hasBank ? _bank.trim() : '',
       type: _type,
       currency: _currency,
-      openingBalance: parseAmount(_opening.text) ?? 0,
+      openingBalance: _type.isLiability ? -opening.abs() : opening,
       archived: _archived,
       sortOrder: widget.account?.sortOrder ?? 0,
+      creditLimit: card ? parseAmount(_limit.text)?.abs() : null,
+      statementDay: card ? int.tryParse(_statementDay.text.trim()) : null,
+      dueDay: card ? int.tryParse(_dueDay.text.trim()) : null,
+      minPayPct: card ? parseAmount(_minPct.text)?.abs() : null,
     );
     await state.saveAccount(a);
     if (!mounted) return;
@@ -162,16 +200,23 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
                   (v == null || v.trim().isEmpty) ? 'Enter a name' : null,
             ),
             const SizedBox(height: 16),
-            LabeledDropdown<AccountType>(
-              label: 'Account type',
-              value: _type,
-              items: [
-                for (final t in AccountType.values)
-                  DropdownMenuItem(value: t, child: Text(t.label)),
-              ],
-              onChanged: (v) => setState(() => _type = v ?? _type),
+            InkWell(
+              borderRadius: BorderRadius.circular(4),
+              onTap: () async {
+                final t = await _pickType(context, _type);
+                if (t != null) setState(() => _type = t);
+              },
+              child: InputDecorator(
+                decoration: InputDecoration(
+                  labelText: 'Account type',
+                  border: const OutlineInputBorder(),
+                  prefixIcon: Icon(accountTypeIcon(_type)),
+                  suffixIcon: const Icon(Icons.arrow_drop_down),
+                ),
+                child: Text('${_type.label}  ·  ${_type.family.label}'),
+              ),
             ),
-            if (_type != AccountType.cash) ...[
+            if (_type.hasBank) ...[
               const SizedBox(height: 16),
               _BankField(
                 initial: _bank,
@@ -201,9 +246,11 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
               keyboardType: const TextInputType.numberWithOptions(
                   decimal: true, signed: true),
               decoration: InputDecoration(
-                labelText: 'Opening balance',
-                helperText: _type == AccountType.creditCard
-                    ? 'Use a negative number for money you owe'
+                labelText: _type.isLiability
+                    ? 'Amount owed at start'
+                    : 'Opening balance',
+                helperText: _type.isLiability
+                    ? 'What you owed before your first recorded transaction'
                     : 'Balance before your first recorded transaction',
                 suffixText: _currency,
                 border: const OutlineInputBorder(),
@@ -213,6 +260,76 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
                 return parseAmount(v) == null ? 'Invalid number' : null;
               },
             ),
+            if (_type == AccountType.creditCard) ...[
+              const SizedBox(height: 24),
+              Text('Credit card',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.primary)),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _limit,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  labelText: 'Credit limit',
+                  suffixText: _currency,
+                  border: const OutlineInputBorder(),
+                ),
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return null;
+                  return parseAmount(v) == null ? 'Invalid number' : null;
+                },
+              ),
+              const SizedBox(height: 16),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _statementDay,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Statement closing day',
+                        helperText: 'Cycle end, e.g. 25',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (v) => _dayValidator(v,
+                          required: _dueDay.text.trim().isNotEmpty),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _dueDay,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Payment due day',
+                        helperText: 'Of the next month, e.g. 15',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (v) => _dayValidator(v,
+                          required: _statementDay.text.trim().isNotEmpty),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _minPct,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Minimum payment',
+                  suffixText: '% of statement',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return null;
+                  final n = parseAmount(v);
+                  return n == null || n < 0 || n > 100 ? '0–100' : null;
+                },
+              ),
+            ],
             if (!_isNew) ...[
               const SizedBox(height: 8),
               SwitchListTile(
@@ -236,4 +353,36 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
       ),
     );
   }
+}
+
+/// Type picker grouped by family.
+Future<AccountType?> _pickType(BuildContext context, AccountType current) {
+  return showModalBottomSheet<AccountType>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (ctx) => SizedBox(
+      height: MediaQuery.of(ctx).size.height * 0.75,
+      child: ListView(
+        children: [
+          for (final f in AccountFamily.values) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Text(f.label,
+                  style: Theme.of(ctx).textTheme.labelLarge?.copyWith(
+                      color: Theme.of(ctx).colorScheme.primary,
+                      fontWeight: FontWeight.bold)),
+            ),
+            for (final t in AccountType.values.where((t) => t.family == f))
+              ListTile(
+                leading: Icon(accountTypeIcon(t)),
+                title: Text(t.label),
+                selected: t == current,
+                onTap: () => Navigator.pop(ctx, t),
+              ),
+          ],
+        ],
+      ),
+    ),
+  );
 }

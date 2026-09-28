@@ -28,6 +28,9 @@ class AppState extends ChangeNotifier {
   /// transactions and pending recurring items.
   double projectedEom = 0;
 
+  /// Credit card summaries keyed by account id.
+  Map<int, CardSummary> cards = {};
+
   /// Bumped on every data change so screens that query the DB reload.
   int version = 0;
 
@@ -49,8 +52,77 @@ class AppState extends ChangeNotifier {
     plans = await db.allPlans();
     bankNames = await db.bankNames();
     await _computeProjection();
+    await _computeCards();
     version++;
     notifyListeners();
+  }
+
+  // ---------------- Credit cards ----------------
+
+  Future<void> _computeCards() async {
+    final now = DateTime.now();
+    final out = <int, CardSummary>{};
+    for (final a in accounts) {
+      if (!a.isCard) continue;
+      final owed = -a.balance;
+      final future = await db.futureInstallments(a.id!, now);
+      CardStatement? last;
+      DateTime? nextClose;
+      var cycleSpent = 0.0;
+      if (a.hasCycle) {
+        final close = lastCloseBefore(now, a.statementDay!);
+        nextClose = cycleCloseIn(close.year, close.month + 1, a.statementDay!);
+        last = await _statement(a, close, now);
+        cycleSpent = await db.debitsBetween(a.id!, close, now);
+      }
+      out[a.id!] = CardSummary(
+        card: a,
+        last: last,
+        nextClose: nextClose,
+        owedNow: owed > 0 ? owed : 0,
+        futureInstallments: future,
+        cycleSpent: cycleSpent,
+      );
+    }
+    cards = out;
+  }
+
+  Future<CardStatement> _statement(
+      Account a, DateTime close, DateTime paidUntil) async {
+    final bal = await db.balanceAsOf(a.id!, close);
+    final paid = await db.creditsBetween(a.id!, close, paidUntil);
+    return CardStatement(
+      closeDate: close,
+      dueDate: dueDateAfter(close, a.dueDay!),
+      amount: bal < 0 ? -bal : 0,
+      paid: paid,
+      minPct: a.minPayPct ?? 5,
+    );
+  }
+
+  /// Past statements of a card, newest first. Payments for each are those
+  /// made before the following statement closed.
+  Future<List<CardStatement>> statementHistory(Account a,
+      {int count = 12}) async {
+    if (!a.hasCycle) return const [];
+    final now = DateTime.now();
+    final last = lastCloseBefore(now, a.statementDay!);
+    final out = <CardStatement>[];
+    for (var i = 0; i < count; i++) {
+      final close = cycleCloseIn(last.year, last.month - i, a.statementDay!);
+      final next = cycleCloseIn(close.year, close.month + 1, a.statementDay!);
+      out.add(await _statement(a, close, next.isAfter(now) ? now : next));
+    }
+    return out;
+  }
+
+  /// Cards whose last statement still has something to pay, soonest first.
+  List<CardSummary> get cardsDue {
+    final list = cards.values
+        .where((c) => !c.card.archived && c.last != null && !c.last!.settled)
+        .toList()
+      ..sort((a, b) => a.last!.dueDate.compareTo(b.last!.dueDate));
+    return list;
   }
 
   Future<void> _computeProjection() async {

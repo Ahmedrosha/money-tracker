@@ -54,7 +54,10 @@ jobs:
 
       - name: Build release APK
         working-directory: build_app
-        run: flutter build apk --release --build-name=$APP_VERSION --build-number=${{ github.run_number }}
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter build apk --release --build-name=$APP_VERSION --build-number=${{ github.run_number }} 2>&1 | tee ../build.log
 
       - name: Rename APK
         run: |
@@ -74,3 +77,13 @@ jobs:
           body: ${{ github.event.head_commit.message }}
           files: out/*.apk
           make_latest: true
+
+      - name: Publish build log on failure
+        if: failure()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ci-log
+          name: CI log (latest failure)
+          prerelease: true
+          files: build.log
+

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../data/models.dart';
 import '../state/app_state.dart';
@@ -142,6 +143,9 @@ class TxnTile extends StatelessWidget {
         }
         break;
     }
+    if (txn.postedLater) {
+      subtitle = '$subtitle · Posted ${DateFormat('d MMM').format(txn.postDate!)}';
+    }
     if (txn.note.isNotEmpty) subtitle = '$subtitle · ${txn.note}';
 
     final isNeutralTransfer =
@@ -168,7 +172,9 @@ class TxnTile extends StatelessWidget {
             ),
           if (future)
             TagChip('Upcoming',
-                color: Theme.of(context).colorScheme.tertiary),
+                color: Theme.of(context).colorScheme.tertiary)
+          else if (txn.isPending)
+            TagChip('Pending', color: Theme.of(context).colorScheme.secondary),
         ],
       ),
       subtitle: Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis),

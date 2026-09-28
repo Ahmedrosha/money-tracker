@@ -62,6 +62,9 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
   int? _categoryId;
   late DateTime _date;
 
+  /// Card expenses: posting date set by hand. Null = follows [_date].
+  DateTime? _postDate;
+
   // Installments
   bool _installments = false;
   int _months = 12;
@@ -143,6 +146,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     _toAccountId = t.toAccountId;
     _categoryId = t.categoryId;
     _date = t.date;
+    if (t.postedLater) _postDate = t.postDate;
   }
 
   void _fillFromRule(RecurringRule r) {
@@ -248,10 +252,46 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       final moved = d.year != _date.year || d.month != _date.month;
       _date = DateTime(d.year, d.month, d.day, tm?.hour ?? _date.hour,
           tm?.minute ?? _date.minute);
+      // A manual post date can't be before the transaction; if the date
+      // moves past it (or onto it), the post date follows automatically.
+      if (_postDate != null &&
+          !DateTime(_postDate!.year, _postDate!.month, _postDate!.day)
+              .isAfter(DateTime(_date.year, _date.month, _date.day))) {
+        _postDate = null;
+      }
       // Keep the default "first installment next month" in sync.
       if (moved && _mode == _Mode.newTxn) {
         _startMonth = DateTime(_date.year, _date.month + 1);
       }
+    });
+  }
+
+  bool _showPostDate(AppState state) =>
+      _type == TxType.expense &&
+      !_installments &&
+      !_repeat &&
+      _mode != _Mode.editPlan &&
+      _mode != _Mode.editRule &&
+      (state.accountById(_accountId)?.isCard ?? false);
+
+  static bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  Future<void> _pickPostDate() async {
+    final current = _postDate ?? _date;
+    final d = await showDatePicker(
+      context: context,
+      initialDate: current,
+      firstDate: DateTime(_date.year, _date.month, _date.day),
+      lastDate: DateTime(2100),
+      helpText: 'Date the bank posted it',
+    );
+    if (d == null) return;
+    setState(() {
+      // Same day as the transaction = back to automatic.
+      _postDate = _sameDay(d, _date)
+          ? null
+          : DateTime(d.year, d.month, d.day, _date.hour, _date.minute);
     });
   }
 
@@ -303,6 +343,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       planId: widget.txn?.planId,
       planIndex: widget.txn?.planIndex,
       recurringId: widget.txn?.recurringId ?? widget.occurrence?.rule.id,
+      postDate: _showPostDate(state) ? (_postDate ?? _date) : null,
     );
 
     if (_installments && _type == TxType.expense) {
@@ -639,6 +680,35 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                     '${dayFmt.format(_date)}  ${TimeOfDay.fromDateTime(_date).format(context)}'),
               ),
             ),
+            if (_showPostDate(state)) ...[
+              const SizedBox(height: 16),
+              InkWell(
+                borderRadius: BorderRadius.circular(4),
+                onTap: _pickPostDate,
+                child: InputDecorator(
+                  decoration: InputDecoration(
+                    labelText: 'Post date',
+                    helperText: _postDate == null
+                        ? 'Same as transaction date — change it if the bank posted it later'
+                        : 'Decides which statement it falls in',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: _postDate == null
+                        ? const Icon(Icons.event_available)
+                        : IconButton(
+                            tooltip: 'Same as transaction date',
+                            icon: const Icon(Icons.restart_alt),
+                            onPressed: () => setState(() => _postDate = null),
+                          ),
+                  ),
+                  child: Text(dayFmt.format(_postDate ?? _date),
+                      style: _postDate == null
+                          ? TextStyle(
+                              color:
+                                  Theme.of(context).colorScheme.onSurfaceVariant)
+                          : null),
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             TextFormField(
               controller: _note,

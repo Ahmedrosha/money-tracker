@@ -77,7 +77,9 @@ class AppState extends ChangeNotifier {
         final close = lastCloseBefore(now, a.statementDay!);
         nextClose = cycleCloseIn(close.year, close.month + 1, a.statementDay!);
         last = await _statement(a, close, now);
-        cycleSpent = await db.debitsBetween(a.id!, close, now);
+        // Everything posting in the open cycle, incl. pending and
+        // installments already scheduled for it.
+        cycleSpent = await db.debitsBetween(a.id!, close, nextClose);
       }
       out[a.id!] = CardSummary(
         card: a,

@@ -400,6 +400,10 @@ class Txn {
   /// Recurring rule that produced this entry.
   final int? recurringId;
 
+  /// Credit card expenses: the day the bank posted it. Decides which
+  /// statement it belongs to. Null = same as [date].
+  final DateTime? postDate;
+
   const Txn({
     this.id,
     required this.type,
@@ -414,9 +418,22 @@ class Txn {
     this.planId,
     this.planIndex,
     this.recurringId,
+    this.postDate,
   });
 
   bool get isFuture => date.isAfter(DateTime.now());
+
+  DateTime get effectivePostDate => postDate ?? date;
+
+  /// Posted on a different day than it was made.
+  bool get postedLater =>
+      postDate != null &&
+      (postDate!.year != date.year ||
+          postDate!.month != date.month ||
+          postDate!.day != date.day);
+
+  /// Not posted by the bank yet.
+  bool get isPending => postDate != null && postDate!.isAfter(DateTime.now());
 
   Map<String, Object?> toMap() => {
         if (id != null) 'id': id,
@@ -432,6 +449,7 @@ class Txn {
         'plan_id': planId,
         'plan_index': planIndex,
         'recurring_id': recurringId,
+        'post_date': postDate?.millisecondsSinceEpoch,
       };
 
   factory Txn.fromMap(Map<String, Object?> m) => Txn(
@@ -448,6 +466,9 @@ class Txn {
         planId: m['plan_id'] as int?,
         planIndex: m['plan_index'] as int?,
         recurringId: m['recurring_id'] as int?,
+        postDate: m['post_date'] == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(m['post_date'] as int),
       );
 }
 

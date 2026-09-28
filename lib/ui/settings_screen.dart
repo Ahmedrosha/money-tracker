@@ -99,7 +99,7 @@ class SettingsScreen extends StatelessWidget {
             leading: Icon(Icons.info_outline),
             title: Text('Money Tracker'),
             subtitle: Text(
-                'Version 0.4 — backup, restore, category groups'),
+                'Version 0.5 — card post dates'),
           ),
         ],
       ),

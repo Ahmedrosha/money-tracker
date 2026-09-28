@@ -26,7 +26,7 @@ class AppDb {
 
   final Database db;
 
-  static const int schemaVersion = 4;
+  static const int schemaVersion = 5;
 
   static Future<String> dbPath() async =>
       p.join(await getDatabasesPath(), 'money_tracker.db');
@@ -97,12 +97,14 @@ class AppDb {
         await _migrateToV2(db);
         await _migrateToV3(db);
         await _migrateToV4(db);
+        await _migrateToV5(db);
         await _seed(db);
       },
       onUpgrade: (db, oldV, newV) async {
         if (oldV < 2) await _migrateToV2(db);
         if (oldV < 3) await _migrateToV3(db);
         if (oldV < 4) await _migrateToV4(db);
+        if (oldV < 5) await _migrateToV5(db);
       },
     );
     return AppDb._(db);
@@ -214,6 +216,16 @@ class AppDb {
         'ALTER TABLE accounts ADD COLUMN exclude_total INTEGER NOT NULL DEFAULT 0');
   }
 
+  static Future<void> _migrateToV5(Database db) async {
+    await db.execute('ALTER TABLE transactions ADD COLUMN post_date INTEGER');
+    // Existing credit card expenses: posted on the day they were made.
+    await db.execute('''
+      UPDATE transactions SET post_date = date
+      WHERE type = 'expense'
+        AND account_id IN (SELECT id FROM accounts WHERE type = 'creditCard')
+    ''');
+  }
+
   static Future<void> _seed(Database db) async {
     const expense = [
       ['Food & Dining', 'food', 0xFFFB8C00],
@@ -308,7 +320,8 @@ class AppDb {
     });
   }
 
-  /// Balance of one account as of [asOf] (inclusive).
+  /// Balance of one account as of [asOf] (inclusive), counting card
+  /// expenses on their posting date (used for statements).
   Future<double> balanceAsOf(int accountId, DateTime asOf) async {
     final t = asOf.millisecondsSinceEpoch;
     final r = await db.rawQuery('''
@@ -316,7 +329,8 @@ class AppDb {
         + COALESCE((SELECT SUM(amount) FROM transactions
             WHERE account_id = a.id AND type = 'income' AND date <= ?), 0)
         - COALESCE((SELECT SUM(amount) FROM transactions
-            WHERE account_id = a.id AND type IN ('expense', 'transfer') AND date <= ?), 0)
+            WHERE account_id = a.id AND type IN ('expense', 'transfer')
+              AND COALESCE(post_date, date) <= ?), 0)
         + COALESCE((SELECT SUM(COALESCE(to_amount, amount)) FROM transactions
             WHERE to_account_id = a.id AND type = 'transfer' AND date <= ?), 0)
         AS balance
@@ -349,7 +363,8 @@ class AppDb {
   Future<double> debitsBetween(int accountId, DateTime from, DateTime to) async {
     final r = await db.rawQuery('''
       SELECT COALESCE(SUM(amount), 0) AS debits FROM transactions
-      WHERE account_id = ? AND type IN ('expense', 'transfer') AND date > ? AND date <= ?
+      WHERE account_id = ? AND type IN ('expense', 'transfer')
+        AND COALESCE(post_date, date) > ? AND COALESCE(post_date, date) <= ?
     ''', [accountId, from.millisecondsSinceEpoch, to.millisecondsSinceEpoch]);
     final v = r.first['debits'];
     return v is num ? v.toDouble() : 0;

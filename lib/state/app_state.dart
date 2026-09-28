@@ -49,6 +49,14 @@ class AppState extends ChangeNotifier {
   /// transactions and pending recurring items.
   double projectedEom = 0;
 
+  /// Card payment banners hidden until the app is closed (not saved).
+  final Set<int> dismissedCards = {};
+
+  void dismissCard(int id) {
+    dismissedCards.add(id);
+    notifyListeners();
+  }
+
   /// Credit card summaries keyed by account id.
   Map<int, CardSummary> cards = {};
 

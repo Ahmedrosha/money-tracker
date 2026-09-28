@@ -5,6 +5,7 @@ import '../state/app_state.dart';
 import '../util/format.dart';
 import 'account_detail.dart';
 import 'account_edit.dart';
+import 'account_search.dart';
 import 'backup_screen.dart';
 import 'due_screen.dart';
 import 'pay_card.dart';
@@ -40,6 +41,14 @@ class AccountsScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Accounts'),
         actions: [
+          IconButton(
+            tooltip: 'Find account',
+            icon: const Icon(Icons.search),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AccountSearchScreen()),
+            ),
+          ),
           PopupMenuButton<String>(
             tooltip: 'Group by',
             icon: const Icon(Icons.sort),
@@ -78,7 +87,8 @@ class AccountsScreen extends StatelessWidget {
                 ),
               ),
             ),
-          for (final c in state.cardsDue)
+          for (final c in state.cardsDue
+              .where((c) => !state.dismissedCards.contains(c.card.id)))
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: Card(
@@ -92,9 +102,19 @@ class AccountsScreen extends StatelessWidget {
                   subtitle: Text(
                       '${c.last!.overdue ? 'Overdue since' : 'Due'} ${shortDateFmt.format(c.last!.dueDate)}'
                       ' · minimum ${fmtAmount(c.last!.minimumDue)}'),
-                  trailing: FilledButton.tonal(
-                    onPressed: () => showPayCard(context, c),
-                    child: const Text('Pay'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      FilledButton.tonal(
+                        onPressed: () => showPayCard(context, c),
+                        child: const Text('Pay'),
+                      ),
+                      IconButton(
+                        tooltip: 'Hide until the app is reopened',
+                        icon: const Icon(Icons.close),
+                        onPressed: () => state.dismissCard(c.card.id!),
+                      ),
+                    ],
                   ),
                 ),
               ),

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/widgets.dart';
 
 import '../data/db.dart';
@@ -7,7 +9,7 @@ import '../services/rates.dart';
 class AppState extends ChangeNotifier {
   AppState(this.db);
 
-  final AppDb db;
+  AppDb db;
   final RateService _rateService = RateService();
 
   List<Account> accounts = [];
@@ -41,6 +43,8 @@ class AppState extends ChangeNotifier {
     accountsGroupBy = await db.getSetting('accounts_group_by') ?? 'type';
     weekStart = int.tryParse(await db.getSetting('week_start') ?? '') ??
         DateTime.saturday;
+    final lb = int.tryParse(await db.getSetting('last_backup') ?? '');
+    lastBackup = lb == null ? null : DateTime.fromMillisecondsSinceEpoch(lb);
     await _reloadAll();
   }
 
@@ -132,7 +136,7 @@ class AppState extends ChangeNotifier {
         asOf: eom.subtract(const Duration(milliseconds: 1)));
     var sum = 0.0;
     for (final a in atEom) {
-      if (a.archived) continue;
+      if (a.archived || a.excludeTotal) continue;
       sum += toBase(a.balance, a.currency);
     }
     for (final o in pendingOccurrences(DateTime(1970), eom)) {
@@ -156,6 +160,59 @@ class AppState extends ChangeNotifier {
         return toBase(r.toAmount ?? r.amount, to.currency) -
             toBase(r.amount, from.currency);
     }
+  }
+
+  // ---------------- Backup & restore ----------------
+
+  DateTime? lastBackup;
+
+  /// Creates a backup file in [dir] and returns its path.
+  Future<String> createBackup(String dir) async {
+    final now = DateTime.now();
+    String two(int n) => n.toString().padLeft(2, '0');
+    final name =
+        'money-tracker-${now.year}-${two(now.month)}-${two(now.day)}_${two(now.hour)}${two(now.minute)}.db';
+    final path = '$dir/$name';
+    await db.backupTo(path);
+    await markBackedUp();
+    return path;
+  }
+
+  Future<void> markBackedUp() async {
+    lastBackup = DateTime.now();
+    await db.setSetting('last_backup', '${lastBackup!.millisecondsSinceEpoch}');
+    notifyListeners();
+  }
+
+  bool get backupOverdue {
+    if (accounts.isEmpty) return false;
+    final l = lastBackup;
+    return l == null || DateTime.now().difference(l).inDays >= 7;
+  }
+
+  /// Replaces all data with the backup at [path]. The current data is first
+  /// saved to [safetyDir] so the restore can be undone.
+  Future<String> restoreFrom(String path, String safetyDir) async {
+    final info = await AppDb.inspect(path);
+    if (info.version > AppDb.schemaVersion) {
+      throw Exception(
+          'This backup is from a newer app version. Update the app first.');
+    }
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final safety = '$safetyDir/before-restore-$now.db';
+    await db.backupTo(safety);
+    await db.close();
+    final target = await AppDb.dbPath();
+    for (final suffix in ['-wal', '-shm', '-journal']) {
+      final f = File('$target$suffix');
+      if (await f.exists()) await f.delete();
+    }
+    await File(path).copy(target);
+    db = await AppDb.open();
+    await load();
+    // The restored data is backed up by definition.
+    await markBackedUp();
+    return safety;
   }
 
   // ---------------- Preferences ----------------
@@ -228,9 +285,13 @@ class AppState extends ChangeNotifier {
       ? true
       : rates.containsKey(code) && rates.containsKey(baseCurrency);
 
+  /// Accounts that count toward net worth.
+  List<Account> get countedAccounts =>
+      accounts.where((a) => !a.archived && !a.excludeTotal).toList();
+
   double get netWorth {
     var sum = 0.0;
-    for (final a in activeAccounts) {
+    for (final a in countedAccounts) {
       sum += toBase(a.balance, a.currency);
     }
     return sum;
@@ -336,6 +397,16 @@ class AppState extends ChangeNotifier {
     } else {
       await db.updateAccount(a);
     }
+    await _reloadAll();
+  }
+
+  /// Sets the opening balance so the balance today equals [target].
+  Future<void> setCurrentBalance(Account a, double target) async {
+    final diff = target - a.balance;
+    await db.updateAccount(Account.fromMap({
+      ...a.toMap(),
+      'opening_balance': a.openingBalance + diff,
+    }));
     await _reloadAll();
   }
 

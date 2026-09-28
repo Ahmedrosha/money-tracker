@@ -44,14 +44,23 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
             icon: Icon(_calendar ? Icons.view_list : Icons.calendar_month),
             onPressed: () => setState(() => _calendar = !_calendar),
           ),
-          IconButton(
-            tooltip: 'Edit account',
-            icon: const Icon(Icons.edit_outlined),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => AccountEditScreen(account: account)),
-            ),
+          PopupMenuButton<String>(
+            onSelected: (v) {
+              if (v == 'edit') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => AccountEditScreen(account: account)),
+                );
+              } else if (v == 'balance') {
+                _setBalance(context, state, account);
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'edit', child: Text('Edit account')),
+              PopupMenuItem(
+                  value: 'balance', child: Text('Set current balance')),
+            ],
           ),
         ],
       ),
@@ -139,6 +148,52 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
         },
       ),
     );
+  }
+
+  Future<void> _setBalance(
+      BuildContext context, AppState state, Account a) async {
+    final liability = a.type.isLiability;
+    final shown = liability ? -a.balance : a.balance;
+    final ctrl = TextEditingController(text: shown.toStringAsFixed(2));
+    final res = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(liability ? 'Amount owed today' : 'Balance today'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+                'Enter the real figure from your bank or wallet. The starting '
+                'balance is adjusted so today\'s balance matches; no '
+                'transaction is added.'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true, signed: true),
+              decoration: InputDecoration(
+                suffixText: a.currency,
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, ctrl.text),
+              child: const Text('Set')),
+        ],
+      ),
+    );
+    if (res == null) return;
+    final v = parseAmount(res);
+    if (v == null) return;
+    await state.setCurrentBalance(a, liability ? -v : v);
   }
 
   static double _effect(Txn t, int accountId) {

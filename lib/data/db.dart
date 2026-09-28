@@ -1,18 +1,91 @@
+import 'dart:io';
+
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
 import 'models.dart';
+
+class BackupInfo {
+  final int version;
+  final int accounts;
+  final int transactions;
+  final DateTime? first;
+  final DateTime? last;
+
+  const BackupInfo({
+    required this.version,
+    required this.accounts,
+    required this.transactions,
+    this.first,
+    this.last,
+  });
+}
 
 class AppDb {
   AppDb._(this.db);
 
   final Database db;
 
-  static const int schemaVersion = 3;
+  static const int schemaVersion = 4;
+
+  static Future<String> dbPath() async =>
+      p.join(await getDatabasesPath(), 'money_tracker.db');
+
+  Future<void> close() => db.close();
+
+  /// Writes a consistent copy of the database to [dest].
+  Future<void> backupTo(String dest) async {
+    final f = File(dest);
+    if (await f.exists()) await f.delete();
+    try {
+      // Produces a clean, self-contained copy (SQLite 3.27+).
+      await db.execute('VACUUM INTO ?', [dest]);
+    } catch (_) {
+      // Older SQLite: flush the journal and copy the file.
+      try {
+        await db.rawQuery('PRAGMA wal_checkpoint(TRUNCATE)');
+      } catch (_) {}
+      await File(await dbPath()).copy(dest);
+    }
+  }
+
+  /// Reads basic facts from a backup file without touching the live data.
+  /// Throws if the file is not a Money Tracker database.
+  static Future<BackupInfo> inspect(String path) async {
+    final d = await openDatabase(path, readOnly: true, singleInstance: false);
+    try {
+      final tables = (await d.rawQuery(
+              "SELECT name FROM sqlite_master WHERE type = 'table'"))
+          .map((r) => r['name'] as String)
+          .toSet();
+      if (!tables.containsAll(['accounts', 'transactions', 'categories'])) {
+        throw const FormatException('Not a Money Tracker backup');
+      }
+      final version =
+          (await d.rawQuery('PRAGMA user_version')).first.values.first as int;
+      final acc = (await d.rawQuery('SELECT COUNT(*) AS c FROM accounts'))
+          .first['c'] as int;
+      final tx = await d.rawQuery(
+          'SELECT COUNT(*) AS c, MIN(date) AS mn, MAX(date) AS mx FROM transactions');
+      final r = tx.first;
+      return BackupInfo(
+        version: version,
+        accounts: acc,
+        transactions: r['c'] as int,
+        first: r['mn'] == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(r['mn'] as int),
+        last: r['mx'] == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(r['mx'] as int),
+      );
+    } finally {
+      await d.close();
+    }
+  }
 
   static Future<AppDb> open() async {
-    final dir = await getDatabasesPath();
-    final path = p.join(dir, 'money_tracker.db');
+    final path = await dbPath();
     final db = await openDatabase(
       path,
       version: schemaVersion,
@@ -23,11 +96,13 @@ class AppDb {
         await _createV1(db);
         await _migrateToV2(db);
         await _migrateToV3(db);
+        await _migrateToV4(db);
         await _seed(db);
       },
       onUpgrade: (db, oldV, newV) async {
         if (oldV < 2) await _migrateToV2(db);
         if (oldV < 3) await _migrateToV3(db);
+        if (oldV < 4) await _migrateToV4(db);
       },
     );
     return AppDb._(db);
@@ -130,6 +205,13 @@ class AppDb {
     await db.execute('ALTER TABLE accounts ADD COLUMN statement_day INTEGER');
     await db.execute('ALTER TABLE accounts ADD COLUMN due_day INTEGER');
     await db.execute('ALTER TABLE accounts ADD COLUMN min_pay_pct REAL');
+  }
+
+  static Future<void> _migrateToV4(Database db) async {
+    await db.execute(
+        "ALTER TABLE categories ADD COLUMN grp TEXT NOT NULL DEFAULT ''");
+    await db.execute(
+        'ALTER TABLE accounts ADD COLUMN exclude_total INTEGER NOT NULL DEFAULT 0');
   }
 
   static Future<void> _seed(Database db) async {
@@ -299,7 +381,8 @@ class AppDb {
   // ---------------- Categories ----------------
 
   Future<List<Category>> categories() async {
-    final rows = await db.query('categories', orderBy: 'name COLLATE NOCASE');
+    final rows = await db.query('categories',
+        orderBy: 'grp COLLATE NOCASE, name COLLATE NOCASE');
     return rows.map(Category.fromMap).toList();
   }
 

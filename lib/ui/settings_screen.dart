@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../state/app_state.dart';
 import '../util/currencies.dart';
+import 'backup_screen.dart';
 import 'categories_screen.dart';
 import 'currencies_screen.dart';
 import 'recurring_screen.dart';
@@ -36,6 +37,17 @@ class SettingsScreen extends StatelessWidget {
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const CurrenciesScreen()),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.backup_outlined),
+            title: const Text('Backup & restore'),
+            subtitle: Text(state.lastBackup == null
+                ? 'No backup yet'
+                : 'Last backup ${state.lastBackup!.day}/${state.lastBackup!.month}/${state.lastBackup!.year}'),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const BackupScreen()),
             ),
           ),
           ListTile(
@@ -87,7 +99,7 @@ class SettingsScreen extends StatelessWidget {
             leading: Icon(Icons.info_outline),
             title: Text('Money Tracker'),
             subtitle: Text(
-                'Version 0.3 — credit cards, statements, account types'),
+                'Version 0.4 — backup, restore, category groups'),
           ),
         ],
       ),

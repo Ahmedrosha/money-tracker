@@ -270,7 +270,10 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     final state = AppScope.read(context);
-    final amount = parseAmount(_amount.text)!.abs();
+    // A negative expense is a refund; transfers are always positive.
+    final raw = parseAmount(_amount.text)!;
+    final amount =
+        (_type == TxType.transfer || _installments || _repeat) ? raw.abs() : raw;
     double? toAmount;
     if (_type == TxType.transfer && _currenciesDiffer(state)) {
       toAmount = parseAmount(_toAmount.text)?.abs();
@@ -475,7 +478,6 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     final account = state.accountById(_accountId);
     final toAccount = state.accountById(_toAccountId);
     final differ = _type == TxType.transfer && _currenciesDiffer(state);
-    final cats = state.categoriesOf(_type);
     final rate =
         differ ? state.rate(account!.currency, toAccount!.currency) : null;
     final typeLocked = _mode == _Mode.editPlan || _mode == _Mode.confirm;
@@ -527,11 +529,15 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
             TextFormField(
               controller: _amount,
               autofocus: _mode == _Mode.newTxn,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true, signed: true),
               style: Theme.of(context).textTheme.headlineSmall,
               decoration: InputDecoration(
                 labelText: _installments ? 'Total amount' : 'Amount',
+                helperText: _type == TxType.expense &&
+                        (parseAmount(_amount.text) ?? 0) < 0
+                    ? 'Negative = refund'
+                    : null,
                 suffixText: account?.currency,
                 border: const OutlineInputBorder(),
               ),
@@ -603,30 +609,9 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
             ],
             if (_type != TxType.transfer) ...[
               const SizedBox(height: 16),
-              LabeledDropdown<int>(
-                label: 'Category',
+              CategoryField(
+                kind: _type,
                 value: _categoryId,
-                hint: 'Select category',
-                items: [
-                  for (final c in cats)
-                    DropdownMenuItem(
-                      value: c.id,
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 28,
-                            height: 28,
-                            child:
-                                FittedBox(child: CategoryAvatar(category: c)),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                              child: Text(c.name,
-                                  overflow: TextOverflow.ellipsis)),
-                        ],
-                      ),
-                    ),
-                ],
                 onChanged: (v) => setState(() => _categoryId = v),
               ),
               const SizedBox(height: 16),

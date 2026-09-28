@@ -58,6 +58,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
   late AccountType _type;
   late String _currency;
   late bool _archived;
+  late bool _exclude;
   bool _saving = false;
   late final TextEditingController _limit;
   late final TextEditingController _statementDay;
@@ -89,6 +90,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
         text: a?.minPayPct == null ? '5' : _trimNum(a!.minPayPct!));
     _bank = a?.bank ?? '';
     _archived = a?.archived ?? false;
+    _exclude = a?.excludeTotal ?? false;
     _currency = a?.currency ?? 'EGP';
   }
 
@@ -139,6 +141,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
       currency: _currency,
       openingBalance: _type.isLiability ? -opening.abs() : opening,
       archived: _archived,
+      excludeTotal: _exclude,
       sortOrder: widget.account?.sortOrder ?? 0,
       creditLimit: card ? parseAmount(_limit.text)?.abs() : null,
       statementDay: card ? int.tryParse(_statementDay.text.trim()) : null,
@@ -330,8 +333,15 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
                 },
               ),
             ],
+            const SizedBox(height: 8),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Exclude from net worth'),
+              subtitle: const Text('Track it, but leave it out of totals'),
+              value: _exclude,
+              onChanged: (v) => setState(() => _exclude = v),
+            ),
             if (!_isNew) ...[
-              const SizedBox(height: 8),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Archived'),

@@ -145,6 +145,9 @@ class Account {
   final bool archived;
   final int sortOrder;
 
+  /// Not counted in net worth (e.g. tracking-only accounts).
+  final bool excludeTotal;
+
   // Credit card settings (null for other types).
   final double? creditLimit;
 
@@ -170,6 +173,7 @@ class Account {
     this.openingBalance = 0,
     this.archived = false,
     this.sortOrder = 0,
+    this.excludeTotal = false,
     this.creditLimit,
     this.statementDay,
     this.dueDay,
@@ -194,6 +198,7 @@ class Account {
         'opening_balance': openingBalance,
         'archived': archived ? 1 : 0,
         'sort_order': sortOrder,
+        'exclude_total': excludeTotal ? 1 : 0,
         'credit_limit': creditLimit,
         'statement_day': statementDay,
         'due_day': dueDay,
@@ -209,6 +214,7 @@ class Account {
         openingBalance: _toDouble(m['opening_balance']),
         archived: (m['archived'] as int? ?? 0) == 1,
         sortOrder: m['sort_order'] as int? ?? 0,
+        excludeTotal: (m['exclude_total'] as int? ?? 0) == 1,
         creditLimit:
             m['credit_limit'] == null ? null : _toDouble(m['credit_limit']),
         statementDay: m['statement_day'] as int?,
@@ -333,6 +339,9 @@ extension TxTypeX on TxType {
 class Category {
   final int? id;
   final String name;
+
+  /// Parent group, e.g. "Food & Dining". Empty = no group.
+  final String group;
   final TxType kind; // expense or income
   final String icon; // key into kCategoryIcons
   final int color; // ARGB
@@ -340,6 +349,7 @@ class Category {
   const Category({
     this.id,
     required this.name,
+    this.group = '',
     required this.kind,
     this.icon = 'other',
     this.color = 0xFF607D8B,
@@ -348,6 +358,7 @@ class Category {
   Map<String, Object?> toMap() => {
         if (id != null) 'id': id,
         'name': name,
+        'grp': group,
         'kind': kind.name,
         'icon': icon,
         'color': color,
@@ -356,6 +367,7 @@ class Category {
   factory Category.fromMap(Map<String, Object?> m) => Category(
         id: m['id'] as int?,
         name: (m['name'] as String?) ?? '',
+        group: (m['grp'] as String?) ?? '',
         kind: TxTypeX.fromKey(m['kind'] as String?),
         icon: (m['icon'] as String?) ?? 'other',
         color: m['color'] as int? ?? 0xFF607D8B,
@@ -367,7 +379,8 @@ class Txn {
   final TxType type;
   final DateTime date;
 
-  /// Amount in the source account's currency. Always positive.
+  /// Amount in the source account's currency. Positive normally; a
+  /// negative expense is a refund, a negative income a correction.
   final double amount;
   final int accountId;
 

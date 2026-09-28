@@ -5,6 +5,7 @@ import '../state/app_state.dart';
 import '../util/format.dart';
 import 'account_detail.dart';
 import 'account_edit.dart';
+import 'backup_screen.dart';
 import 'due_screen.dart';
 import 'pay_card.dart';
 import 'widgets.dart';
@@ -98,6 +99,24 @@ class AccountsScreen extends StatelessWidget {
                 ),
               ),
             ),
+          if (state.backupOverdue)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Card(
+                child: ListTile(
+                  leading: const Icon(Icons.backup_outlined),
+                  title: Text(state.lastBackup == null
+                      ? 'No backup yet'
+                      : 'Last backup ${state.lastBackup!.day}/${state.lastBackup!.month}'),
+                  subtitle: const Text('Your data is only on this phone'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const BackupScreen()),
+                  ),
+                ),
+              ),
+            ),
           if (missing.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -175,7 +194,7 @@ class _NetWorthCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     var assets = 0.0;
     var debts = 0.0;
-    for (final a in state.activeAccounts) {
+    for (final a in state.countedAccounts) {
       final v = state.toBase(a.balance, a.currency);
       if (v >= 0) {
         assets += v;
@@ -299,6 +318,7 @@ class _AccountTile extends StatelessWidget {
         account.currency,
         if (card?.available != null)
           'Available ${fmtAmount(card!.available!)}',
+        if (account.excludeTotal) 'not in net worth',
       ].join(' · ')),
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.center,

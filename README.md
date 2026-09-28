@@ -20,5 +20,5 @@ All builds use the same signing key (`ci/debug.keystore`), so new versions insta
 1b. ✅ Banks, installments, recurring items, calendar (v0.2)
 2. ✅ Credit cards: limit, statement cycle, due amounts, payments (v0.3)
 3. Assets: stocks & crypto holdings with prices
-4. Import from Home Budget (Excel)
+4. ✅ Backup & restore, category groups (v0.4); Home Budget history imported via converter
 5. Reports & charts

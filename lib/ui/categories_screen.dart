@@ -47,18 +47,26 @@ class _CategoryList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cats = AppScope.of(context).categoriesOf(kind);
-    return ListView.builder(
+    final groups = groupCategories(AppScope.of(context).categoriesOf(kind));
+    return ListView(
       padding: const EdgeInsets.only(bottom: 96),
-      itemCount: cats.length,
-      itemBuilder: (context, i) {
-        final c = cats[i];
-        return ListTile(
-          leading: CategoryAvatar(category: c),
-          title: Text(c.name),
-          onTap: () => editCategory(context, kind: kind, category: c),
-        );
-      },
+      children: [
+        for (final g in groups)
+          ExpansionTile(
+            initiallyExpanded: groups.length <= 3,
+            title: Text(g.key,
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text('${g.value.length} categories'),
+            children: [
+              for (final c in g.value)
+                ListTile(
+                  leading: CategoryAvatar(category: c),
+                  title: Text(c.name),
+                  onTap: () => editCategory(context, kind: kind, category: c),
+                ),
+            ],
+          ),
+      ],
     );
   }
 }
@@ -89,6 +97,7 @@ class _CategoryForm extends StatefulWidget {
 
 class _CategoryFormState extends State<_CategoryForm> {
   late final TextEditingController _name;
+  String _group = '';
   late String _icon;
   late int _color;
 
@@ -96,6 +105,7 @@ class _CategoryFormState extends State<_CategoryForm> {
   void initState() {
     super.initState();
     _name = TextEditingController(text: widget.category?.name ?? '');
+    _group = widget.category?.group ?? '';
     _icon = widget.category?.icon ?? 'other';
     _color = widget.category?.color ?? kCategoryColors[5];
   }
@@ -112,6 +122,7 @@ class _CategoryFormState extends State<_CategoryForm> {
     await AppScope.read(context).saveCategory(Category(
       id: widget.category?.id,
       name: name,
+      group: _group.trim(),
       kind: widget.kind,
       icon: _icon,
       color: _color,
@@ -154,6 +165,35 @@ class _CategoryFormState extends State<_CategoryForm> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 16),
+          Autocomplete<String>(
+            initialValue: TextEditingValue(text: _group),
+            optionsBuilder: (v) {
+              final all = AppScope.read(context)
+                  .categoriesOf(widget.kind)
+                  .map((c) => c.group)
+                  .where((g) => g.isNotEmpty)
+                  .toSet()
+                  .toList()
+                ..sort();
+              final q = v.text.trim().toLowerCase();
+              return q.isEmpty
+                  ? all
+                  : all.where((g) => g.toLowerCase().contains(q));
+            },
+            onSelected: (v) => _group = v,
+            fieldViewBuilder: (context, controller, focus, _) => TextField(
+              controller: controller,
+              focusNode: focus,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                labelText: 'Group',
+                hintText: 'e.g. Food & Dining',
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (v) => _group = v,
+            ),
           ),
           const SizedBox(height: 16),
           const Text('Color'),

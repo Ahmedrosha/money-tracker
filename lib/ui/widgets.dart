@@ -615,3 +615,158 @@ void showSnack(BuildContext context, String msg) {
     ..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(content: Text(msg)));
 }
+
+/// Categories of [kind] grouped by their group name ("" last as "Other").
+List<MapEntry<String, List<Category>>> groupCategories(List<Category> cats) {
+  final map = <String, List<Category>>{};
+  for (final c in cats) {
+    map.putIfAbsent(c.group.trim(), () => []).add(c);
+  }
+  final keys = map.keys.where((k) => k.isNotEmpty).toList()
+    ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+  return [
+    for (final k in keys) MapEntry(k, map[k]!),
+    if (map.containsKey('')) MapEntry(keys.isEmpty ? 'Categories' : 'Other', map['']!),
+  ];
+}
+
+/// Form field that opens a searchable, grouped category picker.
+class CategoryField extends StatelessWidget {
+  const CategoryField({
+    super.key,
+    required this.kind,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final TxType kind;
+  final int? value;
+  final ValueChanged<int?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final c = state.categoryById(value);
+    return InkWell(
+      borderRadius: BorderRadius.circular(4),
+      onTap: () async {
+        final id = await showModalBottomSheet<int>(
+          context: context,
+          isScrollControlled: true,
+          showDragHandle: true,
+          builder: (_) => _CategorySheet(kind: kind, current: value),
+        );
+        if (id != null) onChanged(id == -1 ? null : id);
+      },
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: 'Category',
+          border: const OutlineInputBorder(),
+          suffixIcon: const Icon(Icons.arrow_drop_down),
+          prefixIcon: c == null
+              ? null
+              : Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: FittedBox(child: CategoryAvatar(category: c))),
+                ),
+        ),
+        child: c == null
+            ? Text('Select category',
+                style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant))
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (c.group.isNotEmpty)
+                    Text(c.group,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.primary)),
+                  Text(c.name, overflow: TextOverflow.ellipsis),
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+class _CategorySheet extends StatefulWidget {
+  const _CategorySheet({required this.kind, this.current});
+
+  final TxType kind;
+  final int? current;
+
+  @override
+  State<_CategorySheet> createState() => _CategorySheetState();
+}
+
+class _CategorySheetState extends State<_CategorySheet> {
+  String _q = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final q = _q.trim().toLowerCase();
+    final cats = state.categoriesOf(widget.kind).where((c) =>
+        q.isEmpty ||
+        c.name.toLowerCase().contains(q) ||
+        c.group.toLowerCase().contains(q));
+    final groups = groupCategories(cats.toList());
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.8,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: TextField(
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                hintText: 'Search categories',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              onChanged: (v) => setState(() => _q = v),
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              children: [
+                ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.block),
+                  title: const Text('No category'),
+                  onTap: () => Navigator.pop(context, -1),
+                ),
+                for (final g in groups) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                    child: Text(
+                      g.key,
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  for (final c in g.value)
+                    ListTile(
+                      dense: true,
+                      leading: SizedBox(
+                          width: 32,
+                          height: 32,
+                          child: FittedBox(child: CategoryAvatar(category: c))),
+                      title: Text(c.name),
+                      selected: c.id == widget.current,
+                      onTap: () => Navigator.pop(context, c.id),
+                    ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

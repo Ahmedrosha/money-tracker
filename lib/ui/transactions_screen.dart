@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/models.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
+import 'search_screen.dart';
 import 'transaction_edit.dart';
 import 'widgets.dart';
 
@@ -58,6 +59,16 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Transactions'),
+        actions: [
+          IconButton(
+            tooltip: 'Search all transactions',
+            icon: const Icon(Icons.search),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SearchScreen()),
+            ),
+          ),
+        ],
       ),
       body: FutureBuilder<List<Txn>>(
         future: _future,

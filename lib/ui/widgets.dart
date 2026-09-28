@@ -523,10 +523,15 @@ class AccountField extends StatelessWidget {
 /// Returns the chosen account id, or -1 for "All accounts" when
 /// [allowAll] is set.
 Future<int?> pickAccount(BuildContext context,
-    {int? current, int? keepId, String title = 'Account', bool allowAll = false}) {
+    {int? current,
+    int? keepId,
+    String title = 'Account',
+    bool allowAll = false,
+    bool includeArchived = false}) {
   final state = AppScope.read(context);
-  final list =
-      state.accounts.where((a) => !a.archived || a.id == keepId).toList();
+  final list = state.accounts
+      .where((a) => includeArchived || !a.archived || a.id == keepId)
+      .toList();
   final groups = groupByBank(list);
   return showModalBottomSheet<int>(
     context: context,
@@ -698,6 +703,16 @@ class CategoryField extends StatelessWidget {
     );
   }
 }
+
+/// Opens the grouped category picker. Returns the id, or -1 for "none".
+Future<int?> pickCategory(BuildContext context,
+        {required TxType kind, int? current}) =>
+    showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _CategorySheet(kind: kind, current: current),
+    );
 
 class _CategorySheet extends StatefulWidget {
   const _CategorySheet({required this.kind, this.current});

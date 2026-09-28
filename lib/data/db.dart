@@ -5,6 +5,19 @@ import 'package:sqflite/sqflite.dart';
 
 import 'models.dart';
 
+class SearchResult {
+  final List<Txn> txns;
+
+  /// All matches (txns is capped).
+  final int count;
+
+  /// type -> currency -> sum of amounts.
+  final Map<String, Map<String, double>> totals;
+
+  const SearchResult(
+      {required this.txns, required this.count, required this.totals});
+}
+
 class BackupInfo {
   final int version;
   final int accounts;
@@ -443,6 +456,89 @@ class AppDb {
   }
 
   Future<int> insertTxn(Txn t) => db.insert('transactions', t.toMap());
+
+  /// Full-text-ish search across all transactions (all accounts, archived
+  /// included). Every word in [query] must match somewhere: payee, note,
+  /// category, category group, account or bank (either side of a
+  /// transfer), or an amount.
+  Future<SearchResult> search({
+    String query = '',
+    TxType? type,
+    DateTime? from,
+    DateTime? to,
+    int? accountId,
+    int? categoryId,
+    int limit = 500,
+  }) async {
+    final where = <String>[];
+    final args = <Object?>[];
+    for (final raw in query.trim().split(RegExp(r'\s+'))) {
+      if (raw.isEmpty) continue;
+      final like = '%$raw%';
+      final parts = <String>[
+        't.payee LIKE ?', 't.note LIKE ?', 'c.name LIKE ?', 'c.grp LIKE ?',
+        'a.name LIKE ?', 'a.bank LIKE ?', 'b.name LIKE ?', 'b.bank LIKE ?',
+      ];
+      args.addAll(List.filled(parts.length, like));
+      final n = double.tryParse(raw.replaceAll(',', ''));
+      if (n != null) {
+        if (raw.contains('.')) {
+          parts.add('ABS(ABS(t.amount) - ?) < 0.005');
+          parts.add('ABS(ABS(COALESCE(t.to_amount, -1)) - ?) < 0.005');
+          args.addAll([n, n]);
+        } else {
+          parts.add('CAST(ABS(t.amount) AS INTEGER) = ?');
+          parts.add('CAST(ABS(COALESCE(t.to_amount, -1)) AS INTEGER) = ?');
+          args.addAll([n.toInt(), n.toInt()]);
+        }
+      }
+      where.add('(${parts.join(' OR ')})');
+    }
+    if (type != null) {
+      where.add('t.type = ?');
+      args.add(type.name);
+    }
+    if (from != null) {
+      where.add('t.date >= ?');
+      args.add(from.millisecondsSinceEpoch);
+    }
+    if (to != null) {
+      where.add('t.date < ?');
+      args.add(to.millisecondsSinceEpoch);
+    }
+    if (accountId != null) {
+      where.add('(t.account_id = ? OR t.to_account_id = ?)');
+      args.addAll([accountId, accountId]);
+    }
+    if (categoryId != null) {
+      where.add('t.category_id = ?');
+      args.add(categoryId);
+    }
+    final w = where.isEmpty ? '' : 'WHERE ${where.join(' AND ')}';
+    const from_ = '''
+      FROM transactions t
+      LEFT JOIN accounts a ON a.id = t.account_id
+      LEFT JOIN accounts b ON b.id = t.to_account_id
+      LEFT JOIN categories c ON c.id = t.category_id''';
+    final rows = await db.rawQuery(
+        'SELECT t.* $from_ $w ORDER BY t.date DESC, t.id DESC LIMIT $limit',
+        args);
+    final sums = await db.rawQuery(
+        'SELECT t.type AS type, a.currency AS currency, COUNT(*) AS n, '
+        'SUM(t.amount) AS total $from_ $w GROUP BY t.type, a.currency',
+        args);
+    var count = 0;
+    final totals = <String, Map<String, double>>{};
+    for (final r in sums) {
+      count += r['n'] as int;
+      final t = r['type'] as String;
+      final cur = (r['currency'] as String?) ?? 'EGP';
+      final v = (r['total'] as num?)?.toDouble() ?? 0;
+      totals.putIfAbsent(t, () => {})[cur] = v;
+    }
+    return SearchResult(
+        txns: rows.map(Txn.fromMap).toList(), count: count, totals: totals);
+  }
 
   Future<void> updateTxn(Txn t) =>
       db.update('transactions', t.toMap(), where: 'id = ?', whereArgs: [t.id]);

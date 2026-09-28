@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../data/models.dart';
 import '../state/app_state.dart';
+import '../util/calc.dart';
 import '../util/format.dart';
 import 'account_edit.dart';
+import 'calc_pad.dart';
 import 'widgets.dart';
 
 enum _Mode { newTxn, editTxn, editPlan, editRule, confirm }
@@ -79,6 +81,9 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
   /// True once the user typed the received amount themselves.
   bool _toAmountEdited = false;
   bool _saving = false;
+
+  /// false = app calculator keypad, true = phone keyboard (typed math).
+  bool _sysKeyboard = false;
   bool _initialized = false;
 
   InstallmentPlan? _plan;
@@ -163,10 +168,39 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     _categoryId = r.categoryId;
   }
 
+  Future<void> _openPad(TextEditingController c, String? currency,
+      {bool received = false}) async {
+    FocusScope.of(context).unfocus();
+    await showCalcPad(context, c, currency: currency, onChanged: () {
+      setState(() {
+        if (received) {
+          _toAmountEdited = true;
+        } else {
+          _recalcToAmount();
+        }
+      });
+    });
+    if (mounted) setState(() {});
+  }
+
+  /// Replaces typed math like "250+75" with its result.
+  void _settleExpression(TextEditingController c) {
+    if (!hasOperator(c.text)) return;
+    final v = evaluateExpression(c.text);
+    if (v != null) setState(() => c.text = calcResultText(v));
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_initialized) return;
+    if (_mode == _Mode.newTxn && widget.initialAmount == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final cur = AppScope.read(context).accountById(_accountId)?.currency;
+        _openPad(_amount, cur);
+      });
+    }
     _initialized = true;
     final state = AppScope.read(context);
     if (_mode == _Mode.editPlan) {
@@ -569,9 +603,15 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _amount,
-              autofocus: _mode == _Mode.newTxn,
-              keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true, signed: true),
+              readOnly: !_sysKeyboard,
+              showCursor: true,
+              autofocus: _sysKeyboard && _mode == _Mode.newTxn,
+              keyboardType: TextInputType.text,
+              onTap: _sysKeyboard
+                  ? null
+                  : () => _openPad(_amount, account?.currency),
+              onFieldSubmitted: (_) => _settleExpression(_amount),
+              onTapOutside: (_) => _settleExpression(_amount),
               style: Theme.of(context).textTheme.headlineSmall,
               decoration: InputDecoration(
                 labelText: _installments ? 'Total amount' : 'Amount',
@@ -580,6 +620,20 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                     color: Theme.of(context).colorScheme.primary,
                     fontWeight: FontWeight.w600),
                 suffixText: account?.currency,
+                suffixIcon: IconButton(
+                  tooltip:
+                      _sysKeyboard ? 'Use calculator' : 'Use phone keyboard',
+                  icon: Icon(_sysKeyboard
+                      ? Icons.calculate_outlined
+                      : Icons.keyboard_outlined),
+                  onPressed: () {
+                    setState(() => _sysKeyboard = !_sysKeyboard);
+                    if (!_sysKeyboard) {
+                      _settleExpression(_amount);
+                      _openPad(_amount, account?.currency);
+                    }
+                  },
+                ),
                 border: const OutlineInputBorder(),
               ),
               validator: (v) {
@@ -623,8 +677,15 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _toAmount,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
+                  readOnly: !_sysKeyboard,
+                  showCursor: true,
+                  keyboardType: TextInputType.text,
+                  onTap: _sysKeyboard
+                      ? null
+                      : () => _openPad(_toAmount, toAccount?.currency,
+                          received: true),
+                  onFieldSubmitted: (_) => _settleExpression(_toAmount),
+                  onTapOutside: (_) => _settleExpression(_toAmount),
                   decoration: InputDecoration(
                     labelText: 'Amount received',
                     suffixText: toAccount!.currency,
@@ -740,6 +801,9 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
   String? _amountHelper(AppState state, Account? account) {
     final parts = <String>[];
     final amt = parseAmount(_amount.text);
+    if (hasOperator(_amount.text)) {
+      parts.add(amt == null ? 'Incomplete calculation' : '= ${fmtAmount(amt)}');
+    }
     final base = state.baseCurrency;
     if (account != null &&
         _type != TxType.transfer &&

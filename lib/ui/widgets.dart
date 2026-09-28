@@ -532,51 +532,143 @@ Future<int?> pickAccount(BuildContext context,
   final list = state.accounts
       .where((a) => includeArchived || !a.archived || a.id == keepId)
       .toList();
-  final groups = groupByBank(list);
   return showModalBottomSheet<int>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (ctx) => SizedBox(
-      height: MediaQuery.of(ctx).size.height * 0.7,
-      child: ListView(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Text(title, style: Theme.of(ctx).textTheme.titleMedium),
-          ),
-          if (allowAll)
-            ListTile(
-              leading: const Icon(Icons.select_all),
-              title: const Text('All accounts'),
-              selected: current == null,
-              onTap: () => Navigator.pop(ctx, -1),
-            ),
-          for (final g in groups) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Text(
-                g.key,
-                style: Theme.of(ctx).textTheme.labelLarge?.copyWith(
-                    color: Theme.of(ctx).colorScheme.primary,
-                    fontWeight: FontWeight.bold),
-              ),
-            ),
-            for (final a in g.value)
-              ListTile(
-                leading: Icon(accountTypeIcon(a.type)),
-                title: Text(a.name),
-                subtitle: Text(a.type.label),
-                selected: a.id == current,
-                trailing: Text(fmtMoney(a.balance, a.currency),
-                    style: TextStyle(color: amountColor(ctx, a.balance))),
-                onTap: () => Navigator.pop(ctx, a.id),
-              ),
-          ],
-        ],
-      ),
+    builder: (ctx) => _AccountSheet(
+      accounts: list,
+      current: current,
+      title: title,
+      allowAll: allowAll,
     ),
   );
+}
+
+/// Account list grouped by bank, with a search box on top.
+class _AccountSheet extends StatefulWidget {
+  const _AccountSheet({
+    required this.accounts,
+    required this.current,
+    required this.title,
+    required this.allowAll,
+  });
+
+  final List<Account> accounts;
+  final int? current;
+  final String title;
+  final bool allowAll;
+
+  @override
+  State<_AccountSheet> createState() => _AccountSheetState();
+}
+
+class _AccountSheetState extends State<_AccountSheet> {
+  String _q = '';
+  final _ctrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  bool _matches(Account a, List<String> words) {
+    final hay = '${a.name} ${a.bank} ${a.type.label} ${a.type.family.label} '
+            '${a.currency}'
+        .toLowerCase();
+    return words.every(hay.contains);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final words = _q.trim().toLowerCase().split(RegExp(r'\s+'))
+      ..removeWhere((w) => w.isEmpty);
+    final filtered = words.isEmpty
+        ? widget.accounts
+        : widget.accounts.where((a) => _matches(a, words)).toList();
+    final groups = groupByBank(filtered);
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      // Keep the list above the keyboard while typing.
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: SizedBox(
+        height: MediaQuery.of(context).size.height * 0.75,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Text(widget.title,
+                  style: Theme.of(context).textTheme.titleMedium),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: TextField(
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.search),
+                  hintText: 'Search account, bank, type',
+                  border: const OutlineInputBorder(),
+                  isDense: true,
+                  suffixIcon: _q.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () => setState(() {
+                            _ctrl.clear();
+                            _q = '';
+                          }),
+                        ),
+                ),
+                controller: _ctrl,
+                onChanged: (v) => setState(() => _q = v),
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                children: [
+                  if (widget.allowAll && words.isEmpty)
+                    ListTile(
+                      leading: const Icon(Icons.select_all),
+                      title: const Text('All accounts'),
+                      selected: widget.current == null,
+                      onTap: () => Navigator.pop(context, -1),
+                    ),
+                  if (filtered.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(child: Text('No matching accounts')),
+                    ),
+                  for (final g in groups) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                      child: Text(
+                        g.key,
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            color: scheme.primary, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    for (final a in g.value)
+                      ListTile(
+                        leading: Icon(accountTypeIcon(a.type)),
+                        title: Text(a.name),
+                        subtitle: Text(
+                            a.archived ? '${a.type.label} · archived' : a.type.label),
+                        selected: a.id == widget.current,
+                        trailing: Text(fmtMoney(a.balance, a.currency),
+                            style:
+                                TextStyle(color: amountColor(context, a.balance))),
+                        onTap: () => Navigator.pop(context, a.id),
+                      ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// Small rounded label like "Upcoming" or "3/12".

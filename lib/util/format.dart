@@ -1,5 +1,7 @@
 import 'package:intl/intl.dart';
 
+import 'calc.dart';
+
 final NumberFormat _amountFmt = NumberFormat('#,##0.00', 'en_US');
 final DateFormat dayFmt = DateFormat('EEE, d MMM yyyy');
 final DateFormat shortDateFmt = DateFormat('d MMM yyyy');
@@ -17,6 +19,11 @@ String fmtMoney(double v, String currency) => '${fmtAmount(v)} $currency';
 double? parseAmount(String input) {
   var s = input.trim().replaceAll(' ', '');
   if (s.isEmpty) return null;
+  // Typed math, e.g. "250+75" or "1200/3", is worked out (to 2 decimals).
+  if (hasOperator(s)) {
+    final v = evaluateExpression(s);
+    return v == null ? null : (v * 100).roundToDouble() / 100;
+  }
   if (s.contains(',') && s.contains('.')) {
     s = s.replaceAll(',', '');
   } else if (s.contains(',')) {

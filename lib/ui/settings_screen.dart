@@ -4,6 +4,7 @@ import '../state/app_state.dart';
 import '../util/currencies.dart';
 import 'categories_screen.dart';
 import 'currencies_screen.dart';
+import 'recurring_screen.dart';
 import 'widgets.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -38,6 +39,41 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
           ListTile(
+            leading: const Icon(Icons.repeat),
+            title: const Text('Recurring items'),
+            subtitle: Text(
+                '${state.rules.where((r) => !r.finished).length} active · subscriptions, salary…'),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const RecurringScreen()),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.calendar_view_week),
+            title: const Text('First day of week'),
+            subtitle: Text(_dayName(state.weekStart)),
+            onTap: () async {
+              final v = await showDialog<int>(
+                context: context,
+                builder: (ctx) => SimpleDialog(
+                  title: const Text('First day of week'),
+                  children: [
+                    for (final d in const [
+                      DateTime.saturday,
+                      DateTime.sunday,
+                      DateTime.monday
+                    ])
+                      SimpleDialogOption(
+                        onPressed: () => Navigator.pop(ctx, d),
+                        child: Text(_dayName(d)),
+                      ),
+                  ],
+                ),
+              );
+              if (v != null) await state.setWeekStart(v);
+            },
+          ),
+          ListTile(
             leading: const Icon(Icons.category_outlined),
             title: const Text('Categories'),
             subtitle: Text('${state.categories.length} categories'),
@@ -50,10 +86,22 @@ class SettingsScreen extends StatelessWidget {
           const ListTile(
             leading: Icon(Icons.info_outline),
             title: Text('Money Tracker'),
-            subtitle: Text('Version 0.1 — accounts, transactions, transfers'),
+            subtitle: Text(
+                'Version 0.2 — banks, installments, recurring, calendar'),
           ),
         ],
       ),
     );
+  }
+
+  static String _dayName(int d) {
+    switch (d) {
+      case DateTime.saturday:
+        return 'Saturday';
+      case DateTime.sunday:
+        return 'Sunday';
+      default:
+        return 'Monday';
+    }
   }
 }

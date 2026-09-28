@@ -34,7 +34,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(account.name),
+        title: Text(account.fullName),
         actions: [
           IconButton(
             tooltip: 'Edit account',
@@ -63,9 +63,14 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
         builder: (context, snap) {
           final txns = snap.data ?? const <Txn>[];
           // Running balance after each transaction (list is newest first).
-          final running = <double>[];
+          // Future-dated entries are not in the balance yet.
+          final running = <double?>[];
           var bal = account.balance;
           for (final t in txns) {
+            if (t.isFuture) {
+              running.add(null);
+              continue;
+            }
             running.add(bal);
             bal -= _effect(t, account.id!);
           }
@@ -94,8 +99,9 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                         Text(shortDateFmt.format(t.date),
                             style: Theme.of(context).textTheme.bodySmall),
                         const Spacer(),
-                        Text('Balance ${fmtAmount(running[i - 1])}',
-                            style: Theme.of(context).textTheme.bodySmall),
+                        if (running[i - 1] != null)
+                          Text('Balance ${fmtAmount(running[i - 1]!)}',
+                              style: Theme.of(context).textTheme.bodySmall),
                       ],
                     ),
                   ),

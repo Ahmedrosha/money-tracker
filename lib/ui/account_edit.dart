@@ -15,10 +15,46 @@ class AccountEditScreen extends StatefulWidget {
   State<AccountEditScreen> createState() => _AccountEditScreenState();
 }
 
+/// Free-text bank name with suggestions from banks already used.
+class _BankField extends StatelessWidget {
+  const _BankField(
+      {required this.initial, required this.options, required this.onChanged});
+
+  final String initial;
+  final List<String> options;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Autocomplete<String>(
+      initialValue: TextEditingValue(text: initial),
+      optionsBuilder: (v) {
+        final q = v.text.trim().toLowerCase();
+        if (q.isEmpty) return options;
+        return options.where((o) => o.toLowerCase().contains(q));
+      },
+      onSelected: onChanged,
+      fieldViewBuilder: (context, controller, focus, onSubmit) => TextFormField(
+        controller: controller,
+        focusNode: focus,
+        textCapitalization: TextCapitalization.words,
+        decoration: const InputDecoration(
+          labelText: 'Bank',
+          hintText: 'e.g. CIB, NBE, Banque Misr',
+          border: OutlineInputBorder(),
+          prefixIcon: Icon(Icons.account_balance),
+        ),
+        onChanged: onChanged,
+      ),
+    );
+  }
+}
+
 class _AccountEditScreenState extends State<AccountEditScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _name;
   late final TextEditingController _opening;
+  String _bank = '';
   late AccountType _type;
   late String _currency;
   late bool _archived;
@@ -34,6 +70,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
     _opening = TextEditingController(
         text: a == null ? '' : fmtAmount(a.openingBalance).replaceAll(',', ''));
     _type = a?.type ?? AccountType.bank;
+    _bank = a?.bank ?? '';
     _archived = a?.archived ?? false;
     _currency = a?.currency ?? 'EGP';
   }
@@ -63,6 +100,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
     final a = Account(
       id: widget.account?.id,
       name: _name.text.trim(),
+      bank: _type == AccountType.cash ? '' : _bank.trim(),
       type: _type,
       currency: _currency,
       openingBalance: parseAmount(_opening.text) ?? 0,
@@ -84,7 +122,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
       title: 'Delete account?',
       message: count == 0
           ? 'This account has no transactions.'
-          : 'This will also delete $count transaction(s) linked to this account. '
+          : 'This will also delete $count transaction(s) and any recurring items linked to this account. '
               'Consider archiving it instead.',
     );
     if (!ok) return;
@@ -116,8 +154,8 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
               controller: _name,
               textCapitalization: TextCapitalization.words,
               decoration: const InputDecoration(
-                labelText: 'Name',
-                hintText: 'e.g. CIB Current, Wallet cash',
+                labelText: 'Account name',
+                hintText: 'e.g. Current, Visa Gold, Wallet',
                 border: OutlineInputBorder(),
               ),
               validator: (v) =>
@@ -125,7 +163,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
             ),
             const SizedBox(height: 16),
             LabeledDropdown<AccountType>(
-              label: 'Type',
+              label: 'Account type',
               value: _type,
               items: [
                 for (final t in AccountType.values)
@@ -133,6 +171,14 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
               ],
               onChanged: (v) => setState(() => _type = v ?? _type),
             ),
+            if (_type != AccountType.cash) ...[
+              const SizedBox(height: 16),
+              _BankField(
+                initial: _bank,
+                options: AppScope.of(context).bankNames,
+                onChanged: (v) => _bank = v,
+              ),
+            ],
             const SizedBox(height: 16),
             InkWell(
               borderRadius: BorderRadius.circular(4),

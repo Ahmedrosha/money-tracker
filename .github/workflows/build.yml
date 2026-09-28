@@ -47,14 +47,19 @@ jobs:
         working-directory: build_app
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
+      - name: Work out version
+        run: |
+          MM=$(grep '^version:' pubspec.yaml | sed -E 's/version: *([0-9]+\.[0-9]+).*/\1/')
+          echo "APP_VERSION=$MM.${{ github.run_number }}" >> "$GITHUB_ENV"
+
       - name: Build release APK
         working-directory: build_app
-        run: flutter build apk --release --build-name=0.1.${{ github.run_number }} --build-number=${{ github.run_number }}
+        run: flutter build apk --release --build-name=$APP_VERSION --build-number=${{ github.run_number }}
 
       - name: Rename APK
         run: |
           mkdir -p out
-          cp build_app/build/app/outputs/flutter-apk/app-release.apk out/money-tracker-0.1.${{ github.run_number }}.apk
+          cp build_app/build/app/outputs/flutter-apk/app-release.apk out/money-tracker-$APP_VERSION.apk
 
       - uses: actions/upload-artifact@v4
         with:
@@ -64,8 +69,8 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.1.${{ github.run_number }}
-          name: Money Tracker 0.1.${{ github.run_number }}
+          tag_name: v${{ env.APP_VERSION }}
+          name: Money Tracker ${{ env.APP_VERSION }}
           body: ${{ github.event.head_commit.message }}
           files: out/*.apk
           make_latest: true

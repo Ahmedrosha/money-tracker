@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'accounts_screen.dart';
+import 'calendar_screen.dart';
 import 'settings_screen.dart';
 import 'transaction_edit.dart';
 import 'transactions_screen.dart';
@@ -20,11 +21,14 @@ class _HomeScreenState extends State<HomeScreen> {
     const pages = [
       AccountsScreen(),
       TransactionsScreen(),
+      CalendarScreen(),
       SettingsScreen(),
     ];
+    // Calendar has its own add button (adds on the selected day).
+    final showFab = _index == 0 || _index == 1;
     return Scaffold(
       body: IndexedStack(index: _index, children: pages),
-      floatingActionButton: _index == 2
+      floatingActionButton: !showFab
           ? null
           : FloatingActionButton(
               tooltip: 'Add transaction',
@@ -47,6 +51,10 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: Icon(Icons.receipt_long_outlined),
               selectedIcon: Icon(Icons.receipt_long),
               label: 'Transactions'),
+          NavigationDestination(
+              icon: Icon(Icons.calendar_month_outlined),
+              selectedIcon: Icon(Icons.calendar_month),
+              label: 'Calendar'),
           NavigationDestination(
               icon: Icon(Icons.settings_outlined),
               selectedIcon: Icon(Icons.settings),

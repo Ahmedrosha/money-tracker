@@ -8,7 +8,7 @@ class AppDb {
 
   final Database db;
 
-  static const int schemaVersion = 1;
+  static const int schemaVersion = 2;
 
   static Future<AppDb> open() async {
     final dir = await getDatabasesPath();
@@ -21,10 +21,11 @@ class AppDb {
       },
       onCreate: (db, version) async {
         await _createV1(db);
+        await _migrateToV2(db);
         await _seed(db);
       },
       onUpgrade: (db, oldV, newV) async {
-        // Future migrations go here, one step at a time.
+        if (oldV < 2) await _migrateToV2(db);
       },
     );
     return AppDb._(db);
@@ -80,6 +81,44 @@ class AppDb {
       CREATE TABLE settings (
         key TEXT PRIMARY KEY,
         value TEXT
+      )
+    ''');
+  }
+
+  static Future<void> _migrateToV2(Database db) async {
+    await db.execute(
+        "ALTER TABLE accounts ADD COLUMN bank TEXT NOT NULL DEFAULT ''");
+    await db.execute('ALTER TABLE transactions ADD COLUMN plan_id INTEGER');
+    await db.execute('ALTER TABLE transactions ADD COLUMN plan_index INTEGER');
+    await db.execute('ALTER TABLE transactions ADD COLUMN recurring_id INTEGER');
+    await db.execute('CREATE INDEX idx_tx_plan ON transactions(plan_id)');
+    await db.execute('''
+      CREATE TABLE plans (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        total REAL NOT NULL,
+        months INTEGER NOT NULL,
+        purchase_date INTEGER NOT NULL,
+        first_date INTEGER NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE recurring (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type TEXT NOT NULL,
+        amount REAL NOT NULL,
+        account_id INTEGER NOT NULL,
+        to_account_id INTEGER,
+        to_amount REAL,
+        category_id INTEGER,
+        payee TEXT NOT NULL DEFAULT '',
+        note TEXT NOT NULL DEFAULT '',
+        freq TEXT NOT NULL,
+        interval INTEGER NOT NULL DEFAULT 1,
+        start INTEGER NOT NULL,
+        end_type TEXT NOT NULL DEFAULT 'never',
+        end_count INTEGER,
+        end_date INTEGER,
+        next_index INTEGER NOT NULL DEFAULT 0
       )
     ''');
   }
@@ -142,21 +181,23 @@ class AppDb {
 
   // ---------------- Accounts ----------------
 
-  /// Accounts with their current balance computed in SQL.
-  Future<List<Account>> accountsWithBalances() async {
+  /// Accounts with their balance as of [asOf] (default now) computed in SQL.
+  /// Future-dated transactions are not included.
+  Future<List<Account>> accountsWithBalances({DateTime? asOf}) async {
+    final t = (asOf ?? DateTime.now()).millisecondsSinceEpoch;
     final rows = await db.rawQuery('''
       SELECT a.*,
         a.opening_balance
         + COALESCE((SELECT SUM(amount) FROM transactions
-            WHERE account_id = a.id AND type = 'income'), 0)
+            WHERE account_id = a.id AND type = 'income' AND date <= ?), 0)
         - COALESCE((SELECT SUM(amount) FROM transactions
-            WHERE account_id = a.id AND type IN ('expense', 'transfer')), 0)
+            WHERE account_id = a.id AND type IN ('expense', 'transfer') AND date <= ?), 0)
         + COALESCE((SELECT SUM(COALESCE(to_amount, amount)) FROM transactions
-            WHERE to_account_id = a.id AND type = 'transfer'), 0)
+            WHERE to_account_id = a.id AND type = 'transfer' AND date <= ?), 0)
         AS balance
       FROM accounts a
-      ORDER BY a.archived, a.sort_order, a.name COLLATE NOCASE
-    ''');
+      ORDER BY a.archived, a.sort_order, a.bank COLLATE NOCASE, a.name COLLATE NOCASE
+    ''', [t, t, t]);
     return rows.map(Account.fromMap).toList();
   }
 
@@ -165,8 +206,22 @@ class AppDb {
   Future<void> updateAccount(Account a) =>
       db.update('accounts', a.toMap(), where: 'id = ?', whereArgs: [a.id]);
 
-  Future<void> deleteAccount(int id) =>
-      db.delete('accounts', where: 'id = ?', whereArgs: [id]);
+  Future<void> deleteAccount(int id) async {
+    await db.transaction((tx) async {
+      await tx.delete('recurring',
+          where: 'account_id = ? OR to_account_id = ?', whereArgs: [id, id]);
+      await tx.delete('accounts', where: 'id = ?', whereArgs: [id]);
+      // Plans with no remaining installments.
+      await tx.execute(
+          'DELETE FROM plans WHERE id NOT IN (SELECT DISTINCT plan_id FROM transactions WHERE plan_id IS NOT NULL)');
+    });
+  }
+
+  Future<List<String>> bankNames() async {
+    final rows = await db.rawQuery(
+        "SELECT DISTINCT bank FROM accounts WHERE bank <> '' ORDER BY bank COLLATE NOCASE");
+    return rows.map((r) => r['bank'] as String).toList();
+  }
 
   Future<int> countAccountTransactions(int id) async {
     final r = await db.rawQuery(
@@ -228,8 +283,87 @@ class AppDb {
   Future<void> updateTxn(Txn t) =>
       db.update('transactions', t.toMap(), where: 'id = ?', whereArgs: [t.id]);
 
-  Future<void> deleteTxn(int id) =>
-      db.delete('transactions', where: 'id = ?', whereArgs: [id]);
+  Future<void> deleteTxn(int id) async {
+    await db.delete('transactions', where: 'id = ?', whereArgs: [id]);
+    await db.execute(
+        'DELETE FROM plans WHERE id NOT IN (SELECT DISTINCT plan_id FROM transactions WHERE plan_id IS NOT NULL)');
+  }
+
+  // ---------------- Installment plans ----------------
+
+  Future<InstallmentPlan?> plan(int id) async {
+    final rows =
+        await db.query('plans', where: 'id = ?', whereArgs: [id], limit: 1);
+    return rows.isEmpty ? null : InstallmentPlan.fromMap(rows.first);
+  }
+
+  Future<List<Txn>> planTxns(int planId) async {
+    final rows = await db.query('transactions',
+        where: 'plan_id = ?', whereArgs: [planId], orderBy: 'plan_index');
+    return rows.map(Txn.fromMap).toList();
+  }
+
+  /// Creates (or replaces, when [plan.id] is set) a plan and its monthly
+  /// installments. [template] supplies account, category, payee, note.
+  Future<void> savePlan(InstallmentPlan plan, Txn template) async {
+    await db.transaction((tx) async {
+      int planId;
+      if (plan.id == null) {
+        planId = await tx.insert('plans', plan.toMap());
+      } else {
+        planId = plan.id!;
+        await tx.update('plans', plan.toMap(),
+            where: 'id = ?', whereArgs: [planId]);
+        await tx.delete('transactions',
+            where: 'plan_id = ?', whereArgs: [planId]);
+      }
+      final parts = InstallmentPlan.split(plan.total, plan.months);
+      for (var i = 0; i < plan.months; i++) {
+        final t = Txn(
+          type: TxType.expense,
+          date: addMonths(plan.firstDate, i),
+          amount: parts[i],
+          accountId: template.accountId,
+          categoryId: template.categoryId,
+          payee: template.payee,
+          note: template.note,
+          planId: planId,
+          planIndex: i + 1,
+        );
+        await tx.insert('transactions', t.toMap());
+      }
+    });
+  }
+
+  Future<void> deletePlan(int planId) async {
+    await db.transaction((tx) async {
+      await tx.delete('transactions', where: 'plan_id = ?', whereArgs: [planId]);
+      await tx.delete('plans', where: 'id = ?', whereArgs: [planId]);
+    });
+  }
+
+  Future<Map<int, InstallmentPlan>> allPlans() async {
+    final rows = await db.query('plans');
+    return {
+      for (final r in rows)
+        r['id'] as int: InstallmentPlan.fromMap(r),
+    };
+  }
+
+  // ---------------- Recurring ----------------
+
+  Future<List<RecurringRule>> recurringRules() async {
+    final rows = await db.query('recurring', orderBy: 'id');
+    return rows.map(RecurringRule.fromMap).toList();
+  }
+
+  Future<int> insertRule(RecurringRule r) => db.insert('recurring', r.toMap());
+
+  Future<void> updateRule(RecurringRule r) =>
+      db.update('recurring', r.toMap(), where: 'id = ?', whereArgs: [r.id]);
+
+  Future<void> deleteRule(int id) =>
+      db.delete('recurring', where: 'id = ?', whereArgs: [id]);
 
   // ---------------- Rates ----------------
 

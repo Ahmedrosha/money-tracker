@@ -13,7 +13,20 @@ class AppState extends ChangeNotifier {
   List<Account> accounts = [];
   List<Category> categories = [];
   Map<String, CurrencyRate> rates = {};
+  List<RecurringRule> rules = [];
+  Map<int, InstallmentPlan> plans = {};
+  List<String> bankNames = [];
   String baseCurrency = 'EGP';
+
+  /// Accounts screen grouping: 'type' or 'bank'.
+  String accountsGroupBy = 'type';
+
+  /// First day of week for the calendar (DateTime.saturday etc.).
+  int weekStart = DateTime.saturday;
+
+  /// Net worth expected at the end of this month, including future-dated
+  /// transactions and pending recurring items.
+  double projectedEom = 0;
 
   /// Bumped on every data change so screens that query the DB reload.
   int version = 0;
@@ -22,6 +35,9 @@ class AppState extends ChangeNotifier {
 
   Future<void> load() async {
     baseCurrency = await db.getSetting('base_currency') ?? 'EGP';
+    accountsGroupBy = await db.getSetting('accounts_group_by') ?? 'type';
+    weekStart = int.tryParse(await db.getSetting('week_start') ?? '') ??
+        DateTime.saturday;
     await _reloadAll();
   }
 
@@ -29,7 +45,58 @@ class AppState extends ChangeNotifier {
     accounts = await db.accountsWithBalances();
     categories = await db.categories();
     rates = {for (final r in await db.rates()) r.code: r};
+    rules = await db.recurringRules();
+    plans = await db.allPlans();
+    bankNames = await db.bankNames();
+    await _computeProjection();
     version++;
+    notifyListeners();
+  }
+
+  Future<void> _computeProjection() async {
+    final now = DateTime.now();
+    final eom = DateTime(now.year, now.month + 1, 1);
+    final atEom = await db.accountsWithBalances(
+        asOf: eom.subtract(const Duration(milliseconds: 1)));
+    var sum = 0.0;
+    for (final a in atEom) {
+      if (a.archived) continue;
+      sum += toBase(a.balance, a.currency);
+    }
+    for (final o in pendingOccurrences(DateTime(1970), eom)) {
+      sum += _occurrenceEffect(o);
+    }
+    projectedEom = sum;
+  }
+
+  double _occurrenceEffect(Occurrence o) {
+    final r = o.rule;
+    final from = accountById(r.accountId);
+    if (from == null) return 0;
+    switch (r.type) {
+      case TxType.income:
+        return toBase(r.amount, from.currency);
+      case TxType.expense:
+        return -toBase(r.amount, from.currency);
+      case TxType.transfer:
+        final to = accountById(r.toAccountId);
+        if (to == null) return 0;
+        return toBase(r.toAmount ?? r.amount, to.currency) -
+            toBase(r.amount, from.currency);
+    }
+  }
+
+  // ---------------- Preferences ----------------
+
+  Future<void> setAccountsGroupBy(String v) async {
+    accountsGroupBy = v;
+    await db.setSetting('accounts_group_by', v);
+    notifyListeners();
+  }
+
+  Future<void> setWeekStart(int v) async {
+    weekStart = v;
+    await db.setSetting('week_start', '$v');
     notifyListeners();
   }
 
@@ -234,6 +301,91 @@ class AppState extends ChangeNotifier {
 
   Future<void> deleteTxn(int id) async {
     await db.deleteTxn(id);
+    await _reloadAll();
+  }
+
+  // ---------------- Installments ----------------
+
+  Future<void> savePlan(InstallmentPlan plan, Txn template) async {
+    await db.savePlan(plan, template);
+    await _reloadAll();
+  }
+
+  Future<void> deletePlan(int planId) async {
+    await db.deletePlan(planId);
+    await _reloadAll();
+  }
+
+  // ---------------- Recurring ----------------
+
+  RecurringRule? ruleById(int? id) {
+    if (id == null) return null;
+    for (final r in rules) {
+      if (r.id == id) return r;
+    }
+    return null;
+  }
+
+  /// Unconfirmed occurrences of all rules with dates in [from, to).
+  List<Occurrence> pendingOccurrences(DateTime from, DateTime to) {
+    final out = <Occurrence>[];
+    for (final r in rules) {
+      out.addAll(r.occurrencesBetween(from, to));
+    }
+    out.sort((a, b) => a.date.compareTo(b.date));
+    return out;
+  }
+
+  /// Only the earliest pending occurrence of a rule can be confirmed or
+  /// skipped, so none get lost.
+  bool isNextOccurrence(Occurrence o) =>
+      ruleById(o.rule.id)?.nextIndex == o.index;
+
+  /// Occurrences whose date has arrived and need confirming.
+  List<Occurrence> get dueOccurrences =>
+      pendingOccurrences(DateTime(1970), DateTime.now().add(const Duration(seconds: 1)));
+
+  /// Creates a rule. If its first date has already arrived, that first
+  /// occurrence is recorded straight away (the user just entered it).
+  Future<void> createRule(RecurringRule r) async {
+    final id = await db.insertRule(r);
+    final saved = RecurringRule.fromMap({...r.toMap(), 'id': id});
+    if (!saved.occurrence(0).isAfter(DateTime.now())) {
+      await db.insertTxn(saved.toTxn(0));
+      await db.updateRule(saved.copyWith(nextIndex: 1));
+    }
+    await _reloadAll();
+  }
+
+  /// Updates rule details; already-confirmed entries are not changed.
+  Future<void> updateRule(RecurringRule r) async {
+    await db.updateRule(r);
+    await _reloadAll();
+  }
+
+  Future<void> deleteRule(int id) async {
+    await db.deleteRule(id);
+    await _reloadAll();
+  }
+
+  /// Records occurrence [o] as the transaction [t] (possibly edited by the
+  /// user) and moves the rule past it.
+  Future<void> confirmOccurrence(Occurrence o, [Txn? t]) async {
+    await db.insertTxn(t ?? o.rule.toTxn(o.index));
+    await _advance(o);
+  }
+
+  Future<void> skipOccurrence(Occurrence o) => _advance(o);
+
+  Future<void> _advance(Occurrence o) async {
+    final current = ruleById(o.rule.id);
+    if (current == null) return;
+    // Occurrences are handled in order; skipping ahead also marks earlier
+    // ones as handled.
+    final next = o.index + 1;
+    if (next > current.nextIndex) {
+      await db.updateRule(current.copyWith(nextIndex: next));
+    }
     await _reloadAll();
   }
 }

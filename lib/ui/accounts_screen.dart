@@ -5,24 +5,8 @@ import '../state/app_state.dart';
 import '../util/format.dart';
 import 'account_detail.dart';
 import 'account_edit.dart';
+import 'due_screen.dart';
 import 'widgets.dart';
-
-IconData accountTypeIcon(AccountType t) {
-  switch (t) {
-    case AccountType.cash:
-      return Icons.payments;
-    case AccountType.bank:
-      return Icons.account_balance;
-    case AccountType.savings:
-      return Icons.savings;
-    case AccountType.creditCard:
-      return Icons.credit_card;
-    case AccountType.investment:
-      return Icons.show_chart;
-    case AccountType.other:
-      return Icons.wallet;
-  }
-}
 
 class AccountsScreen extends StatelessWidget {
   const AccountsScreen({super.key});
@@ -34,15 +18,36 @@ class AccountsScreen extends StatelessWidget {
     final archived = state.accounts.where((a) => a.archived).toList();
     final missing = state.missingRates;
 
-    final groups = <AccountType, List<Account>>{};
-    for (final a in active) {
-      groups.putIfAbsent(a.type, () => []).add(a);
+    final byBank = state.accountsGroupBy == 'bank';
+    final List<MapEntry<String, List<Account>>> sections;
+    if (byBank) {
+      sections = groupByBank(active);
+    } else {
+      final g = <AccountType, List<Account>>{};
+      for (final a in active) {
+        g.putIfAbsent(a.type, () => []).add(a);
+      }
+      sections = [
+        for (final t in AccountType.values)
+          if (g[t] != null) MapEntry(t.label, g[t]!),
+      ];
     }
+    final due = state.dueOccurrences;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Accounts'),
         actions: [
+          PopupMenuButton<String>(
+            tooltip: 'Group by',
+            icon: const Icon(Icons.sort),
+            initialValue: state.accountsGroupBy,
+            onSelected: state.setAccountsGroupBy,
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'type', child: Text('Group by type')),
+              PopupMenuItem(value: 'bank', child: Text('Group by bank')),
+            ],
+          ),
           IconButton(
             tooltip: 'Add account',
             icon: const Icon(Icons.add_card),
@@ -54,6 +59,23 @@ class AccountsScreen extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: 96),
         children: [
           _NetWorthCard(state: state),
+          if (due.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Card(
+                color: Theme.of(context).colorScheme.tertiaryContainer,
+                child: ListTile(
+                  leading: const Icon(Icons.notifications_active_outlined),
+                  title: Text(
+                      '${due.length} recurring item${due.length == 1 ? '' : 's'} to confirm'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const DueScreen()),
+                  ),
+                ),
+              ),
+            ),
           if (missing.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -90,20 +112,23 @@ class AccountsScreen extends StatelessWidget {
                 ],
               ),
             ),
-          for (final type in AccountType.values)
-            if (groups[type] != null) ...[
-              _GroupHeader(
-                title: type.label,
-                total: groups[type]!
-                    .fold<double>(0, (s, a) => s + state.toBase(a.balance, a.currency)),
-                currency: state.baseCurrency,
-              ),
-              for (final a in groups[type]!) _AccountTile(account: a),
-            ],
+          for (final sec in sections) ...[
+            _GroupHeader(
+              title: sec.key,
+              total: sec.value.fold<double>(
+                  0, (s, a) => s + state.toBase(a.balance, a.currency)),
+              currency: state.baseCurrency,
+            ),
+            for (final a in sec.value)
+              _AccountTile(account: a, showBank: !byBank),
+          ],
           if (archived.isNotEmpty)
             ExpansionTile(
               title: Text('Archived (${archived.length})'),
-              children: [for (final a in archived) _AccountTile(account: a)],
+              children: [
+                for (final a in archived)
+                  _AccountTile(account: a, showBank: true)
+              ],
             ),
         ],
       ),
@@ -168,6 +193,12 @@ class _NetWorthCard extends StatelessWidget {
                       value: fmtAmount(debts),
                       color: scheme.onPrimaryContainer),
                 ),
+                Expanded(
+                  child: _MiniStat(
+                      label: 'Expected end of month',
+                      value: fmtAmount(state.projectedEom),
+                      color: scheme.onPrimaryContainer),
+                ),
               ],
             ),
           ],
@@ -225,9 +256,10 @@ class _GroupHeader extends StatelessWidget {
 }
 
 class _AccountTile extends StatelessWidget {
-  const _AccountTile({required this.account});
+  const _AccountTile({required this.account, this.showBank = true});
 
   final Account account;
+  final bool showBank;
 
   @override
   Widget build(BuildContext context) {
@@ -238,7 +270,11 @@ class _AccountTile extends StatelessWidget {
     return ListTile(
       leading: CircleAvatar(child: Icon(accountTypeIcon(account.type))),
       title: Text(account.name),
-      subtitle: Text(account.currency),
+      subtitle: Text([
+        if (showBank && account.bank.isNotEmpty) account.bank,
+        if (!showBank) account.type.label,
+        account.currency,
+      ].join(' · ')),
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.end,

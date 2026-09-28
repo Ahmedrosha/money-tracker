@@ -76,12 +76,23 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           final list = _filter == null
               ? all
               : all.where((t) => t.type == _filter).toList();
+          final pending = state
+              .pendingOccurrences(
+                  _month, DateTime(_month.year, _month.month + 1))
+              .where((o) => _filter == null || o.rule.type == _filter)
+              .toList();
 
-          // Build rows: day headers + transactions.
+          // Merge transactions and pending recurring items, newest first.
+          final items = <(DateTime, Object)>[
+            for (final t in list) (t.date, t),
+            for (final o in pending) (o.date, o),
+          ]..sort((a, b) => b.$1.compareTo(a.$1));
+
+          // Build rows: day headers + entries.
           final rows = <Widget>[];
           DateTime? day;
-          for (final t in list) {
-            final d = DateTime(t.date.year, t.date.month, t.date.day);
+          for (final (date, item) in items) {
+            final d = DateTime(date.year, date.month, date.day);
             if (day == null || d != day) {
               day = d;
               rows.add(Padding(
@@ -93,14 +104,18 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 ),
               ));
             }
-            rows.add(TxnTile(
-              txn: t,
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => TransactionEditScreen(txn: t)),
-              ),
-            ));
+            if (item is Txn) {
+              rows.add(TxnTile(
+                txn: item,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => TransactionEditScreen(txn: item)),
+                ),
+              ));
+            } else if (item is Occurrence) {
+              rows.add(OccurrenceTile(occurrence: item));
+            }
           }
 
           return ListView(
@@ -154,7 +169,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   ],
                 ),
               ),
-              if (snap.connectionState == ConnectionState.done && list.isEmpty)
+              if (snap.connectionState == ConnectionState.done && items.isEmpty)
                 const Padding(
                   padding: EdgeInsets.all(40),
                   child: Center(child: Text('No transactions this month')),

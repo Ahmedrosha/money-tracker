@@ -23,6 +23,9 @@ class AppState extends ChangeNotifier {
   /// Accounts screen grouping: 'type' or 'bank'.
   String accountsGroupBy = 'type';
 
+  /// Transactions screen order: 'date' or 'category'.
+  String txnSort = 'date';
+
   /// First day of week for the calendar (DateTime.saturday etc.).
   int weekStart = DateTime.saturday;
 
@@ -41,6 +44,7 @@ class AppState extends ChangeNotifier {
   Future<void> load() async {
     baseCurrency = await db.getSetting('base_currency') ?? 'EGP';
     accountsGroupBy = await db.getSetting('accounts_group_by') ?? 'type';
+    txnSort = await db.getSetting('txn_sort') ?? 'date';
     weekStart = int.tryParse(await db.getSetting('week_start') ?? '') ??
         DateTime.saturday;
     final lb = int.tryParse(await db.getSetting('last_backup') ?? '');
@@ -222,6 +226,12 @@ class AppState extends ChangeNotifier {
   Future<void> setAccountsGroupBy(String v) async {
     accountsGroupBy = v;
     await db.setSetting('accounts_group_by', v);
+    notifyListeners();
+  }
+
+  Future<void> setTxnSort(String v) async {
+    txnSort = v;
+    await db.setSetting('txn_sort', v);
     notifyListeners();
   }
 

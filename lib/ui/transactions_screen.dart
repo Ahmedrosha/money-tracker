@@ -93,6 +93,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               .where((o) => _filter == null || o.rule.type == _filter)
               .toList();
 
+          final byCategory = state.txnSort == 'category';
+
           // Merge transactions and pending recurring items, newest first.
           final items = <(DateTime, Object)>[
             for (final t in list) (t.date, t),
@@ -101,8 +103,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
           // Build rows: day headers + entries.
           final rows = <Widget>[];
+          if (byCategory) {
+            rows.addAll(_groupedRows(context, state, list));
+          }
           DateTime? day;
-          for (final (date, item) in items) {
+          for (final (date, item) in byCategory ? const <(DateTime, Object)>[] : items) {
             final d = DateTime(date.year, date.month, date.day);
             if (day == null || d != day) {
               day = d;
@@ -177,6 +182,22 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     _chip('Expenses', TxType.expense),
                     _chip('Income', TxType.income),
                     _chip('Transfers', TxType.transfer),
+                    const SizedBox(width: 4),
+                    PopupMenuButton<String>(
+                      tooltip: 'Sort by',
+                      initialValue: state.txnSort,
+                      onSelected: state.setTxnSort,
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(value: 'date', child: Text('Sort by date')),
+                        PopupMenuItem(
+                            value: 'category',
+                            child: Text('Sort by type (category / account)')),
+                      ],
+                      child: Chip(
+                        avatar: const Icon(Icons.sort, size: 18),
+                        label: Text(byCategory ? 'By type' : 'By date'),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -191,6 +212,173 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         },
       ),
     );
+  }
+
+  /// "Sort by type": expenses/income grouped by category group and
+  /// category; transfers grouped by account with In and Out.
+  List<Widget> _groupedRows(
+      BuildContext context, AppState state, List<Txn> list) {
+    final out = <Widget>[];
+    final expenses = list.where((t) => t.type == TxType.expense).toList();
+    final incomes = list.where((t) => t.type == TxType.income).toList();
+    final transfers = list.where((t) => t.type == TxType.transfer).toList();
+    final showHeaders = _filter == null;
+    if (expenses.isNotEmpty) {
+      if (showHeaders) out.add(_sectionTitle(context, 'Expenses'));
+      out.addAll(_categoryGroups(context, state, expenses, kExpenseColor));
+    }
+    if (incomes.isNotEmpty) {
+      if (showHeaders) out.add(_sectionTitle(context, 'Income'));
+      out.addAll(_categoryGroups(context, state, incomes, kIncomeColor));
+    }
+    if (transfers.isNotEmpty) {
+      if (showHeaders) out.add(_sectionTitle(context, 'Transfers'));
+      out.addAll(_transferGroups(context, state, transfers));
+    }
+    return out;
+  }
+
+  Widget _sectionTitle(BuildContext context, String text) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
+        child: Text(text,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.bold)),
+      );
+
+  Widget _txnWithDate(BuildContext context, Txn t, {int? perspective}) =>
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TxnTile(
+            txn: t,
+            perspectiveAccountId: perspective,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => TransactionEditScreen(txn: t)),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(72, 0, 16, 6),
+            child: Text(dayFmt.format(t.date),
+                style: Theme.of(context).textTheme.bodySmall),
+          ),
+        ],
+      );
+
+  List<Widget> _categoryGroups(
+      BuildContext context, AppState state, List<Txn> txns, Color color) {
+    double base(Txn t) => state.toBase(
+        t.amount, state.accountById(t.accountId)?.currency ?? state.baseCurrency);
+    // group -> category id -> txns
+    final groups = <String, Map<int?, List<Txn>>>{};
+    for (final t in txns) {
+      final c = state.categoryById(t.categoryId);
+      final g = c == null
+          ? 'Uncategorized'
+          : (c.group.isEmpty ? 'Other' : c.group);
+      groups.putIfAbsent(g, () => {}).putIfAbsent(t.categoryId, () => []).add(t);
+    }
+    double sum(Iterable<Txn> l) => l.fold(0.0, (s, t) => s + base(t));
+    final sorted = groups.entries.toList()
+      ..sort((a, b) => sum(b.value.values.expand((l) => l))
+          .compareTo(sum(a.value.values.expand((l) => l))));
+    final cur = state.baseCurrency;
+    return [
+      for (final g in sorted)
+        ExpansionTile(
+          key: PageStorageKey('g-${_filter?.name}-${g.key}-${color == kExpenseColor ? 'e' : 'i'}'),
+          title: Text(g.key, style: const TextStyle(fontWeight: FontWeight.w600)),
+          subtitle: Text(
+              '${g.value.values.fold<int>(0, (n, l) => n + l.length)} transactions'),
+          trailing: Text(fmtMoney(sum(g.value.values.expand((l) => l)), cur),
+              style: TextStyle(color: color, fontWeight: FontWeight.bold)),
+          children: [
+            for (final c in (g.value.entries.toList()
+              ..sort((a, b) => sum(b.value).compareTo(sum(a.value)))))
+              Padding(
+                padding: const EdgeInsets.only(left: 12),
+                child: ExpansionTile(
+                  key: PageStorageKey('c-${_filter?.name}-${c.key}-${color == kExpenseColor ? 'e' : 'i'}'),
+                  leading: CategoryAvatar(category: state.categoryById(c.key)),
+                  title: Text(state.categoryById(c.key)?.name ?? 'No category'),
+                  subtitle: Text('${c.value.length} transactions'),
+                  trailing: Text(fmtMoney(sum(c.value), cur),
+                      style: TextStyle(color: color)),
+                  children: [
+                    for (final t in c.value) _txnWithDate(context, t),
+                  ],
+                ),
+              ),
+          ],
+        ),
+    ];
+  }
+
+  List<Widget> _transferGroups(
+      BuildContext context, AppState state, List<Txn> txns) {
+    final outs = <int, List<Txn>>{};
+    final ins = <int, List<Txn>>{};
+    for (final t in txns) {
+      outs.putIfAbsent(t.accountId, () => []).add(t);
+      if (t.toAccountId != null) ins.putIfAbsent(t.toAccountId!, () => []).add(t);
+    }
+    final ids = {...outs.keys, ...ins.keys}.toList();
+    double outSum(int id) => (outs[id] ?? []).fold(0.0, (s, t) => s + t.amount);
+    double inSum(int id) =>
+        (ins[id] ?? []).fold(0.0, (s, t) => s + (t.toAmount ?? t.amount));
+    double volume(int id) {
+      final a = state.accountById(id);
+      final c = a?.currency ?? state.baseCurrency;
+      return state.toBase(outSum(id) + inSum(id), c);
+    }
+
+    ids.sort((a, b) => volume(b).compareTo(volume(a)));
+    final small = Theme.of(context).textTheme.labelLarge;
+    return [
+      for (final id in ids)
+        Builder(builder: (context) {
+          final a = state.accountById(id);
+          final cur = a?.currency ?? '';
+          return ExpansionTile(
+            key: PageStorageKey('t-$id'),
+            leading: CircleAvatar(
+                child: Icon(a == null ? Icons.help_outline : accountTypeIcon(a.type))),
+            title: Text(a?.fullName ?? '?',
+                style: const TextStyle(fontWeight: FontWeight.w600)),
+            subtitle: Text.rich(TextSpan(children: [
+              TextSpan(
+                  text: 'Out ${fmtAmount(outSum(id))}',
+                  style: const TextStyle(color: kExpenseColor)),
+              const TextSpan(text: '  ·  '),
+              TextSpan(
+                  text: 'In ${fmtAmount(inSum(id))}',
+                  style: const TextStyle(color: kIncomeColor)),
+              TextSpan(text: '  $cur'),
+            ])),
+            children: [
+              if ((outs[id] ?? []).isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 16, 4),
+                  child: Text('Transfers out (${outs[id]!.length})',
+                      style: small?.copyWith(color: kExpenseColor)),
+                ),
+                for (final t in outs[id]!)
+                  _txnWithDate(context, t, perspective: id),
+              ],
+              if ((ins[id] ?? []).isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 16, 4),
+                  child: Text('Transfers in (${ins[id]!.length})',
+                      style: small?.copyWith(color: kIncomeColor)),
+                ),
+                for (final t in ins[id]!)
+                  _txnWithDate(context, t, perspective: id),
+              ],
+            ],
+          );
+        }),
+    ];
   }
 
   Widget _chip(String label, TxType? type) {

@@ -14,6 +14,12 @@ Future<void> main() async {
   state.autoRefreshRates();
   // Opening the app uploads the latest copy to Dropbox.
   state.dropbox.syncNow();
+  // Ask once for notification permission (Android 13+).
+  if (await db.getSetting('notif_asked') == null) {
+    await db.setSetting('notif_asked', '1');
+    await state.notifier.requestPermission();
+    await state.rescheduleReminders();
+  }
 }
 
 class MoneyApp extends StatefulWidget {

@@ -6,6 +6,8 @@ import 'package:path_provider/path_provider.dart';
 import '../data/db.dart';
 import '../data/models.dart';
 import '../services/dropbox.dart';
+import '../services/notifications.dart';
+import '../util/format.dart';
 import '../services/rates.dart';
 
 class AppState extends ChangeNotifier {
@@ -19,6 +21,8 @@ class AppState extends ChangeNotifier {
   }
 
   late final DropboxSync dropbox;
+  final Notifier notifier = Notifier();
+  NotifSettings notifSettings = NotifSettings();
   bool _loaded = false;
 
   AppDb db;
@@ -75,6 +79,7 @@ class AppState extends ChangeNotifier {
     final lb = int.tryParse(await db.getSetting('last_backup') ?? '');
     lastBackup = lb == null ? null : DateTime.fromMillisecondsSinceEpoch(lb);
     await dropbox.init();
+    notifSettings = await NotifSettings.load(db);
     await _reloadAll();
     _loaded = true;
   }
@@ -92,6 +97,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     // Any data change after start-up is sent to Dropbox (debounced).
     if (_loaded) dropbox.scheduleUpload();
+    rescheduleReminders();
   }
 
   // ---------------- Credit cards ----------------
@@ -252,6 +258,95 @@ class AppState extends ChangeNotifier {
     // The restored data is backed up by definition.
     await markBackedUp();
     return safety;
+  }
+
+  // ---------------- Reminders ----------------
+
+  Future<void> saveNotifSettings(NotifSettings s) async {
+    notifSettings = s;
+    await s.save(db);
+    notifyListeners();
+    await rescheduleReminders();
+  }
+
+  /// Rebuilds all scheduled reminders from the current data.
+  Future<void> rescheduleReminders() async {
+    final s = notifSettings;
+    if (!s.enabled) {
+      await notifier.replaceAll(const []);
+      return;
+    }
+    final now = DateTime.now();
+    DateTime at(DateTime day, [int daysBefore = 0]) =>
+        DateTime(day.year, day.month, day.day - daysBefore, s.hour, s.minute);
+    final out = <Reminder>[];
+
+    for (final c in cards.values) {
+      final a = c.card;
+      if (a.archived || !a.hasCycle) continue;
+      final cur = a.currency;
+      final last = c.last;
+      // Statement already issued and not fully paid.
+      if (last != null && !last.settled) {
+        for (final d in s.cardDays) {
+          out.add(Reminder(
+            at(last.dueDate, d),
+            '💳 ${a.fullName}',
+            '${fmtMoney(last.remaining, cur)} due ${reminderWhen(d, last.dueDate)}'
+                '${last.minimumDue > 0 ? ' · minimum ${fmtAmount(last.minimumDue)}' : ''}',
+          ));
+        }
+      }
+      // Next statement (amount is an estimate until it closes).
+      final nextClose = c.nextClose;
+      if (nextClose != null) {
+        final nextDue = dueDateAfter(nextClose, a.dueDay!);
+        final est = c.cycleSpent + (last?.remaining ?? 0);
+        if (est > 0.004) {
+          for (final d in s.cardDays) {
+            out.add(Reminder(
+              at(nextDue, d),
+              '💳 ${a.fullName}',
+              'About ${fmtMoney(est, cur)} due ${reminderWhen(d, nextDue)}',
+            ));
+          }
+          if (s.statementClosed) {
+            out.add(Reminder(
+              at(nextClose.add(const Duration(days: 1))),
+              '🧾 ${a.fullName} statement closed',
+              'About ${fmtMoney(est, cur)}, due ${shortDateFmt.format(nextDue)}',
+            ));
+          }
+        }
+      }
+    }
+
+    if (s.recurring) {
+      for (final o in pendingOccurrences(
+          DateTime(now.year, now.month, now.day), now.add(const Duration(days: 60)))) {
+        final r = o.rule;
+        final acc = accountById(r.accountId);
+        final name = r.type == TxType.transfer
+            ? 'Transfer to ${accountById(r.toAccountId)?.name ?? '?'}'
+            : (r.payee.isNotEmpty
+                ? r.payee
+                : (categoryById(r.categoryId)?.name ?? r.type.label));
+        out.add(Reminder(
+          at(o.date),
+          '🔁 $name',
+          '${fmtMoney(r.amount, acc?.currency ?? baseCurrency)} is due today — open the app to confirm',
+        ));
+      }
+    }
+
+    if (s.backup && !dropbox.connected && accounts.isNotEmpty) {
+      var when = at((lastBackup ?? now).add(const Duration(days: 7)));
+      if (!when.isAfter(now)) when = at(now.add(const Duration(days: 1)));
+      out.add(Reminder(when, '💾 Time for a backup',
+          'Your data is only on this phone. Open Settings → Backup & restore.'));
+    }
+
+    await notifier.replaceAll(out);
   }
 
   // ---------------- Preferences ----------------

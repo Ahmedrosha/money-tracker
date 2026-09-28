@@ -46,3 +46,46 @@ if n1 != 1 or n2 < 1:
     sys.exit(f"Could not patch signing config in {path} ({n1}, {n2})")
 open(path, "w").write(s)
 print(f"Patched {path}")
+
+# ---- Notifications (flutter_local_notifications) ----
+# Core library desugaring + minimum Android 7 (API 24).
+s = open(path).read()
+if path.endswith(".kts"):
+    s, n = re.subn(r'compileOptions\s*\{', 'compileOptions {\n        isCoreLibraryDesugaringEnabled = true', s, count=1)
+    if n != 1:
+        sys.exit("Could not enable desugaring")
+    s, _ = re.subn(r'minSdk\s*=\s*flutter\.minSdkVersion', 'minSdk = maxOf(24, flutter.minSdkVersion)', s)
+    s += '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n'
+else:
+    s, n = re.subn(r'compileOptions\s*\{', 'compileOptions {\n        coreLibraryDesugaringEnabled true', s, count=1)
+    if n != 1:
+        sys.exit("Could not enable desugaring")
+    s, _ = re.subn(r'minSdkVersion\s+flutter\.minSdkVersion', 'minSdkVersion Math.max(24, flutter.minSdkVersion)', s)
+    s += '\ndependencies {\n    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.4"\n}\n'
+open(path, "w").write(s)
+
+# Manifest: permissions and the receivers that deliver scheduled reminders
+# (also after a reboot or an app update).
+manifest = "build_app/android/app/src/main/AndroidManifest.xml"
+m = open(manifest).read()
+perms = (
+    '<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>\n'
+    '    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>\n'
+)
+m = m.replace("<application", perms + "    <application", 1)
+receivers = '''
+        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
+        </receiver>
+    </application>'''
+if "</application>" not in m:
+    sys.exit("No </application> in manifest")
+m = m.replace("</application>", receivers.lstrip("\n"), 1)
+open(manifest, "w").write(m)
+print("Patched notifications setup")

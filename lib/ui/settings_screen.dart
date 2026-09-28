@@ -5,6 +5,7 @@ import '../util/currencies.dart';
 import 'backup_screen.dart';
 import 'categories_screen.dart';
 import 'dropbox_screen.dart';
+import 'notification_settings.dart';
 import 'currencies_screen.dart';
 import 'recurring_screen.dart';
 import 'widgets.dart';
@@ -50,6 +51,18 @@ class SettingsScreen extends StatelessWidget {
                 context,
                 MaterialPageRoute(builder: (_) => const DropboxScreen()),
               ),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.notifications_outlined),
+            title: const Text('Notifications'),
+            subtitle: Text(state.notifSettings.enabled
+                ? 'Card payments, recurring items, backups'
+                : 'Off'),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const NotificationSettingsScreen()),
             ),
           ),
           ListTile(
@@ -112,7 +125,7 @@ class SettingsScreen extends StatelessWidget {
             leading: Icon(Icons.info_outline),
             title: Text('Money Tracker'),
             subtitle: Text(
-                'Version 0.13 — find account, dismiss card reminders'),
+                'Version 0.14 — notifications'),
           ),
         ],
       ),

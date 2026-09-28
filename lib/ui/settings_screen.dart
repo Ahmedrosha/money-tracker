@@ -99,7 +99,7 @@ class SettingsScreen extends StatelessWidget {
             leading: Icon(Icons.info_outline),
             title: Text('Money Tracker'),
             subtitle: Text(
-                'Version 0.9 — EGP equivalent'),
+                'Version 0.10 — order by value, count, name'),
           ),
         ],
       ),

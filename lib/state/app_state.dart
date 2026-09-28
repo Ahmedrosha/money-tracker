@@ -26,6 +26,10 @@ class AppState extends ChangeNotifier {
   /// Transactions screen order: 'date' or 'category'.
   String txnSort = 'date';
 
+  /// Order of groups in the "by type" view: value / count / name, each
+  /// with a direction, e.g. 'value_desc'.
+  String groupOrder = 'value_desc';
+
   /// First day of week for the calendar (DateTime.saturday etc.).
   int weekStart = DateTime.saturday;
 
@@ -45,6 +49,7 @@ class AppState extends ChangeNotifier {
     baseCurrency = await db.getSetting('base_currency') ?? 'EGP';
     accountsGroupBy = await db.getSetting('accounts_group_by') ?? 'type';
     txnSort = await db.getSetting('txn_sort') ?? 'date';
+    groupOrder = await db.getSetting('group_order') ?? 'value_desc';
     weekStart = int.tryParse(await db.getSetting('week_start') ?? '') ??
         DateTime.saturday;
     final lb = int.tryParse(await db.getSetting('last_backup') ?? '');
@@ -226,6 +231,12 @@ class AppState extends ChangeNotifier {
   Future<void> setAccountsGroupBy(String v) async {
     accountsGroupBy = v;
     await db.setSetting('accounts_group_by', v);
+    notifyListeners();
+  }
+
+  Future<void> setGroupOrder(String v) async {
+    groupOrder = v;
+    await db.setSetting('group_order', v);
     notifyListeners();
   }
 

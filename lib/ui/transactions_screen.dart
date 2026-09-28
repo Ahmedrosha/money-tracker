@@ -223,6 +223,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final incomes = list.where((t) => t.type == TxType.income).toList();
     final transfers = list.where((t) => t.type == TxType.transfer).toList();
     final showHeaders = _filter == null;
+    if (list.isNotEmpty) out.add(_orderBar(context, state));
     if (expenses.isNotEmpty) {
       if (showHeaders) out.add(_sectionTitle(context, 'Expenses'));
       out.addAll(_categoryGroups(context, state, expenses, kExpenseColor));
@@ -236,6 +237,57 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       out.addAll(_transferGroups(context, state, transfers));
     }
     return out;
+  }
+
+  /// Compares two groups according to the chosen order.
+  static int _compare(AppState state, double va, double vb, int ca, int cb,
+      String na, String nb) {
+    final parts = state.groupOrder.split('_');
+    final desc = parts.length > 1 && parts[1] == 'desc';
+    int r;
+    switch (parts.first) {
+      case 'count':
+        r = ca.compareTo(cb);
+        break;
+      case 'name':
+        r = na.toLowerCase().compareTo(nb.toLowerCase());
+        break;
+      default:
+        r = va.compareTo(vb);
+    }
+    return desc ? -r : r;
+  }
+
+  static const _orders = [
+    ('value_desc', 'Value: highest first'),
+    ('value_asc', 'Value: lowest first'),
+    ('count_desc', 'Count: most transactions first'),
+    ('count_asc', 'Count: fewest transactions first'),
+    ('name_asc', 'Name: A → Z'),
+    ('name_desc', 'Name: Z → A'),
+  ];
+
+  Widget _orderBar(BuildContext context, AppState state) {
+    final label =
+        _orders.firstWhere((o) => o.$1 == state.groupOrder, orElse: () => _orders.first).$2;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: PopupMenuButton<String>(
+          tooltip: 'Order groups by',
+          initialValue: state.groupOrder,
+          onSelected: state.setGroupOrder,
+          itemBuilder: (_) => [
+            for (final (v, l) in _orders) PopupMenuItem(value: v, child: Text(l)),
+          ],
+          child: Chip(
+            avatar: const Icon(Icons.swap_vert, size: 18),
+            label: Text('Order: $label'),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _sectionTitle(BuildContext context, String text) => Padding(
@@ -281,8 +333,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     }
     double sum(Iterable<Txn> l) => l.fold(0.0, (s, t) => s + base(t));
     final sorted = groups.entries.toList()
-      ..sort((a, b) => sum(b.value.values.expand((l) => l))
-          .compareTo(sum(a.value.values.expand((l) => l))));
+      ..sort((a, b) => _compare(
+          state,
+          sum(a.value.values.expand((l) => l)),
+          sum(b.value.values.expand((l) => l)),
+          a.value.values.fold<int>(0, (n, l) => n + l.length),
+          b.value.values.fold<int>(0, (n, l) => n + l.length),
+          a.key,
+          b.key));
     final cur = state.baseCurrency;
     return [
       for (final g in sorted)
@@ -295,7 +353,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               style: TextStyle(color: color, fontWeight: FontWeight.bold)),
           children: [
             for (final c in (g.value.entries.toList()
-              ..sort((a, b) => sum(b.value).compareTo(sum(a.value)))))
+              ..sort((a, b) => _compare(
+                  state,
+                  sum(a.value),
+                  sum(b.value),
+                  a.value.length,
+                  b.value.length,
+                  state.categoryById(a.key)?.name ?? '',
+                  state.categoryById(b.key)?.name ?? ''))))
               Padding(
                 padding: const EdgeInsets.only(left: 12),
                 child: ExpansionTile(
@@ -333,7 +398,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       return state.toBase(outSum(id) + inSum(id), c);
     }
 
-    ids.sort((a, b) => volume(b).compareTo(volume(a)));
+    int count(int id) => (outs[id]?.length ?? 0) + (ins[id]?.length ?? 0);
+    ids.sort((a, b) => _compare(state, volume(a), volume(b), count(a),
+        count(b), state.accountById(a)?.fullName ?? '',
+        state.accountById(b)?.fullName ?? ''));
     final small = Theme.of(context).textTheme.labelLarge;
     return [
       for (final id in ids)

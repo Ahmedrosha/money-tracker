@@ -4,6 +4,7 @@ import '../state/app_state.dart';
 import '../util/currencies.dart';
 import 'backup_screen.dart';
 import 'categories_screen.dart';
+import 'dropbox_screen.dart';
 import 'currencies_screen.dart';
 import 'recurring_screen.dart';
 import 'widgets.dart';
@@ -37,6 +38,18 @@ class SettingsScreen extends StatelessWidget {
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const CurrenciesScreen()),
+            ),
+          ),
+          ListenableBuilder(
+            listenable: state.dropbox,
+            builder: (context, _) => ListTile(
+              leading: const Icon(Icons.cloud_sync_outlined),
+              title: const Text('Dropbox'),
+              subtitle: Text(dropboxStatus(state.dropbox)),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DropboxScreen()),
+              ),
             ),
           ),
           ListTile(
@@ -99,7 +112,7 @@ class SettingsScreen extends StatelessWidget {
             leading: Icon(Icons.info_outline),
             title: Text('Money Tracker'),
             subtitle: Text(
-                'Version 0.10 — order by value, count, name'),
+                'Version 0.11 — Dropbox sync'),
           ),
         ],
       ),

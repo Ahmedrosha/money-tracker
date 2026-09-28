@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import '../data/db.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
+import 'dropbox_screen.dart';
 import 'widgets.dart';
 
 class BackupScreen extends StatefulWidget {
@@ -176,6 +177,13 @@ class _BackupScreenState extends State<BackupScreen> {
               subtitle: const Text('Replaces all current data'),
               onTap: _restore,
             ),
+            if (state.dropbox.connected)
+              ListTile(
+                leading: const Icon(Icons.cloud_download_outlined),
+                title: const Text('Restore from Dropbox'),
+                subtitle: const Text('Replaces all current data'),
+                onTap: () => restoreFromDropbox(context),
+              ),
             ListTile(
               leading: const Icon(Icons.undo),
               title: const Text('Undo last restore'),

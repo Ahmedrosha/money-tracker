@@ -1,13 +1,25 @@
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../data/db.dart';
 import '../data/models.dart';
+import '../services/dropbox.dart';
 import '../services/rates.dart';
 
 class AppState extends ChangeNotifier {
-  AppState(this.db);
+  AppState(this.db) {
+    dropbox = DropboxSync(() async {
+      final dir = await getTemporaryDirectory();
+      final path = '${dir.path}/dropbox-upload.db';
+      await db.backupTo(path);
+      return path;
+    });
+  }
+
+  late final DropboxSync dropbox;
+  bool _loaded = false;
 
   AppDb db;
   final RateService _rateService = RateService();
@@ -54,7 +66,9 @@ class AppState extends ChangeNotifier {
         DateTime.saturday;
     final lb = int.tryParse(await db.getSetting('last_backup') ?? '');
     lastBackup = lb == null ? null : DateTime.fromMillisecondsSinceEpoch(lb);
+    await dropbox.init();
     await _reloadAll();
+    _loaded = true;
   }
 
   Future<void> _reloadAll() async {
@@ -68,6 +82,8 @@ class AppState extends ChangeNotifier {
     await _computeCards();
     version++;
     notifyListeners();
+    // Any data change after start-up is sent to Dropbox (debounced).
+    if (_loaded) dropbox.scheduleUpload();
   }
 
   // ---------------- Credit cards ----------------
@@ -208,6 +224,10 @@ class AppState extends ChangeNotifier {
     if (info.version > AppDb.schemaVersion) {
       throw Exception(
           'This backup is from a newer app version. Update the app first.');
+    }
+    // Don't swap the database while it is being uploaded.
+    while (dropbox.busy) {
+      await Future<void>.delayed(const Duration(milliseconds: 200));
     }
     final now = DateTime.now().millisecondsSinceEpoch;
     final safety = '$safetyDir/before-restore-$now.db';

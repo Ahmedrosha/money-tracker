@@ -36,6 +36,8 @@ jobs:
           MANIFEST=build_app/android/app/src/main/AndroidManifest.xml
           sed -i 's/android:label="money_tracker"/android:label="Money Tracker"/' "$MANIFEST"
           sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' "$MANIFEST"
+          # Let the app open https links (Dropbox sign-in) on Android 11+.
+          sed -i 's#</manifest>#    <queries><intent><action android:name="android.intent.action.VIEW"/><data android:scheme="https"/></intent></queries>\n</manifest>#' "$MANIFEST"
           cat "$MANIFEST"
           # Same signing key on every build so updates install over the old version.
           mkdir -p ~/.android

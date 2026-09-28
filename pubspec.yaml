@@ -19,7 +19,7 @@ dependencies:
   url_launcher: ^6.3.1
   crypto: ^3.0.6
   flutter_local_notifications: ^22.3.1
-  timezone: ^0.10.1
+  timezone: any
 
 dev_dependencies:
   flutter_launcher_icons: ^0.14.4

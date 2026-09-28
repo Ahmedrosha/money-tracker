@@ -45,7 +45,10 @@ jobs:
 
       - name: Get packages
         working-directory: build_app
-        run: flutter pub get
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter pub get 2>&1 | tee ../build.log
 
       - name: App icon
         working-directory: build_app

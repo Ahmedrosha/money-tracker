@@ -85,10 +85,10 @@ class _RateTile extends StatelessWidget {
     final r = state.rate(code, base);
     final manual = state.isManual(code);
     return ListTile(
-      title: Text('$code — ${currencyName(code)}'),
+      title: Text(isGold(code) ? currencyName(code) : '$code — ${currencyName(code)}'),
       subtitle: Text(r == null
           ? 'No rate yet'
-          : '1 $code = ${fmtRate(r)} $base'),
+          : '1 ${currencyUnit(code)} = ${fmtRate(r)} $base'),
       trailing: manual
           ? Chip(
               label: const Text('Manual'),
@@ -108,13 +108,13 @@ class _RateTile extends StatelessWidget {
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Rate for $code'),
+        title: Text(isGold(code) ? 'Price per Gram, ${goldKarat(code)}K' : 'Rate for $code'),
         content: TextField(
           controller: ctrl,
           autofocus: true,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: InputDecoration(
-            prefixText: '1 $code = ',
+            prefixText: '1 ${currencyUnit(code)} = ',
             suffixText: base,
             border: const OutlineInputBorder(),
           ),

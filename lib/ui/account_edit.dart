@@ -206,7 +206,17 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
               borderRadius: BorderRadius.circular(4),
               onTap: () async {
                 final t = await _pickType(context, _type);
-                if (t != null) setState(() => _type = t);
+                if (t != null) {
+                  setState(() {
+                    // New gold accounts are measured in grams by default.
+                    if (_isNew && t == AccountType.gold && !isGold(_currency)) {
+                      _currency = 'XAU21';
+                    } else if (_isNew && t != AccountType.gold && isGold(_currency)) {
+                      _currency = AppScope.read(context).baseCurrency;
+                    }
+                    _type = t;
+                  });
+                }
               },
               child: InputDecorator(
                 decoration: InputDecoration(
@@ -227,6 +237,30 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
               ),
             ],
             const SizedBox(height: 16),
+            if (_type == AccountType.gold && _isNew) ...[
+              Text('Measured In', style: Theme.of(context).textTheme.labelLarge),
+              const SizedBox(height: 8),
+              SegmentedButton<String>(
+                showSelectedIcon: false,
+                segments: [
+                  const ButtonSegment(value: 'XAU24', label: Text('24K g')),
+                  const ButtonSegment(value: 'XAU21', label: Text('21K g')),
+                  const ButtonSegment(value: 'XAU18', label: Text('18K g')),
+                  ButtonSegment(
+                      value: AppScope.read(context).baseCurrency,
+                      label: Text(AppScope.read(context).baseCurrency)),
+                ],
+                selected: {_currency},
+                onSelectionChanged: (v) => setState(() => _currency = v.first),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                isGold(_currency)
+                    ? 'Grams of ${goldKarat(_currency)}K gold, valued at today\'s price per gram.'
+                    : 'Tracked as money (what you paid), not by weight.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ] else
             InkWell(
               borderRadius: BorderRadius.circular(4),
               onTap: () async {
@@ -250,11 +284,11 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
               decoration: InputDecoration(
                 labelText: _type.isLiability
                     ? 'Amount owed at start'
-                    : 'Opening balance',
+                    : (isGold(_currency) ? 'Grams You Hold Now' : 'Opening balance'),
                 helperText: _type.isLiability
                     ? 'What you owed before your first recorded transaction'
                     : 'Balance before your first recorded transaction',
-                suffixText: _currency,
+                suffixText: currencyUnit(_currency),
                 border: const OutlineInputBorder(),
               ),
               validator: (v) {
@@ -274,7 +308,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
                     const TextInputType.numberWithOptions(decimal: true),
                 decoration: InputDecoration(
                   labelText: 'Credit Limit',
-                  suffixText: _currency,
+                  suffixText: currencyUnit(_currency),
                   border: const OutlineInputBorder(),
                 ),
                 validator: (v) {

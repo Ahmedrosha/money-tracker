@@ -1,6 +1,7 @@
 import 'package:intl/intl.dart';
 
 import 'calc.dart';
+import 'currencies.dart';
 
 final NumberFormat _amountFmt = NumberFormat('#,##0.00', 'en_US');
 final DateFormat dayFmt = DateFormat('EEE, d MMM yyyy');
@@ -21,9 +22,11 @@ String fmtAmountRaw(double v) {
   return _amountFmt.format(v);
 }
 
-String fmtMoney(double v, String currency) => '${fmtAmount(v)} $currency';
+String fmtMoney(double v, String currency) =>
+    '${fmtAmount(v)} ${currencyUnit(currency)}';
 
-String fmtMoneyRaw(double v, String currency) => '${fmtAmountRaw(v)} $currency';
+String fmtMoneyRaw(double v, String currency) =>
+    '${fmtAmountRaw(v)} ${currencyUnit(currency)}';
 
 /// Parses user input like "1,234.5" or "1234,5".
 double? parseAmount(String input) {

@@ -33,4 +33,18 @@ const Map<String, String> kCurrencyNames = {
   'PKR': 'Pakistani Rupee',
 };
 
-String currencyName(String code) => kCurrencyNames[code] ?? code;
+/// Gold by weight: one "currency" per karat, measured in grams.
+const List<String> kGoldCodes = ['XAU24', 'XAU21', 'XAU18'];
+
+bool isGold(String code) => kGoldCodes.contains(code);
+
+/// 24, 21 or 18 for gold codes.
+int goldKarat(String code) => int.parse(code.substring(3));
+
+/// Unit shown next to amounts: "g 21K" for gold, the code otherwise.
+String currencyUnit(String code) => isGold(code) ? 'g ${goldKarat(code)}K' : code;
+
+String currencyName(String code) {
+  if (isGold(code)) return 'Gold ${goldKarat(code)}K (grams)';
+  return kCurrencyNames[code] ?? code;
+}

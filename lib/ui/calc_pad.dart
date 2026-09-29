@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../util/calc.dart';
 import '../util/format.dart';
+import '../util/currencies.dart';
 
 /// Opens the calculator keypad for [controller]. The field keeps the
 /// expression while typing; "Done" (or =) replaces it with the result.
@@ -151,7 +152,7 @@ class _CalcPadState extends State<_CalcPad> {
                   ),
                   Text(
                     preview != null
-                        ? '= ${fmtAmountRaw(preview)}${widget.currency == null ? '' : ' ${widget.currency}'}'
+                        ? '= ${fmtAmountRaw(preview)}${widget.currency == null ? '' : ' ${currencyUnit(widget.currency!)}'}'
                         : (widget.currency ?? ''),
                     style: TextStyle(color: scheme.primary),
                   ),

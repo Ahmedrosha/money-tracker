@@ -4,6 +4,7 @@ import '../data/models.dart';
 import '../state/app_state.dart';
 import '../util/calc.dart';
 import '../util/format.dart';
+import '../util/currencies.dart';
 import 'account_edit.dart';
 import 'calc_pad.dart';
 import 'widgets.dart';
@@ -631,7 +632,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                 helperStyle: TextStyle(
                     color: Theme.of(context).colorScheme.primary,
                     fontWeight: FontWeight.w600),
-                suffixText: account?.currency,
+                suffixText: account == null ? null : currencyUnit(account.currency),
                 suffixIcon: IconButton(
                   tooltip:
                       _sysKeyboard ? 'Use calculator' : 'Use phone keyboard',
@@ -700,10 +701,13 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                   onTapOutside: (_) => _settleExpression(_toAmount),
                   decoration: InputDecoration(
                     labelText: 'Amount Received',
-                    suffixText: toAccount!.currency,
+                    suffixText: currencyUnit(toAccount!.currency),
                     helperText: rate == null
                         ? 'No rate available — enter manually'
-                        : '1 ${account!.currency} = ${fmtRate(rate)} ${toAccount.currency}'
+                        : (isGold(toAccount.currency) && rate > 0
+                            // Buying gold: price per gram reads better.
+                            ? '1 ${currencyUnit(toAccount.currency)} = ${fmtRate(1 / rate)} ${account!.currency}'
+                            : '1 ${currencyUnit(account!.currency)} = ${fmtRate(rate)} ${currencyUnit(toAccount.currency)}')
                             '${_toAmountEdited ? ' (edited)' : ''}',
                     border: const OutlineInputBorder(),
                     suffixIcon: _toAmountEdited

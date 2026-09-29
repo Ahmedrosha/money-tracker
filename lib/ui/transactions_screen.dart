@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/models.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
+import '../util/currencies.dart';
 import 'calendar_screen.dart';
 import 'search_screen.dart';
 import 'transaction_edit.dart';
@@ -520,7 +521,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               TextSpan(
                   text: 'In ${fmtAmount(inSum(id))}',
                   style: const TextStyle(color: kIncomeColor)),
-              TextSpan(text: '  $cur'),
+              TextSpan(text: '  ${currencyUnit(cur)}'),
             ])),
             children: [
               if ((outs[id] ?? []).isNotEmpty) ...[

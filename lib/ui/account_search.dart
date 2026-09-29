@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/models.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
+import '../util/currencies.dart';
 import 'account_detail.dart';
 import 'widgets.dart';
 
@@ -24,7 +25,7 @@ class _AccountSearchScreenState extends State<AccountSearchScreen> {
       ..removeWhere((w) => w.isEmpty);
     bool match(Account a) {
       final hay = '${a.name} ${a.bank} ${a.type.label} ${a.type.family.label} '
-              '${a.currency}'
+              '${currencyUnit(a.currency)}'
           .toLowerCase();
       return words.every(hay.contains);
     }

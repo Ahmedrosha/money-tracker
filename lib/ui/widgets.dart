@@ -392,7 +392,7 @@ class _CurrencySheetState extends State<_CurrencySheet> {
               itemBuilder: (ctx, i) {
                 final c = list[i];
                 return ListTile(
-                  title: Text(c),
+                  title: Text(isGold(c) ? 'Gold ${goldKarat(c)}K' : c),
                   subtitle: Text(currencyName(c)),
                   trailing: c == widget.current
                       ? const Icon(Icons.check)
@@ -511,7 +511,7 @@ class AccountField extends StatelessWidget {
                     Text(a.bank,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: Theme.of(context).colorScheme.primary)),
-                  Text('${a.name} · ${a.currency}',
+                  Text('${a.name} · ${currencyUnit(a.currency)}',
                       overflow: TextOverflow.ellipsis),
                 ],
               ),
@@ -575,7 +575,7 @@ class _AccountSheetState extends State<_AccountSheet> {
 
   bool _matches(Account a, List<String> words) {
     final hay = '${a.name} ${a.bank} ${a.type.label} ${a.type.family.label} '
-            '${a.currency}'
+            '${currencyUnit(a.currency)}'
         .toLowerCase();
     return words.every(hay.contains);
   }

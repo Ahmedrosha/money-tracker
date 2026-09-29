@@ -703,7 +703,9 @@ class AppState extends ChangeNotifier {
   Future<void> autoRefreshRates(
       {Duration maxAge = const Duration(hours: 12)}) async {
     final last = lastRateUpdate;
-    if (last != null && DateTime.now().difference(last) < maxAge) return;
+    // A currency in use with no rate yet (e.g. a new gold karat): refresh now.
+    final missing = usedCurrencies.any((c) => c != 'USD' && !rates.containsKey(c));
+    if (!missing && last != null && DateTime.now().difference(last) < maxAge) return;
     try {
       await refreshRates();
     } catch (_) {
@@ -786,6 +788,31 @@ class AppState extends ChangeNotifier {
     } else {
       await db.updateAccount(a);
     }
+    await _reloadAll();
+  }
+
+  /// Gold kept in money -> gold kept in grams (see switchGoldToWeight UI).
+  Future<void> switchGoldToWeight(Account old, String code, double grams) async {
+    final id = await db.insertAccount(Account.fromMap({
+      ...old.toMap(),
+      'id': null,
+      'name': '${old.name} (grams)',
+      'currency': code,
+      // Nothing paid on record: the grams are simply the starting balance.
+      'opening_balance': old.balance > 0.004 ? 0.0 : grams,
+      'archived': 0,
+    }..remove('id')));
+    final now = DateTime.now();
+    if (old.balance > 0.004) await db.insertTxn(Txn(
+      type: TxType.transfer,
+      date: now,
+      amount: old.balance,
+      accountId: old.id!,
+      toAccountId: id,
+      toAmount: grams,
+      note: 'Switched to tracking by weight',
+    ));
+    await db.updateAccount(Account.fromMap({...old.toMap(), 'archived': 1}));
     await _reloadAll();
   }
 

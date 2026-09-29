@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../data/models.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
+import '../util/currencies.dart';
+import 'gold_panel.dart';
 import 'account_edit.dart';
 import 'calendar_screen.dart';
 import 'card_panel.dart';
@@ -54,12 +56,17 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                 );
               } else if (v == 'balance') {
                 _setBalance(context, state, account);
+              } else if (v == 'grams') {
+                switchGoldToWeight(context, state, account);
               }
             },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'edit', child: Text('Edit Account')),
-              PopupMenuItem(
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'edit', child: Text('Edit Account')),
+              const PopupMenuItem(
                   value: 'balance', child: Text('Set Current Balance')),
+              if (account.type == AccountType.gold && !isGold(account.currency))
+                const PopupMenuItem(
+                    value: 'grams', child: Text('Switch to Grams…')),
             ],
           ),
         ],
@@ -112,6 +119,8 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                   children: [
                     _header(context, state, account, txns.length),
                     if (card != null) CardPanel(summary: card),
+                    if (isGold(account.currency))
+                      GoldPanel(account: account, txns: txns),
                   ],
                 );
               }
@@ -174,7 +183,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
               keyboardType: const TextInputType.numberWithOptions(
                   decimal: true, signed: true),
               decoration: InputDecoration(
-                suffixText: a.currency,
+                suffixText: currencyUnit(a.currency),
                 border: const OutlineInputBorder(),
               ),
             ),
@@ -223,7 +232,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-                '${account.type.label} · ${account.currency}'
+                '${account.type.label} · ${currencyUnit(account.currency)}'
                 '${liability ? ' · amount owed' : ''}',
                 style: TextStyle(color: scheme.onPrimaryContainer)),
             const SizedBox(height: 4),

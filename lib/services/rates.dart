@@ -8,12 +8,34 @@ class RateService {
   static const _fallback =
       'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json';
 
+  static const _fallback2 =
+      'https://latest.currency-api.pages.dev/v1/currencies/usd.json';
+
+  /// Troy ounce in grams.
+  static const _ozGrams = 31.1034768;
+
   Future<Map<String, double>> fetchPerUsd() async {
+    Map<String, double> out;
     try {
-      return await _fetchPrimary();
+      out = await _fetchPrimary();
     } catch (_) {
-      return await _fetchFallback();
+      out = await _fetchFallback();
     }
+    // Gold: grams of each karat per USD, from the world price (XAU is
+    // troy ounces of pure gold per USD).
+    var xau = out['XAU'];
+    if (xau == null) {
+      try {
+        xau = (await _fetchFallback())['XAU'];
+      } catch (_) {}
+    }
+    if (xau != null && xau > 0) {
+      final g24 = xau * _ozGrams;
+      out['XAU24'] = g24;
+      out['XAU21'] = g24 * 24 / 21;
+      out['XAU18'] = g24 * 24 / 18;
+    }
+    return out;
   }
 
   Future<Map<String, double>> _fetchPrimary() async {
@@ -32,9 +54,14 @@ class RateService {
   }
 
   Future<Map<String, double>> _fetchFallback() async {
-    final res = await http
+    var res = await http
         .get(Uri.parse(_fallback))
         .timeout(const Duration(seconds: 15));
+    if (res.statusCode != 200) {
+      res = await http
+          .get(Uri.parse(_fallback2))
+          .timeout(const Duration(seconds: 15));
+    }
     if (res.statusCode != 200) {
       throw Exception('HTTP ${res.statusCode}');
     }

@@ -3,6 +3,7 @@ import 'package:intl/intl.dart' show DateFormat;
 
 import '../data/models.dart';
 import '../state/app_state.dart';
+import '../util/currencies.dart';
 import '../util/format.dart';
 import 'reports_more.dart';
 import 'search_screen.dart';
@@ -483,7 +484,7 @@ class _AllocationTabState extends State<AllocationTab> {
           tilePadding: EdgeInsets.zero,
           childrenPadding: EdgeInsets.zero,
           title: _ShareRow(
-            label: g.name,
+            label: _split == _Split.currency ? currencyName(g.name) : g.name,
             value: g.total.abs(),
             max: whole,
             color: color,

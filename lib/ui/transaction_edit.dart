@@ -574,12 +574,11 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       appBar: AppBar(
         title: Text(_title),
         actions: [
-          if (_canDelete)
-            IconButton(
-              tooltip: 'Delete',
-              icon: const Icon(Icons.delete_outline),
-              onPressed: _delete,
-            ),
+          IconButton(
+            tooltip: _mode == _Mode.confirm ? 'Confirm' : 'Save',
+            icon: const Icon(Icons.check),
+            onPressed: _saving || _accountId == null ? null : _save,
+          ),
         ],
       ),
       body: Form(
@@ -806,6 +805,26 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                 child: Text(_mode == _Mode.confirm ? 'Confirm' : 'Save'),
               ),
             ),
+            if (_canDelete) ...[
+              const SizedBox(height: 32),
+              const Divider(),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.error,
+                  side: BorderSide(color: Theme.of(context).colorScheme.error),
+                  padding: const EdgeInsets.all(12),
+                ),
+                icon: const Icon(Icons.delete_outline),
+                label: Text(_mode == _Mode.editRule
+                    ? 'Delete Recurring Item'
+                    : _mode == _Mode.editPlan
+                        ? 'Delete Whole Plan'
+                        : 'Delete Transaction'),
+                onPressed: _delete,
+              ),
+              const SizedBox(height: 16),
+            ],
           ],
         ),
       ),

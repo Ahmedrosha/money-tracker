@@ -33,6 +33,7 @@ class AppState extends ChangeNotifier {
   Map<String, CurrencyRate> rates = {};
   List<RecurringRule> rules = [];
   Map<int, InstallmentPlan> plans = {};
+  List<Budget> budgets = [];
   List<String> bankNames = [];
   String baseCurrency = 'EGP';
 
@@ -90,14 +91,152 @@ class AppState extends ChangeNotifier {
     rates = {for (final r in await db.rates()) r.code: r};
     rules = await db.recurringRules();
     plans = await db.allPlans();
+    budgets = await db.budgets();
     bankNames = await db.bankNames();
     await _computeProjection();
     await _computeCards();
     version++;
     notifyListeners();
     // Any data change after start-up is sent to Dropbox (debounced).
-    if (_loaded) dropbox.scheduleUpload();
+    if (_loaded) {
+      dropbox.scheduleUpload();
+      _checkBudgetAlerts();
+    }
     rescheduleReminders();
+  }
+
+  // ---------------- Budgets ----------------
+
+  String budgetName(Budget b) {
+    switch (b.scope) {
+      case BudgetScope.total:
+        return 'All spending';
+      case BudgetScope.group:
+        return b.target;
+      case BudgetScope.category:
+        final c = categoryById(b.categoryId);
+        if (c == null) return 'Deleted category';
+        return c.group.isEmpty ? c.name : '${c.group} › ${c.name}';
+    }
+  }
+
+  bool _budgetCovers(Budget b, int? catId) {
+    switch (b.scope) {
+      case BudgetScope.total:
+        return true;
+      case BudgetScope.group:
+        return categoryById(catId)?.group == b.target;
+      case BudgetScope.category:
+        return catId != null && catId == b.categoryId;
+    }
+  }
+
+  static String _ymKey(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}';
+
+  /// Where every budget stands in [month]. With rollover, what was left
+  /// (or overspent) in each earlier month since the budget started is
+  /// carried forward.
+  Future<List<BudgetStatus>> budgetStatus(DateTime month) =>
+      _budgetStatus(budgets, month);
+
+  /// Status of a single (possibly unsaved) budget.
+  Future<BudgetStatus> budgetStatusFor(Budget b, DateTime month) async =>
+      (await _budgetStatus([b], month)).first;
+
+  Future<List<BudgetStatus>> _budgetStatus(
+      List<Budget> budgets, DateTime month) async {
+    if (budgets.isEmpty) return const [];
+    final m = DateTime(month.year, month.month);
+    var from = m;
+    for (final b in budgets) {
+      if (b.rollover && b.start.isBefore(from)) from = b.start;
+    }
+    final rows =
+        await db.expensesByMonthCategory(from, DateTime(m.year, m.month + 1));
+    // month -> category -> spent in main currency
+    final spent = <String, Map<int?, double>>{};
+    for (final r in rows) {
+      final byCat = spent.putIfAbsent(r['ym'] as String, () => {});
+      final cat = r['cat'] as int?;
+      byCat[cat] = (byCat[cat] ?? 0) +
+          toBase((r['total'] as num).toDouble(),
+              (r['cur'] as String?) ?? baseCurrency);
+    }
+    double spentIn(Budget b, DateTime d) {
+      var sum = 0.0;
+      (spent[_ymKey(d)] ?? const {}).forEach((cat, v) {
+        if (_budgetCovers(b, cat)) sum += v;
+      });
+      return sum;
+    }
+
+    final out = <BudgetStatus>[];
+    for (final b in budgets) {
+      var carried = 0.0;
+      if (b.rollover) {
+        var d = DateTime(b.start.year, b.start.month);
+        while (d.isBefore(m)) {
+          carried += b.amount - spentIn(b, d);
+          d = DateTime(d.year, d.month + 1);
+        }
+      }
+      out.add(BudgetStatus(
+        budget: b,
+        name: budgetName(b),
+        limit: b.amount + carried,
+        carried: carried,
+        spent: spentIn(b, m),
+      ));
+    }
+    return out;
+  }
+
+  Future<void> saveBudget(Budget b) async {
+    if (b.id == null) {
+      await db.insertBudget(b);
+    } else {
+      await db.updateBudget(b);
+    }
+    await _reloadAll();
+  }
+
+  Future<void> deleteBudget(int id) async {
+    await db.deleteBudget(id);
+    await _reloadAll();
+  }
+
+  /// Notifies once per month when a budget passes 80% and again when it
+  /// is exceeded.
+  Future<void> _checkBudgetAlerts() async {
+    final s = notifSettings;
+    if (!s.enabled || !s.budgets || budgets.isEmpty) return;
+    try {
+      final now = DateTime.now();
+      final ym = _ymKey(now);
+      for (final st in await budgetStatus(now)) {
+        final id = st.budget.id;
+        if (id == null) continue;
+        final level = st.over ? 100 : (st.fraction >= 0.8 ? 80 : 0);
+        final key = 'budget_alert_$id';
+        final saved = (await db.getSetting(key) ?? '').split(':');
+        final prev = saved.length == 2 && saved[0] == ym
+            ? int.tryParse(saved[1]) ?? 0
+            : 0;
+        if (level <= prev) continue;
+        await db.setSetting(key, '$ym:$level');
+        final pct = (st.fraction * 100).toStringAsFixed(0);
+        await notifier.showBudgetAlert(
+          id,
+          level == 100
+              ? '🚨 ${st.name} budget exceeded'
+              : '⚠️ ${st.name} budget at $pct%',
+          level == 100
+              ? 'Spent ${fmtMoney(st.spent, baseCurrency)} of ${fmtAmount(st.limit)} — ${fmtAmount(-st.left)} over'
+              : 'Spent ${fmtMoney(st.spent, baseCurrency)} of ${fmtAmount(st.limit)} — ${fmtAmount(st.left)} left this month',
+        );
+      }
+    } catch (_) {}
   }
 
   // ---------------- Credit cards ----------------

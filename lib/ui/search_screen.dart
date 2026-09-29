@@ -13,7 +13,11 @@ enum _Range { any, thisMonth, thisYear, last12, custom }
 
 /// Search across every transaction, including archived accounts.
 class SearchScreen extends StatefulWidget {
-  const SearchScreen({super.key});
+  const SearchScreen({super.key, this.initialQuery, this.initialType});
+
+  /// Opens with this text (e.g. a payee) already searched.
+  final String? initialQuery;
+  final TxType? initialType;
 
   @override
   State<SearchScreen> createState() => _SearchScreenState();
@@ -31,6 +35,13 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Future<SearchResult>? _future;
   String _lastKey = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl.text = widget.initialQuery ?? '';
+    _type = widget.initialType;
+  }
 
   @override
   void dispose() {
@@ -198,7 +209,7 @@ class _SearchScreenState extends State<SearchScreen> {
         titleSpacing: 0,
         title: TextField(
           controller: _ctrl,
-          autofocus: true,
+          autofocus: widget.initialQuery == null,
           textInputAction: TextInputAction.search,
           decoration: InputDecoration(
             hintText: 'Search payee, note, category, account, amount',

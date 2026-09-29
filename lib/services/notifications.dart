@@ -14,6 +14,7 @@ class NotifSettings {
   bool recurring;
   bool statementClosed;
   bool backup;
+  bool budgets;
 
   NotifSettings({
     this.enabled = true,
@@ -23,6 +24,7 @@ class NotifSettings {
     this.recurring = true,
     this.statementClosed = true,
     this.backup = true,
+    this.budgets = true,
   }) : cardDays = cardDays ?? {3, 1, 0};
 
   static Future<NotifSettings> load(AppDb db) async {
@@ -42,6 +44,7 @@ class NotifSettings {
       recurring: (await g('notif_recurring') ?? '1') == '1',
       statementClosed: (await g('notif_statement') ?? '1') == '1',
       backup: (await g('notif_backup') ?? '1') == '1',
+      budgets: (await g('notif_budgets') ?? '1') == '1',
     );
   }
 
@@ -54,6 +57,7 @@ class NotifSettings {
     await db.setSetting('notif_recurring', b(recurring));
     await db.setSetting('notif_statement', b(statementClosed));
     await db.setSetting('notif_backup', b(backup));
+    await db.setSetting('notif_budgets', b(budgets));
   }
 }
 
@@ -76,6 +80,16 @@ class Notifier {
       'reminders',
       'Payment reminders',
       channelDescription: 'Card payments, recurring items and backups',
+      importance: Importance.high,
+      priority: Priority.high,
+    ),
+  );
+
+  static const _budgetDetails = NotificationDetails(
+    android: AndroidNotificationDetails(
+      'budgets',
+      'Budget alerts',
+      channelDescription: 'When a budget reaches 80% or is exceeded',
       importance: Importance.high,
       priority: Priority.high,
     ),
@@ -120,12 +134,27 @@ class Notifier {
     );
   }
 
+  /// Shows a budget alert right away.
+  Future<void> showBudgetAlert(int id, String title, String body) async {
+    await init();
+    if (!_ready) return;
+    try {
+      await _plugin.show(
+        id: 100000 + id,
+        title: title,
+        body: body,
+        notificationDetails: _budgetDetails,
+      );
+    } catch (_) {}
+  }
+
   /// Replaces all scheduled reminders with [items] (future ones only).
   Future<void> replaceAll(List<Reminder> items) async {
     await init();
     if (!_ready) return;
     try {
-      await _plugin.cancelAll();
+      // Only scheduled ones; alerts already on screen stay.
+      await _plugin.cancelAllPendingNotifications();
       final now = DateTime.now();
       final upcoming = items.where((r) => r.at.isAfter(now)).toList()
         ..sort((a, b) => a.at.compareTo(b.at));

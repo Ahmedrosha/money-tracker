@@ -31,6 +31,7 @@ class _NotificationSettingsScreenState
       recurring: cur.recurring,
       statementClosed: cur.statementClosed,
       backup: cur.backup,
+      budgets: cur.budgets,
     );
   }
 
@@ -133,6 +134,13 @@ class _NotificationSettingsScreenState
             subtitle: const Text('Every 7 days, only when Dropbox is not connected'),
             value: _s.backup,
             onChanged: on ? (v) => _update(() => _s.backup = v) : null,
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.savings_outlined),
+            title: const Text('Budget alerts'),
+            subtitle: const Text('When a budget reaches 80% and when it is exceeded'),
+            value: _s.budgets,
+            onChanged: on ? (v) => _update(() => _s.budgets = v) : null,
           ),
           const Divider(),
           ListTile(

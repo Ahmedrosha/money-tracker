@@ -5,7 +5,9 @@ import '../data/db.dart';
 import '../data/models.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
+import 'budgets_screen.dart';
 import 'pay_card.dart';
+import 'reports_extra.dart';
 import 'reports_more.dart';
 import 'transaction_edit.dart';
 import 'widgets.dart';
@@ -46,7 +48,7 @@ class ReportsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 5,
+      length: 9,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Reports'),
@@ -55,18 +57,26 @@ class ReportsScreen extends StatelessWidget {
             tabAlignment: TabAlignment.start,
             tabs: [
               Tab(text: 'Dashboard'),
+              Tab(text: 'Budgets'),
               Tab(text: 'By category'),
               Tab(text: 'Trend'),
+              Tab(text: 'Outlook'),
+              Tab(text: 'Compare'),
               Tab(text: 'Net worth'),
+              Tab(text: 'Allocation'),
               Tab(text: 'Cards'),
             ],
           ),
         ),
         body: const TabBarView(children: [
           _Dashboard(),
+          BudgetsTab(),
           _ByCategory(),
           TrendTab(),
+          OutlookTab(),
+          CompareTab(),
           NetWorthTab(),
+          AllocationTab(),
           CardsTab(),
         ]),
       ),
@@ -233,8 +243,9 @@ class _DashData {
   final List<CatTotal> top;
   final Map<String, double> prevByCat;
   final List<(String, double)> months; // last 6 months spending
+  final List<BudgetStatus> budgets;
   _DashData(this.spent, this.income, this.prevSpent, this.prevIncome,
-      this.prevToDate, this.top, this.prevByCat, this.months);
+      this.prevToDate, this.top, this.prevByCat, this.months, this.budgets);
 }
 
 class _DashboardState extends State<_Dashboard> {
@@ -291,8 +302,12 @@ class _DashboardState extends State<_Dashboard> {
         }(),
     ];
 
+    final budgets = (await state.budgetStatus(_month))
+      ..sort((a, b) => b.fraction.compareTo(a.fraction));
+
     return _DashData(sum(exp), sum(inc), sum(pexp), sum(pinc), prevToDate,
-        exp.take(5).toList(), {for (final c in pexp) '${c.id}': c.total}, months);
+        exp.take(5).toList(), {for (final c in pexp) '${c.id}': c.total}, months,
+        budgets);
   }
 
   @override
@@ -380,6 +395,31 @@ class _DashboardState extends State<_Dashboard> {
                   ],
                 ),
               ),
+              if (d.budgets.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 8, 0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text('Budgets',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold)),
+                      ),
+                      TextButton(
+                        onPressed: () => DefaultTabController.of(context).animateTo(1),
+                        child: Text(d.budgets.length > 4
+                            ? 'All ${d.budgets.length}'
+                            : 'Open'),
+                      ),
+                    ],
+                  ),
+                ),
+                for (final b in d.budgets.take(4))
+                  BudgetRow(
+                      status: b,
+                      month: _month,
+                      onTap: () => editBudget(context, b.budget)),
+              ],
               _sectionTitle(context, 'Spending, last 6 months', sub: cur),
               _MonthBars(months: d.months, currency: cur),
               _sectionTitle(context, 'Top categories',

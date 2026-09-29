@@ -798,3 +798,95 @@ double _toDouble(Object? v) {
   if (v is num) return v.toDouble();
   return double.tryParse(v.toString()) ?? 0;
 }
+
+// ---------------------------------------------------------------------------
+// Budgets
+// ---------------------------------------------------------------------------
+
+enum BudgetScope { total, group, category }
+
+/// A monthly spending limit on everything, a category group or one category.
+/// Amounts are in the main currency.
+class Budget {
+  final int? id;
+  final BudgetScope scope;
+
+  /// Group name for [BudgetScope.group], category id for
+  /// [BudgetScope.category], empty for [BudgetScope.total].
+  final String target;
+  final double amount;
+
+  /// Unspent money (or overspending) carries into the next month.
+  final bool rollover;
+
+  /// First month the budget applies to (rollover counts from here).
+  final DateTime start;
+  final int sortOrder;
+
+  const Budget({
+    this.id,
+    required this.scope,
+    this.target = '',
+    required this.amount,
+    this.rollover = false,
+    required this.start,
+    this.sortOrder = 0,
+  });
+
+  int? get categoryId =>
+      scope == BudgetScope.category ? int.tryParse(target) : null;
+
+  Budget copyWith({double? amount, bool? rollover, DateTime? start}) => Budget(
+        id: id,
+        scope: scope,
+        target: target,
+        amount: amount ?? this.amount,
+        rollover: rollover ?? this.rollover,
+        start: start ?? this.start,
+        sortOrder: sortOrder,
+      );
+
+  Map<String, Object?> toMap() => {
+        if (id != null) 'id': id,
+        'scope': scope.name,
+        'target': target,
+        'amount': amount,
+        'rollover': rollover ? 1 : 0,
+        'start': DateTime(start.year, start.month).millisecondsSinceEpoch,
+        'sort_order': sortOrder,
+      };
+
+  factory Budget.fromMap(Map<String, Object?> m) => Budget(
+        id: m['id'] as int?,
+        scope: BudgetScope.values.firstWhere((s) => s.name == m['scope'],
+            orElse: () => BudgetScope.total),
+        target: (m['target'] as String?) ?? '',
+        amount: _toDouble(m['amount']),
+        rollover: (m['rollover'] as int? ?? 0) == 1,
+        start: DateTime.fromMillisecondsSinceEpoch(m['start'] as int),
+        sortOrder: m['sort_order'] as int? ?? 0,
+      );
+}
+
+/// A budget's position for one month.
+class BudgetStatus {
+  final Budget budget;
+  final String name;
+
+  /// This month's limit plus anything carried over.
+  final double limit;
+  final double carried;
+  final double spent;
+
+  const BudgetStatus({
+    required this.budget,
+    required this.name,
+    required this.limit,
+    required this.carried,
+    required this.spent,
+  });
+
+  double get left => limit - spent;
+  double get fraction => limit <= 0 ? (spent > 0 ? 1.0 : 0.0) : spent / limit;
+  bool get over => spent > limit + 0.004;
+}

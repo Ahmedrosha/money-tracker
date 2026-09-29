@@ -55,15 +55,18 @@ class TrendTab extends StatefulWidget {
 }
 
 class _Bucket {
+  final DateTime start;
   final String label;
   final String longLabel;
   double income = 0;
   double spent = 0;
-  _Bucket(this.label, this.longLabel);
+  _Bucket(this.start, this.label, this.longLabel);
+  double get net => income - spent;
 }
 
 class _TrendTabState extends State<TrendTab> {
   bool _years = false;
+  bool _cumulative = false;
   int? _selected;
   int? _categoryId;
   Future<List<_Bucket>>? _future;
@@ -89,6 +92,7 @@ class _TrendTabState extends State<TrendTab> {
     final buckets = {
       for (final s in starts)
         (_years ? '${s.year}' : _ym(s)): _Bucket(
+            s,
             _years ? "'${s.year % 100}" : DateFormat('MMM').format(s),
             _years ? '${s.year}' : monthFmt.format(s)),
     };
@@ -115,6 +119,7 @@ class _TrendTabState extends State<TrendTab> {
     final buckets = {
       for (final s in starts)
         (_years ? '${s.year}' : _ym(s)): _Bucket(
+            s,
             _years ? "'${s.year % 100}" : DateFormat('MMM').format(s),
             _years ? '${s.year}' : monthFmt.format(s)),
     };
@@ -155,7 +160,23 @@ class _TrendTabState extends State<TrendTab> {
             onSelectionChanged: (s) => setState(() => _years = s.first),
           ),
         ),
-        _title(context, 'Income vs spending', sub: '$cur · tap a bar for details'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: SegmentedButton<bool>(
+            segments: const [
+              ButtonSegment(value: false, label: Text('Trend')),
+              ButtonSegment(value: true, label: Text('Cumulative')),
+            ],
+            selected: {_cumulative},
+            onSelectionChanged: (s) => setState(() => _cumulative = s.first),
+          ),
+        ),
+        _title(
+            context,
+            _cumulative ? 'Saved over time' : 'Income vs spending',
+            sub: _cumulative
+                ? '$cur · running total of income minus spending'
+                : '$cur · tap a bar for details'),
         FutureBuilder<List<_Bucket>>(
           future: _future,
           builder: (context, snap) {
@@ -170,6 +191,7 @@ class _TrendTabState extends State<TrendTab> {
                 : _selected!;
             final s = b[sel];
             final avgSpent = b.fold<double>(0, (t, x) => t + x.spent) / b.length;
+            if (_cumulative) return _cumulativeView(context, b, sel, cur);
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -256,6 +278,77 @@ class _TrendTabState extends State<TrendTab> {
               );
             },
           ),
+      ],
+    );
+  }
+
+  Widget _cumulativeView(
+      BuildContext context, List<_Bucket> b, int sel, String cur) {
+    var run = 0.0;
+    final pts = <(DateTime, double)>[];
+    for (final x in b) {
+      run += x.net;
+      pts.add((x.start, run));
+    }
+    final income = b.fold<double>(0, (t, x) => t + x.income);
+    final spent = b.fold<double>(0, (t, x) => t + x.spent);
+    final saved = income - spent;
+    final labels = _years
+        ? [for (final x in b) x.label]
+        : monthAxisLabels([for (final x in b) x.start]);
+    final small = Theme.of(context).textTheme.bodySmall;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('By the end of ${b[sel].longLabel}', style: small),
+              Text(fmtMoney(pts[sel].$2, cur),
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: amountColor(context, pts[sel].$2))),
+              Text(
+                  '${b[sel].longLabel} alone: ${b[sel].net >= 0 ? '+' : ''}${fmtMoney(b[sel].net, cur)}',
+                  style: small),
+            ],
+          ),
+        ),
+        LineChart(
+          points: pts,
+          selected: sel,
+          xLabels: labels,
+          height: 200,
+          onSelect: (i) => setState(() => _selected = i),
+        ),
+        Card(
+          margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_years ? 'All years' : 'Last 12 months',
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text('Income ${fmtMoney(income, cur)}'),
+                Text('Spending ${fmtMoney(spent, cur)}'),
+                Text(
+                    'Saved ${fmtMoney(saved, cur)}'
+                    '${income > 0 ? ' · ${(saved / income * 100).toStringAsFixed(0)}% of income' : ''}',
+                    style: TextStyle(
+                        color: amountColor(context, saved),
+                        fontWeight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                Text(
+                    '${b.where((x) => x.net >= 0).length} of ${b.length} ${_years ? 'years' : 'months'} saved money',
+                    style: small),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -515,9 +608,10 @@ class _NetWorthTabState extends State<NetWorthTab> {
                 ],
               ),
             ),
-            _LineChart(
+            LineChart(
               points: pts,
               selected: sel,
+              xLabels: monthAxisLabels([for (final p in pts) p.$1]),
               onSelect: (i) => setState(() => _sel = i),
             ),
             Padding(
@@ -564,13 +658,46 @@ class _NetWorthTabState extends State<NetWorthTab> {
       );
 }
 
-class _LineChart extends StatelessWidget {
-  const _LineChart(
-      {required this.points, required this.selected, required this.onSelect});
+/// Axis labels for monthly points: month names for short spans, years
+/// (at January) for long ones. Thinned to about six.
+List<String?> monthAxisLabels(List<DateTime> ds) {
+  final out = List<String?>.filled(ds.length, null);
+  if (ds.length <= 24) {
+    final step = (ds.length / 6).ceil().clamp(1, 100);
+    final fmt = DateFormat(ds.length <= 12 ? 'MMM' : "MMM ''yy");
+    for (var i = 0; i < ds.length; i += step) {
+      out[i] = fmt.format(ds[i]);
+    }
+    return out;
+  }
+  final years = [
+    for (var i = 0; i < ds.length; i++)
+      if (ds[i].month == 1) i
+  ];
+  final step = (years.length / 6).ceil().clamp(1, 100);
+  for (var k = 0; k < years.length; k += step) {
+    out[years[k]] = '${ds[years[k]].year}';
+  }
+  return out;
+}
+
+class LineChart extends StatelessWidget {
+  const LineChart({
+    super.key,
+    required this.points,
+    required this.selected,
+    required this.onSelect,
+    required this.xLabels,
+    this.color,
+    this.height = 220,
+  });
 
   final List<(DateTime, double)> points;
   final int selected;
   final ValueChanged<int> onSelect;
+  final List<String?> xLabels;
+  final Color? color;
+  final double height;
 
   @override
   Widget build(BuildContext context) {
@@ -590,11 +717,12 @@ class _LineChart extends StatelessWidget {
           onTapDown: (d) => pick(d.localPosition.dx),
           onHorizontalDragUpdate: (d) => pick(d.localPosition.dx),
           child: CustomPaint(
-            size: Size(c.maxWidth, 220),
+            size: Size(c.maxWidth, height),
             painter: _LinePainter(
               points: points,
               selected: selected,
-              line: scheme.primary,
+              xLabels: xLabels,
+              line: color ?? scheme.primary,
               grid: scheme.outlineVariant,
               text: scheme.onSurfaceVariant,
               left: left,
@@ -610,6 +738,7 @@ class _LinePainter extends CustomPainter {
   _LinePainter({
     required this.points,
     required this.selected,
+    required this.xLabels,
     required this.line,
     required this.grid,
     required this.text,
@@ -618,6 +747,7 @@ class _LinePainter extends CustomPainter {
 
   final List<(DateTime, double)> points;
   final int selected;
+  final List<String?> xLabels;
   final Color line, grid, text;
   final double left;
 
@@ -642,11 +772,14 @@ class _LinePainter extends CustomPainter {
         text: TextSpan(text: s, style: TextStyle(color: text, fontSize: 10)),
         textDirection: TextDirection.ltr,
       )..layout();
-      final dx = align == TextAlign.right
+      var dx = align == TextAlign.right
           ? o.dx - tp.width
           : align == TextAlign.center
               ? o.dx - tp.width / 2
               : o.dx;
+      if (align == TextAlign.center) {
+        dx = dx.clamp(left - 4, size.width - tp.width).toDouble();
+      }
       tp.paint(canvas, Offset(dx, o.dy - tp.height / 2));
     }
 
@@ -663,16 +796,12 @@ class _LinePainter extends CustomPainter {
           gridPaint..strokeWidth = 1.5);
     }
 
-    // Year labels at January (thinned to fit).
-    final years = <int>[];
-    for (var i = 0; i < points.length; i++) {
-      if (points[i].$1.month == 1) years.add(i);
-    }
-    final step = (years.length / 6).ceil().clamp(1, 100);
-    for (var k = 0; k < years.length; k += step) {
-      final i = years[k];
-      label('${points[i].$1.year}', Offset(x(i), size.height - 8),
-          align: TextAlign.center);
+    // X axis labels.
+    for (var i = 0; i < points.length && i < xLabels.length; i++) {
+      final l = xLabels[i];
+      if (l != null) {
+        label(l, Offset(x(i), size.height - 8), align: TextAlign.center);
+      }
     }
 
     // The line.

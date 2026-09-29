@@ -39,7 +39,7 @@ class AppDb {
 
   final Database db;
 
-  static const int schemaVersion = 5;
+  static const int schemaVersion = 6;
 
   static Future<String> dbPath() async =>
       p.join(await getDatabasesPath(), 'money_tracker.db');
@@ -111,6 +111,7 @@ class AppDb {
         await _migrateToV3(db);
         await _migrateToV4(db);
         await _migrateToV5(db);
+        await _migrateToV6(db);
         await _seed(db);
       },
       onUpgrade: (db, oldV, newV) async {
@@ -118,6 +119,7 @@ class AppDb {
         if (oldV < 3) await _migrateToV3(db);
         if (oldV < 4) await _migrateToV4(db);
         if (oldV < 5) await _migrateToV5(db);
+        if (oldV < 6) await _migrateToV6(db);
       },
     );
     return AppDb._(db);
@@ -236,6 +238,20 @@ class AppDb {
       UPDATE transactions SET post_date = date
       WHERE type = 'expense'
         AND account_id IN (SELECT id FROM accounts WHERE type = 'creditCard')
+    ''');
+  }
+
+  static Future<void> _migrateToV6(Database db) async {
+    await db.execute('''
+      CREATE TABLE budgets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        scope TEXT NOT NULL,
+        target TEXT NOT NULL DEFAULT '',
+        amount REAL NOT NULL,
+        rollover INTEGER NOT NULL DEFAULT 0,
+        start INTEGER NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0
+      )
     ''');
   }
 
@@ -686,6 +702,47 @@ class AppDb {
 
   Future<void> deleteRule(int id) =>
       db.delete('recurring', where: 'id = ?', whereArgs: [id]);
+
+  // ---------------- Budgets ----------------
+
+  Future<List<Budget>> budgets() async {
+    final rows = await db.query('budgets', orderBy: 'sort_order, id');
+    return rows.map(Budget.fromMap).toList();
+  }
+
+  Future<int> insertBudget(Budget b) => db.insert('budgets', b.toMap());
+
+  Future<void> updateBudget(Budget b) =>
+      db.update('budgets', b.toMap(), where: 'id = ?', whereArgs: [b.id]);
+
+  Future<void> deleteBudget(int id) =>
+      db.delete('budgets', where: 'id = ?', whereArgs: [id]);
+
+  /// Expense sums per month (local time), category and account currency
+  /// with dates in [from, to).
+  Future<List<Map<String, Object?>>> expensesByMonthCategory(
+      DateTime from, DateTime to) {
+    return db.rawQuery('''
+      SELECT strftime('%Y-%m', t.date / 1000, 'unixepoch', 'localtime') AS ym,
+             t.category_id AS cat, a.currency AS cur, SUM(t.amount) AS total
+      FROM transactions t JOIN accounts a ON a.id = t.account_id
+      WHERE t.type = 'expense' AND t.date >= ? AND t.date < ?
+      GROUP BY ym, t.category_id, a.currency
+    ''', [from.millisecondsSinceEpoch, to.millisecondsSinceEpoch]);
+  }
+
+  /// Sum and count per payee (and currency) for [type] in [from, to).
+  /// Transactions without a payee are left out.
+  Future<List<Map<String, Object?>>> payeeTotals(
+      TxType type, DateTime from, DateTime to) {
+    return db.rawQuery('''
+      SELECT TRIM(t.payee) AS payee, a.currency AS cur,
+             SUM(t.amount) AS total, COUNT(*) AS n
+      FROM transactions t JOIN accounts a ON a.id = t.account_id
+      WHERE t.type = ? AND TRIM(t.payee) <> '' AND t.date >= ? AND t.date < ?
+      GROUP BY TRIM(t.payee) COLLATE NOCASE, a.currency
+    ''', [type.name, from.millisecondsSinceEpoch, to.millisecondsSinceEpoch]);
+  }
 
   // ---------------- Rates ----------------
 

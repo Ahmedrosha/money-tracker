@@ -62,6 +62,11 @@ else:
 
 if n1 != 1 or n2 < 1:
     sys.exit(f"Could not patch signing config in {path} ({n1}, {n2})")
+# Same app ID as the Play Store listing and the iPhone app.
+s, n3 = re.subn(r'applicationId\s*=?\s*"com\.rashad\.money_tracker"',
+                lambda m: m.group(0).replace("money_tracker", "moneytracker"), s)
+if n3 != 1:
+    sys.exit("Could not set applicationId")
 open(path, "w").write(s)
 print(f"Patched {path}")
 

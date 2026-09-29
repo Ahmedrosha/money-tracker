@@ -707,8 +707,8 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                         : (isGold(toAccount.currency) && rate > 0
                             // Buying gold: price per gram reads better.
                             ? '1 ${currencyUnit(toAccount.currency)} = ${fmtRate(1 / rate)} ${account!.currency}'
-                            : '1 ${currencyUnit(account!.currency)} = ${fmtRate(rate)} ${currencyUnit(toAccount.currency)}')
-                            '${_toAmountEdited ? ' (edited)' : ''}',
+                            : '1 ${currencyUnit(account!.currency)} = ${fmtRate(rate)} ${currencyUnit(toAccount.currency)}') +
+                            (_toAmountEdited ? ' (edited)' : ''),
                     border: const OutlineInputBorder(),
                     suffixIcon: _toAmountEdited
                         ? IconButton(

@@ -11,6 +11,8 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      PLAY_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
     steps:
       - uses: actions/checkout@v4
 
@@ -114,6 +116,19 @@ jobs:
             out/*.apk
             out/*.aab
           make_latest: true
+
+      # Sends the bundle to the Play Store internal testing track.
+      # Skipped until the PLAY_SERVICE_ACCOUNT_JSON secret exists.
+      - name: Upload to Google Play (internal testing)
+        if: env.PLAY_JSON != ''
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.rashad.moneytracker
+          releaseFiles: out/*.aab
+          track: internal
+          status: completed
+          releaseName: ${{ env.APP_VERSION }}
 
       - name: Publish build log on failure
         if: failure()

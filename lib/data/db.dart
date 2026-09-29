@@ -470,6 +470,44 @@ class AppDb {
     ''', [type.name, from.millisecondsSinceEpoch, to.millisecondsSinceEpoch]);
   }
 
+  /// Net change per account per calendar month (local time), up to [until].
+  /// Transfers count out of the source and into the destination.
+  Future<List<Map<String, Object?>>> monthlyAccountChanges(DateTime until) {
+    final t = until.millisecondsSinceEpoch;
+    return db.rawQuery('''
+      SELECT account_id AS acc,
+             strftime('%Y-%m', date / 1000, 'unixepoch', 'localtime') AS ym,
+             SUM(CASE type WHEN 'income' THEN amount ELSE -amount END) AS delta
+      FROM transactions WHERE date <= ?
+      GROUP BY acc, ym
+      UNION ALL
+      SELECT to_account_id AS acc,
+             strftime('%Y-%m', date / 1000, 'unixepoch', 'localtime') AS ym,
+             SUM(COALESCE(to_amount, amount)) AS delta
+      FROM transactions WHERE type = 'transfer' AND date <= ?
+      GROUP BY acc, ym
+    ''', [t, t]);
+  }
+
+  /// Sum per month (local time) for one category.
+  Future<List<Map<String, Object?>>> categoryMonthly(
+      int categoryId, DateTime from, DateTime to) {
+    return db.rawQuery('''
+      SELECT strftime('%Y-%m', t.date / 1000, 'unixepoch', 'localtime') AS ym,
+             a.currency AS cur, SUM(t.amount) AS total
+      FROM transactions t JOIN accounts a ON a.id = t.account_id
+      WHERE t.category_id = ? AND t.date >= ? AND t.date < ?
+      GROUP BY ym, a.currency
+    ''', [categoryId, from.millisecondsSinceEpoch, to.millisecondsSinceEpoch]);
+  }
+
+  /// Date of the first transaction, if any.
+  Future<DateTime?> firstTransactionDate() async {
+    final r = await db.rawQuery('SELECT MIN(date) AS d FROM transactions');
+    final v = r.first['d'];
+    return v == null ? null : DateTime.fromMillisecondsSinceEpoch(v as int);
+  }
+
   /// Income and expense sums per calendar month (local time) in [from, to).
   Future<List<Map<String, Object?>>> monthlyTotals(DateTime from, DateTime to) {
     return db.rawQuery('''

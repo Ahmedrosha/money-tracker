@@ -6,6 +6,7 @@ import '../data/models.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
 import 'pay_card.dart';
+import 'reports_more.dart';
 import 'transaction_edit.dart';
 import 'widgets.dart';
 
@@ -45,18 +46,28 @@ class ReportsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2,
+      length: 5,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Reports'),
-          bottom: const TabBar(tabs: [
-            Tab(text: 'Dashboard'),
-            Tab(text: 'By category'),
-          ]),
+          bottom: const TabBar(
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            tabs: [
+              Tab(text: 'Dashboard'),
+              Tab(text: 'By category'),
+              Tab(text: 'Trend'),
+              Tab(text: 'Net worth'),
+              Tab(text: 'Cards'),
+            ],
+          ),
         ),
         body: const TabBarView(children: [
           _Dashboard(),
           _ByCategory(),
+          TrendTab(),
+          NetWorthTab(),
+          CardsTab(),
         ]),
       ),
     );

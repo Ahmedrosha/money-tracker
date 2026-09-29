@@ -302,7 +302,8 @@ class _DashboardState extends State<_Dashboard> {
         }(),
     ];
 
-    final budgets = (await state.budgetStatus(_month))
+    // Copy: the list may be a constant (no budgets) and can't be sorted.
+    final budgets = [...await state.budgetStatus(_month)]
       ..sort((a, b) => b.fraction.compareTo(a.fraction));
 
     return _DashData(sum(exp), sum(inc), sum(pexp), sum(pinc), prevToDate,
@@ -395,7 +396,20 @@ class _DashboardState extends State<_Dashboard> {
                   ],
                 ),
               ),
-              if (d.budgets.isNotEmpty) ...[
+              if (d.budgets.isEmpty) ...[
+                _sectionTitle(context, 'Budgets'),
+                ListTile(
+                  leading: const Icon(Icons.savings_outlined),
+                  title: const Text('No budgets yet'),
+                  subtitle: const Text(
+                      'This part shows your budgets once you set one: a monthly limit for all spending, a category group or a category.'),
+                  isThreeLine: true,
+                  trailing: TextButton(
+                    onPressed: () => editBudget(context, null),
+                    child: const Text('Add'),
+                  ),
+                ),
+              ] else ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 20, 8, 0),
                   child: Row(

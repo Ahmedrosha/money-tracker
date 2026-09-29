@@ -81,7 +81,9 @@ jobs:
         run: |
           set -o pipefail
           flutter build ios --release --config-only --build-name=$APP_VERSION --build-number=${{ github.run_number }} 2>&1 | tee -a ../build.log
-          cd ios && pod install 2>&1 | tee -a ../../build.log
+          cd ios
+          if [ -f Podfile ]; then pod install 2>&1 | tee -a ../../build.log; fi
+          ls
 
       - name: App Store Connect key
         if: steps.check.outputs.ok == 'true'

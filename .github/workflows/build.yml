@@ -56,7 +56,10 @@ jobs:
 
       - name: Analyze
         working-directory: build_app
-        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter analyze --no-fatal-infos --no-fatal-warnings 2>&1 | tee ../build.log
 
       - name: Work out version
         run: |

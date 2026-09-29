@@ -341,6 +341,14 @@ class AppDb {
 
   Future<int> insertAccount(Account a) => db.insert('accounts', a.toMap());
 
+  /// Saves a manual order: account id -> position.
+  Future<void> setSortOrders(Map<int, int> order) async {
+    final batch = db.batch();
+    order.forEach((id, pos) => batch.update('accounts', {'sort_order': pos},
+        where: 'id = ?', whereArgs: [id]));
+    await batch.commit(noResult: true);
+  }
+
   Future<void> updateAccount(Account a) =>
       db.update('accounts', a.toMap(), where: 'id = ?', whereArgs: [a.id]);
 

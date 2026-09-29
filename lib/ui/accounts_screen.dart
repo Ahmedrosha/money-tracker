@@ -6,6 +6,7 @@ import '../util/format.dart';
 import 'account_detail.dart';
 import 'account_edit.dart';
 import 'account_search.dart';
+import 'reorder_accounts.dart';
 import 'backup_screen.dart';
 import 'due_screen.dart';
 import 'pay_card.dart';
@@ -52,14 +53,49 @@ class AccountsScreen extends StatelessWidget {
             ),
           ),
           PopupMenuButton<String>(
-            tooltip: 'Group by',
+            tooltip: 'Group and Order',
             icon: const Icon(Icons.sort),
-            initialValue: state.accountsGroupBy,
-            onSelected: state.setAccountsGroupBy,
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'type', child: Text('Group by Type')),
-              PopupMenuItem(value: 'bank', child: Text('Group by Bank')),
-            ],
+            onSelected: (v) {
+              if (v.startsWith('group:')) {
+                state.setAccountsGroupBy(v.substring(6));
+              } else if (v.startsWith('order:')) {
+                state.setAccountsOrder(v.substring(6));
+              } else if (v == 'reorder') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const ReorderAccountsScreen()),
+                );
+              }
+            },
+            itemBuilder: (_) {
+              PopupMenuItem<String> item(String v, String label, bool on) =>
+                  PopupMenuItem(
+                    value: v,
+                    child: Row(children: [
+                      SizedBox(
+                          width: 28,
+                          child: on ? const Icon(Icons.check, size: 18) : null),
+                      Text(label),
+                    ]),
+                  );
+              return [
+                item('group:type', 'Group by Type', state.accountsGroupBy == 'type'),
+                item('group:bank', 'Group by Bank', state.accountsGroupBy == 'bank'),
+                const PopupMenuDivider(),
+                item('order:manual', 'Manual Order', state.accountsOrder == 'manual'),
+                item('order:name', 'Name A–Z', state.accountsOrder == 'name'),
+                item('order:balance', 'Balance', state.accountsOrder == 'balance'),
+                const PopupMenuDivider(),
+                const PopupMenuItem(
+                  value: 'reorder',
+                  child: Row(children: [
+                    SizedBox(width: 28, child: Icon(Icons.drag_handle, size: 18)),
+                    Text('Reorder Accounts…'),
+                  ]),
+                ),
+              ];
+            },
           ),
           IconButton(
             tooltip: 'Add Account',
@@ -195,7 +231,7 @@ class AccountsScreen extends StatelessWidget {
                   'acc:${byBank ? 'bank' : 'type'}:${sec.key}'),
             ),
             if (!state.isCollapsed('acc:${byBank ? 'bank' : 'type'}:${sec.key}'))
-              for (final a in sec.value)
+              for (final a in state.orderAccounts(sec.value))
                 _AccountTile(account: a, showBank: !byBank),
           ],
           if (archived.isNotEmpty)

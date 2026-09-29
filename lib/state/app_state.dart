@@ -40,6 +40,44 @@ class AppState extends ChangeNotifier {
   /// Accounts screen grouping: 'type' or 'bank'.
   String accountsGroupBy = 'type';
 
+  /// Order of accounts inside each group: 'manual', 'name' or 'balance'.
+  String accountsOrder = 'manual';
+
+  Future<void> setAccountsOrder(String v) async {
+    accountsOrder = v;
+    await db.setSetting('accounts_order', v);
+    notifyListeners();
+  }
+
+  /// Saves a dragged order and switches to manual ordering.
+  Future<void> saveAccountOrder(List<Account> ordered) async {
+    await db.setSortOrders(
+        {for (var i = 0; i < ordered.length; i++) ordered[i].id!: i});
+    accountsOrder = 'manual';
+    await db.setSetting('accounts_order', 'manual');
+    await _reloadAll();
+  }
+
+  /// Sorts one group's accounts by the chosen order.
+  List<Account> orderAccounts(List<Account> list) {
+    final out = [...list];
+    switch (accountsOrder) {
+      case 'name':
+        out.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      case 'balance':
+        out.sort((a, b) => toBase(b.balance, b.currency)
+            .compareTo(toBase(a.balance, a.currency)));
+      default:
+        // Stable: equal positions keep the list's own order (bank, name).
+        final pos = {for (var i = 0; i < list.length; i++) list[i].id: i};
+        out.sort((a, b) {
+          final c = a.sortOrder.compareTo(b.sortOrder);
+          return c != 0 ? c : pos[a.id]!.compareTo(pos[b.id]!);
+        });
+    }
+    return out;
+  }
+
   /// Transactions screen order: 'date' or 'category'.
   String txnSort = 'date';
 
@@ -104,6 +142,7 @@ class AppState extends ChangeNotifier {
     baseCurrency = await db.getSetting('base_currency') ?? 'EGP';
     accountsGroupBy = await db.getSetting('accounts_group_by') ?? 'type';
     txnSort = await db.getSetting('txn_sort') ?? 'date';
+    accountsOrder = await db.getSetting('accounts_order') ?? 'manual';
     groupOrder = await db.getSetting('group_order') ?? 'value_desc';
     weekStart = int.tryParse(await db.getSetting('week_start') ?? '') ??
         DateTime.saturday;

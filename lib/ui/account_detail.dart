@@ -25,6 +25,9 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
   int _loadedVersion = -1;
   bool _calendar = false;
 
+  /// Type filter for the list (null = everything).
+  TxType? _filter;
+
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
@@ -108,9 +111,18 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
             running.add(bal);
             bal -= _effect(t, account.id!);
           }
+          // Filter after the running balance, so balances stay correct.
+          final shownIdx = [
+            for (var k = 0; k < txns.length; k++)
+              if (_filter == null || txns[k].type == _filter) k
+          ];
+          var shownSum = 0.0;
+          for (final k in shownIdx) {
+            if (!txns[k].isFuture) shownSum += _effect(txns[k], account.id!);
+          }
           return ListView.builder(
             padding: const EdgeInsets.only(bottom: 96),
-            itemCount: txns.length + 1,
+            itemCount: shownIdx.length + 1,
             itemBuilder: (context, i) {
               if (i == 0) {
                 final card = state.cards[account.id];
@@ -121,10 +133,43 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                     if (card != null) CardPanel(summary: card),
                     if (isGold(account.currency))
                       GoldPanel(account: account, txns: txns),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                      child: Row(
+                        children: [
+                          for (final (label, type) in const [
+                            ('All', null),
+                            ('Expenses', TxType.expense),
+                            ('Income', TxType.income),
+                            ('Transfers', TxType.transfer),
+                          ])
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ChoiceChip(
+                                label: Text(label),
+                                selected: _filter == type,
+                                onSelected: (_) => setState(() => _filter = type),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (_filter != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                        child: Text(
+                          '${shownIdx.length} ${_filter == TxType.expense ? 'expenses' : _filter == TxType.income ? 'income entries' : 'transfers'}'
+                          ' · ${_filter == TxType.transfer ? 'net ' : ''}'
+                          '${fmtMoney(_filter == TxType.expense ? -shownSum : shownSum, account.currency)}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
                   ],
                 );
               }
-              final t = txns[i - 1];
+              final idx = shownIdx[i - 1];
+              final t = txns[idx];
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -144,8 +189,8 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                         Text(shortDateFmt.format(t.date),
                             style: Theme.of(context).textTheme.bodySmall),
                         const Spacer(),
-                        if (running[i - 1] != null)
-                          Text('Balance ${fmtAmount(running[i - 1]!)}',
+                        if (running[idx] != null)
+                          Text('Balance ${fmtAmount(running[idx]!)}',
                               style: Theme.of(context).textTheme.bodySmall),
                       ],
                     ),

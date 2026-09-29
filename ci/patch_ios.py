@@ -51,6 +51,8 @@ p.setdefault("NSCameraUsageDescription",
              "Only used if you choose to take a photo to attach.")
 p.setdefault("NSMicrophoneUsageDescription",
              "Not used by Money Tracker.")
+p.setdefault("NSLocationWhenInUseUsageDescription",
+             "Not used by Money Tracker.")
 p.setdefault("NSAppleMusicUsageDescription",
              "Not used by Money Tracker.")
 with open(plist_path, "wb") as f:

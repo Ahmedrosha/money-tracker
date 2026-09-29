@@ -53,7 +53,7 @@ jobs:
           # App icon for iOS (no transparency allowed on the App Store).
           python3 - <<'PY'
           p = 'build_ios/pubspec.yaml'
-          s = open(p).read().replace('  ios: false', '  ios: true\n  remove_alpha_ios: true\n  background_color_ios: "#00796B"', 1)
+          s = open(p).read().replace('  android: true', '  android: false', 1).replace('  ios: false', '  ios: true\n  remove_alpha_ios: true\n  background_color_ios: "#00796B"', 1)
           open(p, 'w').write(s)
           PY
           grep -A3 '^flutter_launcher_icons' build_ios/pubspec.yaml

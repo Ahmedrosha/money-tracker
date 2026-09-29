@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/models.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
+import 'calendar_screen.dart';
 import 'search_screen.dart';
 import 'transaction_edit.dart';
 import 'widgets.dart';
@@ -17,6 +18,8 @@ class TransactionsScreen extends StatefulWidget {
 class _TransactionsScreenState extends State<TransactionsScreen> {
   late DateTime _month;
   TxType? _filter;
+  bool _calendar = false;
+  int? _calAccountId;
   Future<List<Txn>>? _future;
   String _loadedKey = '';
 
@@ -57,8 +60,61 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     }
 
     return Scaffold(
+      floatingActionButton: _calendar
+          ? null // the calendar adds on the selected day
+          : FloatingActionButton(
+              tooltip: 'Add transaction',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TransactionEditScreen()),
+              ),
+              child: const Icon(Icons.add),
+            ),
       appBar: AppBar(
         title: const Text('Transactions'),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(52),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Row(
+              children: [
+                SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(
+                        value: false,
+                        icon: Icon(Icons.view_list),
+                        label: Text('List')),
+                    ButtonSegment(
+                        value: true,
+                        icon: Icon(Icons.calendar_month),
+                        label: Text('Calendar')),
+                  ],
+                  selected: {_calendar},
+                  showSelectedIcon: false,
+                  onSelectionChanged: (v) => setState(() => _calendar = v.first),
+                ),
+                const SizedBox(width: 8),
+                if (_calendar)
+                  Expanded(
+                    child: TextButton.icon(
+                      icon: const Icon(Icons.filter_list),
+                      label: Text(
+                          state.accountById(_calAccountId)?.name ?? 'All accounts',
+                          overflow: TextOverflow.ellipsis),
+                      onPressed: () async {
+                        final id = await pickAccount(context,
+                            current: _calAccountId,
+                            title: 'Show calendar for',
+                            allowAll: true);
+                        if (id == null) return;
+                        setState(() => _calAccountId = id == -1 ? null : id);
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
         actions: [
           IconButton(
             tooltip: 'Search all transactions',
@@ -70,7 +126,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           ),
         ],
       ),
-      body: FutureBuilder<List<Txn>>(
+      body: _calendar
+          ? CalendarView(key: ValueKey(_calAccountId), accountId: _calAccountId)
+          : FutureBuilder<List<Txn>>(
         future: _future,
         builder: (context, snap) {
           final all = snap.data ?? const <Txn>[];

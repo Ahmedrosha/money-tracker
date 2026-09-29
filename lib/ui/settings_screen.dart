@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../state/app_state.dart';
 import '../util/currencies.dart';
 import 'backup_screen.dart';
-import 'budgets_screen.dart';
 import 'categories_screen.dart';
 import 'dropbox_screen.dart';
 import 'notification_settings.dart';
@@ -78,22 +77,6 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.savings_outlined),
-            title: const Text('Budgets'),
-            subtitle: Text(state.budgets.isEmpty
-                ? 'Monthly limits per category or group'
-                : '${state.budgets.length} budget${state.budgets.length == 1 ? '' : 's'}'),
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => Scaffold(
-                  appBar: AppBar(title: const Text('Budgets')),
-                  body: const BudgetsTab(),
-                ),
-              ),
-            ),
-          ),
-          ListTile(
             leading: const Icon(Icons.repeat),
             title: const Text('Recurring items'),
             subtitle: Text(
@@ -142,7 +125,7 @@ class SettingsScreen extends StatelessWidget {
             leading: Icon(Icons.info_outline),
             title: Text('Money Tracker'),
             subtitle: Text(
-                'Version 0.17 — budgets, outlook, compare, allocation'),
+                'Version 0.18 — Budgets tab, calendar inside Transactions'),
           ),
         ],
       ),

@@ -109,7 +109,25 @@ class BudgetRow extends StatelessWidget {
   }
 }
 
-/// Reports tab: all budgets for a month.
+/// Bottom tab: all budgets for a month.
+class BudgetsScreen extends StatelessWidget {
+  const BudgetsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Budgets')),
+      body: const BudgetsTab(),
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Add budget',
+        onPressed: () => editBudget(context, null),
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+
+/// All budgets for a month.
 class BudgetsTab extends StatefulWidget {
   const BudgetsTab({super.key});
 
@@ -226,6 +244,7 @@ class _BudgetsTabState extends State<BudgetsTab> {
                   ),
                 ),
             ],
+            if (list.isEmpty && snap.connectionState == ConnectionState.done)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
               child: FilledButton.tonalIcon(

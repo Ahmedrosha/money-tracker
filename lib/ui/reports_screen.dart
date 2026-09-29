@@ -6,6 +6,7 @@ import '../data/models.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
 import 'budgets_screen.dart';
+import 'home.dart';
 import 'pay_card.dart';
 import 'reports_extra.dart';
 import 'reports_more.dart';
@@ -48,7 +49,7 @@ class ReportsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 9,
+      length: 8,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Reports'),
@@ -57,7 +58,6 @@ class ReportsScreen extends StatelessWidget {
             tabAlignment: TabAlignment.start,
             tabs: [
               Tab(text: 'Dashboard'),
-              Tab(text: 'Budgets'),
               Tab(text: 'By category'),
               Tab(text: 'Trend'),
               Tab(text: 'Outlook'),
@@ -70,7 +70,6 @@ class ReportsScreen extends StatelessWidget {
         ),
         body: const TabBarView(children: [
           _Dashboard(),
-          BudgetsTab(),
           _ByCategory(),
           TrendTab(),
           OutlookTab(),
@@ -420,7 +419,7 @@ class _DashboardState extends State<_Dashboard> {
                                 fontWeight: FontWeight.bold)),
                       ),
                       TextButton(
-                        onPressed: () => DefaultTabController.of(context).animateTo(1),
+                        onPressed: () => homeTab.value = HomeTabs.budgets,
                         child: Text(d.budgets.length > 4
                             ? 'All ${d.budgets.length}'
                             : 'Open'),

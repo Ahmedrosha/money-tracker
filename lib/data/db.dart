@@ -463,6 +463,16 @@ class AppDb {
     return rows.map((r) => r['bank'] as String).toList();
   }
 
+  /// Number of transactions and the latest one's date (for sync choices).
+  Future<(int, DateTime?)> stats() async {
+    final r = await db.rawQuery('SELECT COUNT(*) AS c, MAX(date) AS mx FROM transactions');
+    final mx = r.first['mx'] as int?;
+    return (
+      (r.first['c'] as int?) ?? 0,
+      mx == null ? null : DateTime.fromMillisecondsSinceEpoch(mx)
+    );
+  }
+
   Future<int> countAccountTransactions(int id) async {
     final r = await db.rawQuery(
         'SELECT COUNT(*) AS c FROM transactions WHERE account_id = ? OR to_account_id = ?',

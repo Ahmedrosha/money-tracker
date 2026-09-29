@@ -135,7 +135,7 @@ class SettingsScreen extends StatelessWidget {
             leading: Icon(Icons.info_outline),
             title: Text('Money Tracker'),
             subtitle: Text(
-                'Version 0.22 — account order: manual, name, balance'),
+                'Version 0.23 — two-phone sync through Dropbox, daily history'),
           ),
         ],
       ),

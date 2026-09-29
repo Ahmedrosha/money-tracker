@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'data/db.dart';
+import 'util/format.dart';
 import 'services/app_lock.dart';
 import 'state/app_state.dart';
 import 'ui/home.dart';
@@ -44,10 +45,76 @@ class _MoneyAppState extends State<MoneyApp> with WidgetsBindingObserver {
   /// Away longer than this and the app locks again.
   static const _relockAfter = Duration(minutes: 1);
 
+  final _navKey = GlobalKey<NavigatorState>();
+  bool _askingConflict = false;
+  DateTime? _shownUpdate;
+
+  /// Reacts to sync events: asks when both phones changed, and says when
+  /// newer data came from the other phone.
+  void _onDropbox() {
+    final d = state.dropbox;
+    final ctx = _navKey.currentContext;
+    if (ctx == null) return;
+    if (d.updatedFromDropbox != null && d.updatedFromDropbox != _shownUpdate) {
+      _shownUpdate = d.updatedFromDropbox;
+      ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+          content: Text('Updated with the newer data from Dropbox')));
+    }
+    if (d.conflict != null && !_askingConflict && !_locked) _askConflict();
+  }
+
+  Future<void> _askConflict() async {
+    final d = state.dropbox;
+    final c = d.conflict;
+    final ctx = _navKey.currentContext;
+    if (c == null || ctx == null) return;
+    _askingConflict = true;
+    String remote = 'Dropbox copy';
+    try {
+      final info = await AppDb.inspect(c.path);
+      remote = '${info.transactions} transactions'
+          '${info.last == null ? '' : ', latest ${shortDateFmt.format(info.last!)}'}'
+          '${c.modified == null ? '' : '\nUploaded ${dayFmt.format(c.modified!)} ${TimeOfDay.fromDateTime(c.modified!).format(ctx)}'}';
+    } catch (_) {}
+    final (n, last) = await state.db.stats();
+    final local = '$n transactions'
+        '${last == null ? '' : ', latest ${shortDateFmt.format(last)}'}';
+    if (!mounted) return;
+    final choice = await showDialog<String>(
+      context: _navKey.currentContext!,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.sync_problem),
+        title: const Text('Both Phones Have Changes'),
+        content: Text(
+          'Data changed on this phone and on your other phone since they '
+          'last synced. Choose which copy to keep. The other one is saved '
+          'in the Dropbox history folder, so nothing is lost.\n\n'
+          'This phone:\n$local\n\nDropbox (other phone):\n$remote',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, 'local'),
+              child: const Text('Keep This Phone')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, 'remote'),
+              child: const Text('Use Dropbox Copy')),
+        ],
+      ),
+    );
+    if (choice == 'local') {
+      await d.keepThisPhone();
+    } else if (choice == 'remote') {
+      await d.useDropboxCopy();
+    }
+    _askingConflict = false;
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    state.dropbox.addListener(_onDropbox);
     _locked = state.lockEnabled;
     if (_locked) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _unlock());
@@ -59,12 +126,16 @@ class _MoneyAppState extends State<MoneyApp> with WidgetsBindingObserver {
     _authenticating = true;
     final ok = await _lock.authenticate();
     _authenticating = false;
-    if (ok && mounted) setState(() => _locked = false);
+    if (ok && mounted) {
+      setState(() => _locked = false);
+      if (state.dropbox.conflict != null) _onDropbox();
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    state.dropbox.removeListener(_onDropbox);
     super.dispose();
   }
 
@@ -92,8 +163,9 @@ class _MoneyAppState extends State<MoneyApp> with WidgetsBindingObserver {
       // Leaving the app: send any change that is still waiting.
       dbx.flush();
     } else if (s == AppLifecycleState.resumed) {
-      // Coming back to the app counts as opening it (at most every 5 min).
-      if (DateTime.now().difference(_lastResume).inMinutes >= 5 || dbx.pending) {
+      // Coming back to the app: pick up changes from the other phone
+      // (at most once a minute) or send waiting ones.
+      if (DateTime.now().difference(_lastResume).inSeconds >= 60 || dbx.pending) {
         dbx.syncNow();
       }
       _lastResume = DateTime.now();
@@ -118,6 +190,7 @@ class _MoneyAppState extends State<MoneyApp> with WidgetsBindingObserver {
           useMaterial3: true,
           brightness: Brightness.dark,
         ),
+        navigatorKey: _navKey,
         home: const HomeScreen(),
         builder: (context, child) => Stack(
           children: [

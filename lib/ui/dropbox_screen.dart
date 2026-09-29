@@ -10,7 +10,8 @@ import 'widgets.dart';
 
 String dropboxStatus(DropboxSync d) {
   if (!d.connected) return 'Not connected';
-  if (d.busy) return 'Uploading…';
+  if (d.conflict != null) return 'Waiting for you to choose which copy to keep';
+  if (d.busy) return 'Syncing…';
   if (d.lastError != null) return d.lastError!;
   final l = d.lastSync;
   if (l == null) return 'Connected, not uploaded yet';
@@ -59,10 +60,14 @@ class DropboxScreen extends StatelessWidget {
               const Padding(
                 padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
                 child: Text(
-                  'Your data is uploaded to Dropbox → Apps → your app folder '
-                  '→ money-tracker.db when you open the app, a few seconds '
-                  'after any change, and when you leave the app. Dropbox '
-                  'keeps older versions of the file for 30 days.',
+                  'Syncs with Dropbox → Apps → your app folder → '
+                  'money-tracker.db. Connect the same Dropbox on your other '
+                  'phone to use both: when you open the app, it takes the '
+                  'newer copy from Dropbox; your changes go up a few seconds '
+                  'after you make them and when you leave the app. If both '
+                  'phones changed, the app asks which copy to keep.\n\n'
+                  'History: a dated copy for each day is kept in the '
+                  'history folder (money-tracker-YYYY-MM-DD.db).',
                 ),
               ),
               const Divider(),
@@ -76,7 +81,7 @@ class DropboxScreen extends StatelessWidget {
               if (d.connected) ...[
                 ListTile(
                   leading: const Icon(Icons.cloud_upload_outlined),
-                  title: const Text('Upload Now'),
+                  title: const Text('Sync Now'),
                   onTap: d.busy ? null : d.syncNow,
                 ),
                 ListTile(
@@ -167,9 +172,10 @@ Future<void> restoreFromDropbox(BuildContext context) async {
   final state = AppScope.read(context);
   try {
     final tmp = await getTemporaryDirectory();
-    final path = await state.dropbox.download(tmp.path);
+    final got = await state.dropbox.download(tmp.path);
     if (!context.mounted) return;
-    if (path == null) {
+    final path = got?.path;
+    if (got == null || path == null) {
       showSnack(context, 'No copy in Dropbox yet');
       return;
     }
@@ -188,8 +194,7 @@ Future<void> restoreFromDropbox(BuildContext context) async {
       ok: 'Restore',
     );
     if (!ok) return;
-    final docs = await getApplicationDocumentsDirectory();
-    await state.restoreFrom(path, docs.path);
+    await state.restoreFromDropboxFile(path, got.rev);
     if (context.mounted) {
       showSnack(context, 'Restored ${info.transactions} transactions');
     }

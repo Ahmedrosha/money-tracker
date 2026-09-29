@@ -17,10 +17,31 @@ class AppState extends ChangeNotifier {
       final path = '${dir.path}/dropbox-upload.db';
       await db.backupTo(path);
       return path;
-    });
+    }, _replaceFromDropbox);
   }
 
   late final DropboxSync dropbox;
+
+  /// True while data is being replaced by the Dropbox copy, so that isn't
+  /// counted as a change to send back.
+  bool _fromDropbox = false;
+
+  Future<void> _replaceFromDropbox(String path) async {
+    _fromDropbox = true;
+    try {
+      // Safety copy goes to temp; dated copies live in Dropbox history.
+      final tmp = await getTemporaryDirectory();
+      await restoreFrom(path, tmp.path, markBackup: false);
+    } finally {
+      _fromDropbox = false;
+    }
+  }
+
+  /// Manual "Restore from Dropbox": replace data and mark it in sync.
+  Future<void> restoreFromDropboxFile(String path, String? rev) async {
+    await _replaceFromDropbox(path);
+    await dropbox.adopt(rev);
+  }
   final Notifier notifier = Notifier();
   NotifSettings notifSettings = NotifSettings();
   bool _loaded = false;
@@ -173,7 +194,7 @@ class AppState extends ChangeNotifier {
     version++;
     notifyListeners();
     // Any data change after start-up is sent to Dropbox (debounced).
-    if (_loaded) {
+    if (_loaded && !_fromDropbox) {
       dropbox.scheduleUpload();
       _checkBudgetAlerts();
     }
@@ -454,7 +475,8 @@ class AppState extends ChangeNotifier {
 
   /// Replaces all data with the backup at [path]. The current data is first
   /// saved to [safetyDir] so the restore can be undone.
-  Future<String> restoreFrom(String path, String safetyDir) async {
+  Future<String> restoreFrom(String path, String safetyDir,
+      {bool markBackup = true}) async {
     final info = await AppDb.inspect(path);
     if (info.version > AppDb.schemaVersion) {
       throw Exception(
@@ -477,7 +499,7 @@ class AppState extends ChangeNotifier {
     db = await AppDb.open();
     await load();
     // The restored data is backed up by definition.
-    await markBackedUp();
+    if (markBackup) await markBackedUp();
     return safety;
   }
 

@@ -9,6 +9,7 @@ import 'account_search.dart';
 import 'backup_screen.dart';
 import 'due_screen.dart';
 import 'pay_card.dart';
+import 'statement_detail.dart';
 import 'widgets.dart';
 
 class AccountsScreen extends StatelessWidget {
@@ -97,6 +98,14 @@ class AccountsScreen extends StatelessWidget {
                     ? Theme.of(context).colorScheme.errorContainer
                     : Theme.of(context).colorScheme.secondaryContainer,
                 child: ListTile(
+                  // Tap the banner to see the statement behind it.
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => StatementDetailScreen(
+                          card: c.card, close: c.last!.closeDate),
+                    ),
+                  ),
                   leading: const Icon(Icons.credit_card),
                   title: Text(
                       '${c.card.fullName}: ${fmtMoney(c.last!.remaining, c.card.currency)} due'),

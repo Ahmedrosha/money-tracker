@@ -6,6 +6,9 @@ import sys
 
 app = "build_app/android/app"
 keystore = os.path.abspath("ci/debug.keystore")
+# Play Store upload key (Google re-signs with its own key for users).
+upload_ks = os.path.abspath("ci/upload.keystore")
+upload_pw = open("ci/upload.password").read().strip()
 kts = os.path.join(app, "build.gradle.kts")
 groovy = os.path.join(app, "build.gradle")
 
@@ -20,11 +23,19 @@ if os.path.exists(kts):
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }}
+        create("upload") {{
+            storeFile = file("{upload_ks}")
+            storePassword = "{upload_pw}"
+            keyAlias = "upload"
+            keyPassword = "{upload_pw}"
+        }}
     }}
 '''
     s, n1 = re.subn(r'(\n\s*buildTypes\s*\{)', block + r'\1', s, count=1)
+    # PLAY_UPLOAD=1 -> Play Store bundle; otherwise the sideload APK key.
     s, n2 = re.subn(r'signingConfig\s*=\s*signingConfigs\.getByName\("debug"\)',
-                    'signingConfig = signingConfigs.getByName("fixed")', s)
+                    'signingConfig = if (System.getenv("PLAY_UPLOAD") == "1") '
+                    'signingConfigs.getByName("upload") else signingConfigs.getByName("fixed")', s)
 else:
     path = groovy
     s = open(path).read()
@@ -36,11 +47,18 @@ else:
             keyAlias "androiddebugkey"
             keyPassword "android"
         }}
+        upload {{
+            storeFile file("{upload_ks}")
+            storePassword "{upload_pw}"
+            keyAlias "upload"
+            keyPassword "{upload_pw}"
+        }}
     }}
 '''
     s, n1 = re.subn(r'(\n\s*buildTypes\s*\{)', block + r'\1', s, count=1)
     s, n2 = re.subn(r'signingConfig\s+signingConfigs\.debug',
-                    'signingConfig signingConfigs.fixed', s)
+                    'signingConfig System.getenv("PLAY_UPLOAD") == "1" ? '
+                    'signingConfigs.upload : signingConfigs.fixed', s)
 
 if n1 != 1 or n2 < 1:
     sys.exit(f"Could not patch signing config in {path} ({n1}, {n2})")

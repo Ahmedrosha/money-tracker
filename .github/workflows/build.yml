@@ -79,17 +79,30 @@ jobs:
           GOT=$($APKSIGNER verify --print-certs build_app/build/app/outputs/flutter-apk/app-release.apk | grep -m1 'SHA-256' | awk '{print $NF}')
           WANT=$(keytool -list -v -keystore ci/debug.keystore -storepass android -alias androiddebugkey | grep 'SHA256:' | awk '{print $2}' | tr -d ':' | tr 'A-F' 'a-f')
           echo "APK cert: $GOT"; echo "Expected: $WANT"
+          $(ls -d $ANDROID_HOME/build-tools/*/ | sort -V | tail -1)aapt2 dump badging build_app/build/app/outputs/flutter-apk/app-release.apk | grep -E "^package|targetSdkVersion" 
           test "$GOT" = "$WANT"
 
-      - name: Rename APK
+      - name: Build Play Store bundle
+        working-directory: build_app
+        shell: bash
+        env:
+          PLAY_UPLOAD: "1"
+        run: |
+          set -o pipefail
+          flutter build appbundle --release --build-name=$APP_VERSION --build-number=${{ github.run_number }} 2>&1 | tee ../build.log
+
+      - name: Rename APK and bundle
         run: |
           mkdir -p out
           cp build_app/build/app/outputs/flutter-apk/app-release.apk out/money-tracker-$APP_VERSION.apk
+          cp build_app/build/app/outputs/bundle/release/app-release.aab out/money-tracker-$APP_VERSION.aab
+          # Check the bundle is signed with the upload key.
+          jarsigner -verify -verbose -certs out/money-tracker-$APP_VERSION.aab | grep -m1 "O=Money Tracker"
 
       - uses: actions/upload-artifact@v4
         with:
           name: money-tracker-apk
-          path: out/*.apk
+          path: out/*
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
@@ -97,7 +110,9 @@ jobs:
           tag_name: v${{ env.APP_VERSION }}
           name: Money Tracker ${{ env.APP_VERSION }}
           body: ${{ github.event.head_commit.message }}
-          files: out/*.apk
+          files: |
+            out/*.apk
+            out/*.aab
           make_latest: true
 
       - name: Publish build log on failure

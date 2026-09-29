@@ -222,7 +222,8 @@ class AccountsScreen extends StatelessWidget {
           for (final sec in sections) ...[
             _GroupHeader(
               title: sec.key,
-              total: sec.value.fold<double>(
+              // Accounts marked "not in net worth" don't count here either.
+              total: sec.value.where((a) => !a.excludeTotal).fold<double>(
                   0, (s, a) => s + state.toBase(a.balance, a.currency)),
               currency: state.baseCurrency,
               count: sec.value.length,

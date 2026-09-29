@@ -83,6 +83,7 @@ class Notifier {
       importance: Importance.high,
       priority: Priority.high,
     ),
+    iOS: DarwinNotificationDetails(),
   );
 
   static const _budgetDetails = NotificationDetails(
@@ -93,6 +94,7 @@ class Notifier {
       importance: Importance.high,
       priority: Priority.high,
     ),
+    iOS: DarwinNotificationDetails(),
   );
 
   Future<void> init() async {
@@ -102,6 +104,12 @@ class Notifier {
       await _plugin.initialize(
         settings: const InitializationSettings(
           android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+          // Permission is asked separately (see requestPermission).
+          iOS: DarwinInitializationSettings(
+            requestAlertPermission: false,
+            requestBadgePermission: false,
+            requestSoundPermission: false,
+          ),
         ),
       );
       _ready = true;
@@ -114,10 +122,20 @@ class Notifier {
       _plugin.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
 
-  /// Asks for permission (Android 13+). Returns true when allowed.
+  IOSFlutterLocalNotificationsPlugin? get _ios =>
+      _plugin.resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin>();
+
+  /// Asks for permission (Android 13+, iPhone). Returns true when allowed.
   Future<bool> requestPermission() async {
     await init();
     try {
+      final ios = _ios;
+      if (ios != null) {
+        return await ios.requestPermissions(
+                alert: true, badge: false, sound: true) ??
+            false;
+      }
       return await _android?.requestNotificationsPermission() ?? true;
     } catch (_) {
       return false;

@@ -1,0 +1,149 @@
+name: Build iOS (TestFlight)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ios
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  ios:
+    runs-on: macos-latest
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+    steps:
+      - name: Check Apple secrets
+        id: check
+        run: |
+          if [ -n "$APPLE_TEAM_ID" ] && [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_ISSUER_ID" ] && [ -n "$ASC_KEY_P8" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Apple secrets not set; skipping the iOS build."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.ok == 'true'
+
+      - uses: subosito/flutter-action@v2
+        if: steps.check.outputs.ok == 'true'
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate iOS project and copy app code
+        if: steps.check.outputs.ok == 'true'
+        run: |
+          flutter --version
+          xcodebuild -version
+          flutter create --org com.rashad --project-name money_tracker --platforms ios build_ios
+          rm -rf build_ios/lib build_ios/test build_ios/analysis_options.yaml
+          cp -r lib build_ios/lib
+          cp pubspec.yaml build_ios/pubspec.yaml
+          cp -r assets build_ios/assets
+          # App icon for iOS (no transparency allowed on the App Store).
+          python3 - <<'PY'
+          p = 'build_ios/pubspec.yaml'
+          s = open(p).read().replace('  ios: false', '  ios: true\n  remove_alpha_ios: true\n  background_color_ios: "#00796B"', 1)
+          open(p, 'w').write(s)
+          PY
+          grep -A3 '^flutter_launcher_icons' build_ios/pubspec.yaml
+          python3 ci/patch_ios.py
+
+      - name: Get packages and icon
+        if: steps.check.outputs.ok == 'true'
+        working-directory: build_ios
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter pub get 2>&1 | tee ../build.log
+          dart run flutter_launcher_icons 2>&1 | tee -a ../build.log
+
+      - name: Work out version
+        if: steps.check.outputs.ok == 'true'
+        run: |
+          MM=$(grep '^version:' pubspec.yaml | sed -E 's/version: *([0-9]+\.[0-9]+).*/\1/')
+          echo "APP_VERSION=$MM.${{ github.run_number }}" >> "$GITHUB_ENV"
+
+      - name: Prepare Xcode project
+        if: steps.check.outputs.ok == 'true'
+        working-directory: build_ios
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter build ios --release --config-only --build-name=$APP_VERSION --build-number=${{ github.run_number }} 2>&1 | tee -a ../build.log
+          cd ios && pod install 2>&1 | tee -a ../../build.log
+
+      - name: App Store Connect key
+        if: steps.check.outputs.ok == 'true'
+        run: |
+          mkdir -p ~/private_keys
+          printf '%s\n' "$ASC_KEY_P8" > ~/private_keys/AuthKey_$ASC_KEY_ID.p8
+          echo "ASC_KEY_PATH=$HOME/private_keys/AuthKey_$ASC_KEY_ID.p8" >> "$GITHUB_ENV"
+
+      - name: Archive
+        if: steps.check.outputs.ok == 'true'
+        working-directory: build_ios/ios
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            archive 2>&1 | tee -a ../../build.log | grep -E 'error|warning: .*sign|ARCHIVE|Signing' || true
+          test -d "$RUNNER_TEMP/Runner.xcarchive"
+
+      - name: Upload to TestFlight
+        if: steps.check.outputs.ok == 'true'
+        shell: bash
+        run: |
+          set -o pipefail
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" 2>&1 | tee -a build.log
+          echo "Uploaded build $APP_VERSION (${{ github.run_number }}) to App Store Connect."
+
+      - name: Remove key
+        if: always()
+        run: rm -rf ~/private_keys
+
+      - name: Publish build log on failure
+        if: failure()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ci-log-ios
+          name: iOS CI log (latest failure)
+          prerelease: true
+          files: build.log

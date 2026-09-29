@@ -457,6 +457,30 @@ class AppDb {
 
   Future<int> insertTxn(Txn t) => db.insert('transactions', t.toMap());
 
+  /// Sum and count per category (and account currency) for [type] with
+  /// dates in [from, to).
+  Future<List<Map<String, Object?>>> categoryTotals(
+      TxType type, DateTime from, DateTime to) {
+    return db.rawQuery('''
+      SELECT t.category_id AS cat, a.currency AS cur,
+             SUM(t.amount) AS total, COUNT(*) AS n
+      FROM transactions t JOIN accounts a ON a.id = t.account_id
+      WHERE t.type = ? AND t.date >= ? AND t.date < ?
+      GROUP BY t.category_id, a.currency
+    ''', [type.name, from.millisecondsSinceEpoch, to.millisecondsSinceEpoch]);
+  }
+
+  /// Income and expense sums per calendar month (local time) in [from, to).
+  Future<List<Map<String, Object?>>> monthlyTotals(DateTime from, DateTime to) {
+    return db.rawQuery('''
+      SELECT strftime('%Y-%m', t.date / 1000, 'unixepoch', 'localtime') AS ym,
+             t.type AS type, a.currency AS cur, SUM(t.amount) AS total
+      FROM transactions t JOIN accounts a ON a.id = t.account_id
+      WHERE t.type IN ('income', 'expense') AND t.date >= ? AND t.date < ?
+      GROUP BY ym, t.type, a.currency
+    ''', [from.millisecondsSinceEpoch, to.millisecondsSinceEpoch]);
+  }
+
   /// Full-text-ish search across all transactions (all accounts, archived
   /// included). Every word in [query] must match somewhere: payee, note,
   /// category, category group, account or bank (either side of a

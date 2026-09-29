@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'accounts_screen.dart';
 import 'calendar_screen.dart';
+import 'reports_screen.dart';
 import 'settings_screen.dart';
 import 'transaction_edit.dart';
 import 'transactions_screen.dart';
@@ -22,6 +23,7 @@ class _HomeScreenState extends State<HomeScreen> {
       AccountsScreen(),
       TransactionsScreen(),
       CalendarScreen(),
+      ReportsScreen(),
       SettingsScreen(),
     ];
     // Calendar has its own add button (adds on the selected day).
@@ -55,6 +57,10 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: Icon(Icons.calendar_month_outlined),
               selectedIcon: Icon(Icons.calendar_month),
               label: 'Calendar'),
+          NavigationDestination(
+              icon: Icon(Icons.insights_outlined),
+              selectedIcon: Icon(Icons.insights),
+              label: 'Reports'),
           NavigationDestination(
               icon: Icon(Icons.settings_outlined),
               selectedIcon: Icon(Icons.settings),

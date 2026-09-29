@@ -125,7 +125,7 @@ class SettingsScreen extends StatelessWidget {
             leading: Icon(Icons.info_outline),
             title: Text('Money Tracker'),
             subtitle: Text(
-                'Version 0.14 — notifications'),
+                'Version 0.15 — notifications, reports'),
           ),
         ],
       ),

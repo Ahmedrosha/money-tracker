@@ -38,7 +38,7 @@ class HomeScreen extends StatelessWidget {
         floatingActionButton: index != HomeTabs.accounts
             ? null
             : FloatingActionButton(
-                tooltip: 'Add transaction',
+                tooltip: 'Add Transaction',
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(

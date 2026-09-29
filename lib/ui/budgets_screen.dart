@@ -122,7 +122,7 @@ class BudgetsScreen extends StatelessWidget {
       ),
       body: const BudgetsTab(),
       floatingActionButton: FloatingActionButton(
-        tooltip: 'Add budget',
+        tooltip: 'Add Budget',
         onPressed: () => editBudget(context, null),
         child: const Icon(Icons.add),
       ),
@@ -252,7 +252,7 @@ class _BudgetsTabState extends State<BudgetsTab> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
               child: FilledButton.tonalIcon(
                 icon: const Icon(Icons.add),
-                label: const Text('Add budget'),
+                label: const Text('Add Budget'),
                 onPressed: () => editBudget(context, null),
               ),
             ),
@@ -320,12 +320,12 @@ class _BudgetEditScreenState extends State<BudgetEditScreen> {
   String _targetLabel(AppState state) {
     switch (_scope) {
       case BudgetScope.total:
-        return 'All spending';
+        return 'All Spending';
       case BudgetScope.group:
-        return _target.isEmpty ? 'Choose a group' : _target;
+        return _target.isEmpty ? 'Choose a Group' : _target;
       case BudgetScope.category:
         final c = state.categoryById(int.tryParse(_target));
-        if (c == null) return 'Choose a category';
+        if (c == null) return 'Choose a Category';
         return c.group.isEmpty ? c.name : '${c.group} › ${c.name}';
     }
   }
@@ -375,7 +375,7 @@ class _BudgetEditScreenState extends State<BudgetEditScreen> {
     final amount = parseAmount(_amount.text);
     if (_scope != BudgetScope.total && _target.isEmpty) {
       showSnack(context,
-          _scope == BudgetScope.group ? 'Choose a group' : 'Choose a category');
+          _scope == BudgetScope.group ? 'Choose a Group' : 'Choose a Category');
       return;
     }
     if (amount == null || amount <= 0) {
@@ -415,7 +415,7 @@ class _BudgetEditScreenState extends State<BudgetEditScreen> {
     }
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.budget == null ? 'New budget' : 'Edit budget'),
+        title: Text(widget.budget == null ? 'New Budget' : 'Edit Budget'),
         actions: [
           if (widget.budget != null)
             IconButton(
@@ -440,7 +440,7 @@ class _BudgetEditScreenState extends State<BudgetEditScreen> {
             segments: const [
               ButtonSegment(value: BudgetScope.category, label: Text('Category')),
               ButtonSegment(value: BudgetScope.group, label: Text('Group')),
-              ButtonSegment(value: BudgetScope.total, label: Text('All spending')),
+              ButtonSegment(value: BudgetScope.total, label: Text('All Spending')),
             ],
             selected: {_scope},
             onSelectionChanged: widget.budget != null
@@ -467,7 +467,7 @@ class _BudgetEditScreenState extends State<BudgetEditScreen> {
             controller: _amount,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(
-              labelText: 'Monthly limit',
+              labelText: 'Monthly Limit',
               suffixText: cur,
               border: const OutlineInputBorder(),
             ),
@@ -493,7 +493,7 @@ class _BudgetEditScreenState extends State<BudgetEditScreen> {
             ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Roll over'),
+            title: const Text('Roll Over'),
             subtitle: const Text(
                 'What\'s left at month end adds to next month; overspending takes from it'),
             value: _rollover,

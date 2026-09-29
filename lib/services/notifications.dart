@@ -78,7 +78,7 @@ class Notifier {
   static const _details = NotificationDetails(
     android: AndroidNotificationDetails(
       'reminders',
-      'Payment reminders',
+      'Payment Reminders',
       channelDescription: 'Card payments, recurring items and backups',
       importance: Importance.high,
       priority: Priority.high,
@@ -89,7 +89,7 @@ class Notifier {
   static const _budgetDetails = NotificationDetails(
     android: AndroidNotificationDetails(
       'budgets',
-      'Budget alerts',
+      'Budget Alerts',
       channelDescription: 'When a budget reaches 80% or is exceeded',
       importance: Importance.high,
       priority: Priority.high,

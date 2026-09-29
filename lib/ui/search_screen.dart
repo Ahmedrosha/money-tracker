@@ -102,11 +102,11 @@ class _SearchScreenState extends State<SearchScreen> {
       case _Range.any:
         return 'Any time';
       case _Range.thisMonth:
-        return 'This month';
+        return 'This Month';
       case _Range.thisYear:
-        return 'This year';
+        return 'This Year';
       case _Range.last12:
-        return 'Last 12 months';
+        return 'Last 12 Months';
       case _Range.custom:
         return '${shortDateFmt.format(_custom!.start)} – ${shortDateFmt.format(_custom!.end)}';
     }
@@ -122,10 +122,10 @@ class _SearchScreenState extends State<SearchScreen> {
           children: [
             for (final (r, label) in const [
               (_Range.any, 'Any time'),
-              (_Range.thisMonth, 'This month'),
-              (_Range.thisYear, 'This year'),
-              (_Range.last12, 'Last 12 months'),
-              (_Range.custom, 'Choose dates…'),
+              (_Range.thisMonth, 'This Month'),
+              (_Range.thisYear, 'This Year'),
+              (_Range.last12, 'Last 12 Months'),
+              (_Range.custom, 'Choose Dates…'),
             ])
               ListTile(
                 title: Text(label),
@@ -163,7 +163,7 @@ class _SearchScreenState extends State<SearchScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-                title: const Text('All types'),
+                title: const Text('All Types'),
                 onTap: () => Navigator.pop(ctx, -1)),
             for (final t in TxType.values)
               ListTile(
@@ -244,7 +244,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     () async {
                   final id = await pickAccount(context,
                       current: _accountId,
-                      title: 'Filter by account',
+                      title: 'Filter by Account',
                       allowAll: true,
                       includeArchived: true);
                   if (id != null) {

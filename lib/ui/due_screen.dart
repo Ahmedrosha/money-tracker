@@ -14,7 +14,7 @@ class DueScreen extends StatelessWidget {
     final actionable = due.where(state.isNextOccurrence).toList();
     return Scaffold(
       appBar: AppBar(
-        title: const Text('To confirm'),
+        title: const Text('To Confirm'),
         actions: [
           if (actionable.isNotEmpty)
             TextButton(
@@ -23,14 +23,14 @@ class DueScreen extends StatelessWidget {
                     title: 'Confirm all?',
                     message:
                         'Record ${due.length} item(s) with their usual amounts.',
-                    ok: 'Confirm all');
+                    ok: 'Confirm All');
                 if (!ok) return;
                 // Confirm in date order; each call advances its rule.
                 for (final o in due) {
                   await state.confirmOccurrence(o);
                 }
               },
-              child: const Text('Confirm all'),
+              child: const Text('Confirm All'),
             ),
         ],
       ),

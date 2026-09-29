@@ -37,7 +37,7 @@ class CardPanel extends StatelessWidget {
                   Row(
                     children: [
                       Expanded(
-                        child: Text('Available limit',
+                        child: Text('Available Limit',
                             style: Theme.of(context).textTheme.titleSmall),
                       ),
                       Text(fmtMoney(summary.available!, cur),
@@ -114,12 +114,12 @@ class CardPanel extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  _row('Statement amount', fmtMoney(last.amount, cur)),
-                  _row('Paid since closing', fmtMoney(last.paid, cur)),
-                  _row('Remaining due', fmtMoney(last.remaining, cur),
+                  _row('Statement Amount', fmtMoney(last.amount, cur)),
+                  _row('Paid Since Closing', fmtMoney(last.paid, cur)),
+                  _row('Remaining Due', fmtMoney(last.remaining, cur),
                       bold: true),
-                  _row('Minimum due', fmtMoney(last.minimumDue, cur)),
-                  _row('Due date', dayFmt.format(last.dueDate)),
+                  _row('Minimum Due', fmtMoney(last.minimumDue, cur)),
+                  _row('Due Date', dayFmt.format(last.dueDate)),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -138,7 +138,7 @@ class CardPanel extends StatelessWidget {
                           MaterialPageRoute(
                               builder: (_) => StatementsScreen(card: a)),
                         ),
-                        child: const Text('All statements'),
+                        child: const Text('All Statements'),
                       ),
                       const Spacer(),
                       FilledButton.icon(
@@ -166,7 +166,7 @@ class CardPanel extends StatelessWidget {
                 ),
               ),
               title: Text(
-                  'Current cycle: ${fmtMoney(summary.cycleSpent, cur)} spent'),
+                  'Current Cycle: ${fmtMoney(summary.cycleSpent, cur)} spent'),
               subtitle: Text(
                   'Closes ${dayFmt.format(summary.nextClose!)} · due '
                   '${shortDateFmt.format(dueDateAfter(summary.nextClose!, a.dueDay!))}'),

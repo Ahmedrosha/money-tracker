@@ -76,7 +76,7 @@ class DropboxScreen extends StatelessWidget {
               if (d.connected) ...[
                 ListTile(
                   leading: const Icon(Icons.cloud_upload_outlined),
-                  title: const Text('Upload now'),
+                  title: const Text('Upload Now'),
                   onTap: d.busy ? null : d.syncNow,
                 ),
                 ListTile(
@@ -134,7 +134,7 @@ class DropboxScreen extends StatelessWidget {
               controller: ctrl,
               autofocus: true,
               decoration: const InputDecoration(
-                labelText: 'Access code',
+                labelText: 'Access Code',
                 border: OutlineInputBorder(),
               ),
             ),

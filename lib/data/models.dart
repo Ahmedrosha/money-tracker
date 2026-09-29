@@ -26,11 +26,11 @@ extension AccountFamilyX on AccountFamily {
   String get label {
     switch (this) {
       case AccountFamily.cash:
-        return 'Cash & wallets';
+        return 'Cash & Wallets';
       case AccountFamily.bank:
         return 'Bank';
       case AccountFamily.credit:
-        return 'Credit & loans';
+        return 'Credit & Loans';
       case AccountFamily.investments:
         return 'Investments';
       case AccountFamily.assets:
@@ -53,15 +53,15 @@ extension AccountTypeX on AccountType {
       case AccountType.ewallet:
         return 'E-wallet';
       case AccountType.bank:
-        return 'Current account';
+        return 'Current Account';
       case AccountType.savings:
-        return 'Savings account';
+        return 'Savings Account';
       case AccountType.certificate:
         return 'Certificate / Deposit';
       case AccountType.debitCard:
-        return 'Debit / Prepaid card';
+        return 'Debit / Prepaid Card';
       case AccountType.creditCard:
-        return 'Credit card';
+        return 'Credit Card';
       case AccountType.loan:
         return 'Loan';
       case AccountType.investment:
@@ -77,9 +77,9 @@ extension AccountTypeX on AccountType {
       case AccountType.car:
         return 'Car';
       case AccountType.otherAsset:
-        return 'Other asset';
+        return 'Other Asset';
       case AccountType.receivable:
-        return 'Money lent';
+        return 'Money Lent';
       case AccountType.other:
         return 'Other';
     }

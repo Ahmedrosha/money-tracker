@@ -24,7 +24,7 @@ class SettingsScreen extends StatelessWidget {
           const _LockTile(),
           SwitchListTile(
             secondary: const Icon(Icons.visibility_off_outlined),
-            title: const Text('Hide amounts'),
+            title: const Text('Hide Amounts'),
             subtitle: const Text('Show •••• instead of numbers. Also the eye button at the top of each screen.'),
             value: state.hideAmounts,
             onChanged: (v) => state.setHideAmounts(v),
@@ -32,7 +32,7 @@ class SettingsScreen extends StatelessWidget {
           const Divider(),
           ListTile(
             leading: const Icon(Icons.flag_outlined),
-            title: const Text('Main currency'),
+            title: const Text('Main Currency'),
             subtitle: Text(
                 '${state.baseCurrency} — ${currencyName(state.baseCurrency)}\nTotals and net worth are shown in this currency'),
             isThreeLine: true,
@@ -44,7 +44,7 @@ class SettingsScreen extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.currency_exchange),
-            title: const Text('Currencies & exchange rates'),
+            title: const Text('Currencies & Exchange Rates'),
             subtitle: const Text('Online rates, manual overrides'),
             onTap: () => Navigator.push(
               context,
@@ -77,7 +77,7 @@ class SettingsScreen extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.backup_outlined),
-            title: const Text('Backup & restore'),
+            title: const Text('Backup & Restore'),
             subtitle: Text(state.lastBackup == null
                 ? 'No backup yet'
                 : 'Last backup ${state.lastBackup!.day}/${state.lastBackup!.month}/${state.lastBackup!.year}'),
@@ -88,7 +88,7 @@ class SettingsScreen extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.repeat),
-            title: const Text('Recurring items'),
+            title: const Text('Recurring Items'),
             subtitle: Text(
                 '${state.rules.where((r) => !r.finished).length} active · subscriptions, salary…'),
             onTap: () => Navigator.push(
@@ -98,13 +98,13 @@ class SettingsScreen extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.calendar_view_week),
-            title: const Text('First day of week'),
+            title: const Text('First Day of Week'),
             subtitle: Text(_dayName(state.weekStart)),
             onTap: () async {
               final v = await showDialog<int>(
                 context: context,
                 builder: (ctx) => SimpleDialog(
-                  title: const Text('First day of week'),
+                  title: const Text('First Day of Week'),
                   children: [
                     for (final d in const [
                       DateTime.saturday,
@@ -135,7 +135,7 @@ class SettingsScreen extends StatelessWidget {
             leading: Icon(Icons.info_outline),
             title: Text('Money Tracker'),
             subtitle: Text(
-                'Version 0.20 — statement details, move between statements'),
+                'Version 0.21 — collapsible lists, capitalised names'),
           ),
         ],
       ),
@@ -172,7 +172,7 @@ class _LockTileState extends State<_LockTile> {
       future: _method,
       builder: (context, snap) => SwitchListTile(
         secondary: const Icon(Icons.lock_outline),
-        title: const Text('App lock'),
+        title: const Text('App Lock'),
         subtitle: Text(
             '${snap.data ?? 'Face ID / fingerprint'} when opening the app and after a minute away. Phone passcode works too.'),
         isThreeLine: true,

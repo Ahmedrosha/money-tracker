@@ -35,7 +35,7 @@ class StatementDetailScreen extends StatelessWidget {
     final cur = card.currency;
     return Scaffold(
       appBar: AppBar(
-        title: Text(open ? 'Current cycle' : 'Statement ${shortDateFmt.format(close)}'),
+        title: Text(open ? 'Current Cycle' : 'Statement ${shortDateFmt.format(close)}'),
       ),
       body: FutureBuilder<_Data>(
         key: ValueKey('${state.version}-$close'),
@@ -65,15 +65,15 @@ class StatementDetailScreen extends StatelessWidget {
                               : 'Due ${dayFmt.format(dueDateAfter(close, card.dueDay!))}',
                           style: small),
                       const SizedBox(height: 12),
-                      _row('Previous balance', fmtMoney(d.previous, cur)),
-                      _row('New charges', '+ ${fmtMoney(d.charges, cur)}'),
-                      _row('Payments & credits', '− ${fmtMoney(d.credits, cur)}'),
+                      _row('Previous Balance', fmtMoney(d.previous, cur)),
+                      _row('New Charges', '+ ${fmtMoney(d.charges, cur)}'),
+                      _row('Payments & Credits', '− ${fmtMoney(d.credits, cur)}'),
                       const Divider(),
-                      _row(open ? 'Owed so far' : 'Statement amount',
+                      _row(open ? 'Owed So Far' : 'Statement Amount',
                           fmtMoney(d.closing, cur),
                           bold: true),
                       if (!open) ...[
-                        _row('Paid after closing', fmtMoney(d.paidAfter, cur)),
+                        _row('Paid After Closing', fmtMoney(d.paidAfter, cur)),
                         _row('Remaining',
                             fmtMoney((d.closing - d.paidAfter).clamp(0, double.infinity), cur)),
                       ],
@@ -87,10 +87,12 @@ class StatementDetailScreen extends StatelessWidget {
                     'Tap a transaction to move it to the previous or next statement if the bank counted it there.',
                     style: small),
               ),
-              _header(context, 'Charges', charges.length, d.charges, cur),
-              for (final t in charges) _tile(context, state, t),
-              _header(context, 'Payments & credits', credits.length, d.credits, cur),
-              for (final t in credits) _tile(context, state, t),
+              _header(context, state, 'Charges', charges.length, d.charges, cur),
+              if (!state.isCollapsed('stmt:Charges'))
+                for (final t in charges) _tile(context, state, t),
+              _header(context, state, 'Payments & Credits', credits.length, d.credits, cur),
+              if (!state.isCollapsed('stmt:Payments & Credits'))
+                for (final t in credits) _tile(context, state, t),
             ],
           );
         },
@@ -134,11 +136,16 @@ class StatementDetailScreen extends StatelessWidget {
           ? (t.toPostDate ?? t.date)
           : t.effectivePostDate;
 
-  Widget _header(BuildContext context, String title, int n, double sum, String cur) =>
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
+  Widget _header(BuildContext context, AppState state, String title, int n,
+          double sum, String cur) =>
+      InkWell(
+        onTap: () => state.toggleCollapsed('stmt:$title'),
+        child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 16, 16, 4),
         child: Row(
           children: [
+            CollapseArrow(collapsed: state.isCollapsed('stmt:$title')),
+            const SizedBox(width: 4),
             Expanded(
               child: Text('$title · $n',
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -149,6 +156,7 @@ class StatementDetailScreen extends StatelessWidget {
                 style: const TextStyle(fontWeight: FontWeight.w600)),
           ],
         ),
+      ),
       );
 
   Widget _tile(BuildContext context, AppState state, Txn t) {
@@ -204,13 +212,13 @@ class StatementDetailScreen extends StatelessWidget {
             ),
             ListTile(
               leading: const Icon(Icons.arrow_back),
-              title: const Text('Move to previous statement'),
+              title: const Text('Move to Previous Statement'),
               subtitle: Text('Counts on ${shortDateFmt.format(prevClose)}'),
               onTap: () => Navigator.pop(ctx, 'prev'),
             ),
             ListTile(
               leading: const Icon(Icons.arrow_forward),
-              title: Text(open ? 'Move to the cycle after this one' : 'Move to next statement'),
+              title: Text(open ? 'Move to Next Cycle' : 'Move to Next Statement'),
               subtitle: Text(
                   'Counts on ${shortDateFmt.format(close.add(const Duration(days: 1)))}'),
               onTap: () => Navigator.pop(ctx, 'next'),
@@ -218,13 +226,13 @@ class StatementDetailScreen extends StatelessWidget {
             if (_movedAway(t))
               ListTile(
                 leading: const Icon(Icons.undo),
-                title: const Text('Back to its own date'),
+                title: const Text('Back to Its Own Date'),
                 subtitle: Text(shortDateFmt.format(t.date)),
                 onTap: () => Navigator.pop(ctx, 'reset'),
               ),
             ListTile(
               leading: const Icon(Icons.edit_outlined),
-              title: const Text('Edit transaction'),
+              title: const Text('Edit Transaction'),
               onTap: () => Navigator.pop(ctx, 'edit'),
             ),
           ],

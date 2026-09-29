@@ -300,13 +300,13 @@ Future<void> openOccurrence(BuildContext context, Occurrence o) async {
             ),
             ListTile(
               leading: const Icon(Icons.skip_next_outlined),
-              title: const Text('Skip this time'),
+              title: const Text('Skip This Time'),
               onTap: () => Navigator.pop(ctx, 'skip'),
             ),
           ],
           ListTile(
             leading: const Icon(Icons.repeat),
-            title: const Text('Edit recurring item (all future)'),
+            title: const Text('Edit Recurring Item (All Future)'),
             onTap: () => Navigator.pop(ctx, 'rule'),
           ),
         ],
@@ -630,7 +630,7 @@ class _AccountSheetState extends State<_AccountSheet> {
                   if (widget.allowAll && words.isEmpty)
                     ListTile(
                       leading: const Icon(Icons.select_all),
-                      title: const Text('All accounts'),
+                      title: const Text('All Accounts'),
                       selected: widget.current == null,
                       onTap: () => Navigator.pop(context, -1),
                     ),
@@ -777,7 +777,7 @@ class CategoryField extends StatelessWidget {
                 ),
         ),
         child: c == null
-            ? Text('Select category',
+            ? Text('Select Category',
                 style: TextStyle(
                     color: Theme.of(context).colorScheme.onSurfaceVariant))
             : Column(
@@ -854,15 +854,34 @@ class _CategorySheetState extends State<_CategorySheet> {
                   onTap: () => Navigator.pop(context, -1),
                 ),
                 for (final g in groups) ...[
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                    child: Text(
-                      g.key,
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: Theme.of(context).colorScheme.primary,
-                          fontWeight: FontWeight.bold),
+                  InkWell(
+                    onTap: q.isEmpty
+                        ? () => state.toggleCollapsed('pick:${widget.kind.name}:${g.key}')
+                        : null,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 12, 16, 4),
+                      child: Row(
+                        children: [
+                          CollapseArrow(
+                              collapsed: q.isEmpty &&
+                                  state.isCollapsed('pick:${widget.kind.name}:${g.key}')),
+                          const SizedBox(width: 4),
+                          Text(
+                            g.key,
+                            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(width: 6),
+                          Text('${g.value.length}',
+                              style: Theme.of(context).textTheme.labelSmall),
+                        ],
+                      ),
                     ),
                   ),
+                  // Searching always shows every match.
+                  if (q.isNotEmpty ||
+                      !state.isCollapsed('pick:${widget.kind.name}:${g.key}'))
                   for (final c in g.value)
                     ListTile(
                       dense: true,
@@ -893,9 +912,25 @@ class HideAmountsButton extends StatelessWidget {
     final state = AppScope.of(context);
     final hidden = state.hideAmounts;
     return IconButton(
-      tooltip: hidden ? 'Show amounts' : 'Hide amounts',
+      tooltip: hidden ? 'Show Amounts' : 'Hide Amounts',
       icon: Icon(hidden ? Icons.visibility_off_outlined : Icons.visibility_outlined),
       onPressed: () => state.setHideAmounts(!hidden),
     );
   }
+}
+
+/// Small arrow that shows whether a section is open; turns when toggled.
+class CollapseArrow extends StatelessWidget {
+  const CollapseArrow({super.key, required this.collapsed, this.color});
+
+  final bool collapsed;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) => AnimatedRotation(
+        turns: collapsed ? -0.25 : 0,
+        duration: const Duration(milliseconds: 150),
+        child: Icon(Icons.expand_more,
+            size: 20, color: color ?? Theme.of(context).colorScheme.primary),
+      );
 }

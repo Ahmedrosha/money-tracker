@@ -63,7 +63,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       floatingActionButton: _calendar
           ? null // the calendar adds on the selected day
           : FloatingActionButton(
-              tooltip: 'Add transaction',
+              tooltip: 'Add Transaction',
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const TransactionEditScreen()),
@@ -99,12 +99,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     child: TextButton.icon(
                       icon: const Icon(Icons.filter_list),
                       label: Text(
-                          state.accountById(_calAccountId)?.name ?? 'All accounts',
+                          state.accountById(_calAccountId)?.name ?? 'All Accounts',
                           overflow: TextOverflow.ellipsis),
                       onPressed: () async {
                         final id = await pickAccount(context,
                             current: _calAccountId,
-                            title: 'Show calendar for',
+                            title: 'Show Calendar for',
                             allowAll: true);
                         if (id == null) return;
                         setState(() => _calAccountId = id == -1 ? null : id);
@@ -118,7 +118,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         actions: [
           const HideAmountsButton(),
           IconButton(
-            tooltip: 'Search all transactions',
+            tooltip: 'Search All Transactions',
             icon: const Icon(Icons.search),
             onPressed: () => Navigator.push(
               context,
@@ -247,10 +247,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       initialValue: state.txnSort,
                       onSelected: state.setTxnSort,
                       itemBuilder: (_) => const [
-                        PopupMenuItem(value: 'date', child: Text('Sort by date')),
+                        PopupMenuItem(value: 'date', child: Text('Sort by Date')),
                         PopupMenuItem(
                             value: 'category',
-                            child: Text('Sort by type (category / account)')),
+                            child: Text('Sort by Type (Category / Account)')),
                       ],
                       child: Chip(
                         avatar: const Icon(Icons.sort, size: 18),
@@ -283,17 +283,25 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final transfers = list.where((t) => t.type == TxType.transfer).toList();
     final showHeaders = _filter == null;
     if (list.isNotEmpty) out.add(_orderBar(context, state));
+    // Section headers collapse their whole list (remembered).
+    bool open(String name) => !showHeaders || !state.isCollapsed('tx:$name');
     if (expenses.isNotEmpty) {
-      if (showHeaders) out.add(_sectionTitle(context, 'Expenses'));
-      out.addAll(_categoryGroups(context, state, expenses, kExpenseColor));
+      if (showHeaders) out.add(_sectionTitle(context, 'Expenses', state));
+      if (open('Expenses')) {
+        out.addAll(_categoryGroups(context, state, expenses, kExpenseColor));
+      }
     }
     if (incomes.isNotEmpty) {
-      if (showHeaders) out.add(_sectionTitle(context, 'Income'));
-      out.addAll(_categoryGroups(context, state, incomes, kIncomeColor));
+      if (showHeaders) out.add(_sectionTitle(context, 'Income', state));
+      if (open('Income')) {
+        out.addAll(_categoryGroups(context, state, incomes, kIncomeColor));
+      }
     }
     if (transfers.isNotEmpty) {
-      if (showHeaders) out.add(_sectionTitle(context, 'Transfers'));
-      out.addAll(_transferGroups(context, state, transfers));
+      if (showHeaders) out.add(_sectionTitle(context, 'Transfers', state));
+      if (open('Transfers')) {
+        out.addAll(_transferGroups(context, state, transfers));
+      }
     }
     return out;
   }
@@ -334,7 +342,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       child: Align(
         alignment: Alignment.centerLeft,
         child: PopupMenuButton<String>(
-          tooltip: 'Order groups by',
+          tooltip: 'Order Groups by',
           initialValue: state.groupOrder,
           onSelected: state.setGroupOrder,
           itemBuilder: (_) => [
@@ -349,12 +357,22 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
   }
 
-  Widget _sectionTitle(BuildContext context, String text) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
-        child: Text(text,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
-                fontWeight: FontWeight.bold)),
+  Widget _sectionTitle(BuildContext context, String text, AppState state) =>
+      InkWell(
+        onTap: () => state.toggleCollapsed('tx:$text'),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 16, 16, 4),
+          child: Row(
+            children: [
+              CollapseArrow(collapsed: state.isCollapsed('tx:$text')),
+              const SizedBox(width: 4),
+              Text(text,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
       );
 
   Widget _txnWithDate(BuildContext context, Txn t, {int? perspective}) =>
@@ -405,6 +423,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       for (final g in sorted)
         ExpansionTile(
           key: PageStorageKey('g-${_filter?.name}-${g.key}-${color == kExpenseColor ? 'e' : 'i'}'),
+          controlAffinity: ListTileControlAffinity.leading,
+          initiallyExpanded: state.isCollapsed('txopen:g:${color == kExpenseColor ? 'e' : 'i'}:${g.key}'),
+          onExpansionChanged: (_) => state.toggleCollapsed(
+              'txopen:g:${color == kExpenseColor ? 'e' : 'i'}:${g.key}'),
           title: Text(g.key, style: const TextStyle(fontWeight: FontWeight.w600)),
           subtitle: Text(
               '${g.value.values.fold<int>(0, (n, l) => n + l.length)} transactions'),
@@ -425,10 +447,22 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 child: ExpansionTile(
                   key: PageStorageKey('c-${_filter?.name}-${c.key}-${color == kExpenseColor ? 'e' : 'i'}'),
                   leading: CategoryAvatar(category: state.categoryById(c.key)),
+                  initiallyExpanded: state.isCollapsed('txopen:c:${c.key}'),
+                  onExpansionChanged: (_) =>
+                      state.toggleCollapsed('txopen:c:${c.key}'),
                   title: Text(state.categoryById(c.key)?.name ?? 'No category'),
                   subtitle: Text('${c.value.length} transactions'),
-                  trailing: Text(fmtMoney(sum(c.value), cur),
-                      style: TextStyle(color: color)),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(fmtMoney(sum(c.value), cur),
+                          style: TextStyle(color: color)),
+                      const SizedBox(width: 4),
+                      CollapseArrow(
+                          collapsed: !state.isCollapsed('txopen:c:${c.key}'),
+                          color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    ],
+                  ),
                   children: [
                     for (final t in c.value) _txnWithDate(context, t),
                   ],
@@ -469,6 +503,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           final cur = a?.currency ?? '';
           return ExpansionTile(
             key: PageStorageKey('t-$id'),
+            initiallyExpanded: state.isCollapsed('txopen:t:$id'),
+            onExpansionChanged: (_) => state.toggleCollapsed('txopen:t:$id'),
+            trailing: CollapseArrow(
+                collapsed: !state.isCollapsed('txopen:t:$id'),
+                color: Theme.of(context).colorScheme.onSurfaceVariant),
             leading: CircleAvatar(
                 child: Icon(a == null ? Icons.help_outline : accountTypeIcon(a.type))),
             title: Text(a?.fullName ?? '?',

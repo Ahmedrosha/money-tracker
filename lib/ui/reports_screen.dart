@@ -59,11 +59,11 @@ class ReportsScreen extends StatelessWidget {
             tabAlignment: TabAlignment.start,
             tabs: [
               Tab(text: 'Dashboard'),
-              Tab(text: 'By category'),
+              Tab(text: 'By Category'),
               Tab(text: 'Trend'),
               Tab(text: 'Outlook'),
               Tab(text: 'Compare'),
-              Tab(text: 'Net worth'),
+              Tab(text: 'Net Worth'),
               Tab(text: 'Allocation'),
               Tab(text: 'Cards'),
             ],
@@ -387,7 +387,7 @@ class _DashboardState extends State<_Dashboard> {
                       color: amountColor(context, d.income - d.spent),
                     ),
                     _Tile(
-                      label: 'Saved of income',
+                      label: 'Saved of Income',
                       value: d.income > 0
                           ? '${((d.income - d.spent) / d.income * 100).toStringAsFixed(0)}%'
                           : '—',
@@ -434,9 +434,9 @@ class _DashboardState extends State<_Dashboard> {
                       month: _month,
                       onTap: () => editBudget(context, b.budget)),
               ],
-              _sectionTitle(context, 'Spending, last 6 months', sub: cur),
+              _sectionTitle(context, 'Spending, Last 6 Months', sub: cur),
               _MonthBars(months: d.months, currency: cur),
-              _sectionTitle(context, 'Top categories',
+              _sectionTitle(context, 'Top Categories',
                   sub: d.top.isEmpty ? 'No spending this month' : null),
               for (final c in d.top)
                 _BarRow(
@@ -456,7 +456,7 @@ class _DashboardState extends State<_Dashboard> {
                   onTap: () => _openCategory(context, c, _month,
                       DateTime(_month.year, _month.month + 1)),
                 ),
-              _sectionTitle(context, 'Coming up (next 14 days)'),
+              _sectionTitle(context, 'Coming Up (Next 14 Days)'),
               ..._upcoming(context, state),
             ],
           ],
@@ -603,13 +603,13 @@ class _ByCategoryState extends State<_ByCategory> {
   String get _label {
     switch (_period) {
       case _Period.thisMonth:
-        return 'This month';
+        return 'This Month';
       case _Period.lastMonth:
-        return 'Last month';
+        return 'Last Month';
       case _Period.thisYear:
-        return 'This year';
+        return 'This Year';
       case _Period.last12:
-        return 'Last 12 months';
+        return 'Last 12 Months';
       case _Period.custom:
         return '${shortDateFmt.format(_custom!.start)} – ${shortDateFmt.format(_custom!.end)}';
     }
@@ -624,11 +624,11 @@ class _ByCategoryState extends State<_ByCategory> {
           mainAxisSize: MainAxisSize.min,
           children: [
             for (final (v, l) in const [
-              (_Period.thisMonth, 'This month'),
-              (_Period.lastMonth, 'Last month'),
-              (_Period.thisYear, 'This year'),
-              (_Period.last12, 'Last 12 months'),
-              (_Period.custom, 'Choose dates…'),
+              (_Period.thisMonth, 'This Month'),
+              (_Period.lastMonth, 'Last Month'),
+              (_Period.thisYear, 'This Year'),
+              (_Period.last12, 'Last 12 Months'),
+              (_Period.custom, 'Choose Dates…'),
             ])
               ListTile(
                 title: Text(l),
@@ -712,7 +712,7 @@ class _ByCategoryState extends State<_ByCategory> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(_type == TxType.expense ? 'Total spent' : 'Total income',
+                  Text(_type == TxType.expense ? 'Total Spent' : 'Total Income',
                       style: Theme.of(context).textTheme.bodySmall),
                   Text(fmtMoney(total, cur),
                       style: Theme.of(context)

@@ -22,7 +22,7 @@ class CategoriesScreen extends StatelessWidget {
             ]),
           ),
           floatingActionButton: FloatingActionButton(
-            tooltip: 'Add category',
+            tooltip: 'Add Category',
             onPressed: () {
               final idx = DefaultTabController.of(context).index;
               editCategory(context,
@@ -47,13 +47,18 @@ class _CategoryList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final groups = groupCategories(AppScope.of(context).categoriesOf(kind));
+    final state = AppScope.of(context);
+    final groups = groupCategories(state.categoriesOf(kind));
     return ListView(
       padding: const EdgeInsets.only(bottom: 96),
       children: [
         for (final g in groups)
           ExpansionTile(
-            initiallyExpanded: groups.length <= 3,
+            key: PageStorageKey('cat-${kind.name}-${g.key}'),
+            controlAffinity: ListTileControlAffinity.leading,
+            initiallyExpanded: state.isCollapsed('catopen:${kind.name}:${g.key}'),
+            onExpansionChanged: (_) =>
+                state.toggleCollapsed('catopen:${kind.name}:${g.key}'),
             title: Text(g.key,
                 style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text('${g.value.length} categories'),

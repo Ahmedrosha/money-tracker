@@ -80,6 +80,17 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Collapsed list sections, e.g. 'acc:Bank' (remembered).
+  Set<String> collapsed = {};
+
+  bool isCollapsed(String key) => collapsed.contains(key);
+
+  Future<void> toggleCollapsed(String key) async {
+    if (!collapsed.remove(key)) collapsed.add(key);
+    notifyListeners();
+    await db.setSetting('collapsed', collapsed.join('\n'));
+  }
+
   /// Ask for Face ID / fingerprint / passcode when opening the app.
   bool lockEnabled = false;
 
@@ -98,6 +109,10 @@ class AppState extends ChangeNotifier {
         DateTime.saturday;
     amountsHidden = await db.getSetting('hide_amounts') == '1';
     lockEnabled = await db.getSetting('lock_enabled') == '1';
+    collapsed = (await db.getSetting('collapsed') ?? '')
+        .split('\n')
+        .where((s) => s.isNotEmpty)
+        .toSet();
     final lb = int.tryParse(await db.getSetting('last_backup') ?? '');
     lastBackup = lb == null ? null : DateTime.fromMillisecondsSinceEpoch(lb);
     await dropbox.init();
@@ -131,7 +146,7 @@ class AppState extends ChangeNotifier {
   String budgetName(Budget b) {
     switch (b.scope) {
       case BudgetScope.total:
-        return 'All spending';
+        return 'All Spending';
       case BudgetScope.group:
         return b.target;
       case BudgetScope.category:

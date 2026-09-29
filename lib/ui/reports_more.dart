@@ -154,8 +154,8 @@ class _TrendTabState extends State<TrendTab> {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
           child: SegmentedButton<bool>(
             segments: const [
-              ButtonSegment(value: false, label: Text('Last 12 months')),
-              ButtonSegment(value: true, label: Text('By year')),
+              ButtonSegment(value: false, label: Text('Last 12 Months')),
+              ButtonSegment(value: true, label: Text('By Year')),
             ],
             selected: {_years},
             onSelectionChanged: (s) => setState(() => _years = s.first),
@@ -174,7 +174,7 @@ class _TrendTabState extends State<TrendTab> {
         ),
         _title(
             context,
-            _cumulative ? 'Saved over time' : 'Income vs spending',
+            _cumulative ? 'Saved Over Time' : 'Income vs Spending',
             sub: _cumulative
                 ? '$cur · running total of income minus spending'
                 : '$cur · tap a bar for details'),
@@ -236,13 +236,13 @@ class _TrendTabState extends State<TrendTab> {
             );
           },
         ),
-        _title(context, 'One category over time'),
+        _title(context, 'One Category Over Time'),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: OutlinedButton.icon(
             icon: const Icon(Icons.category_outlined),
             label: Text(cat == null
-                ? 'Choose a category'
+                ? 'Choose a Category'
                 : (cat.group.isEmpty ? cat.name : '${cat.group} › ${cat.name}')),
             onPressed: () async {
               final id = await pickCategory(context,
@@ -331,7 +331,7 @@ class _TrendTabState extends State<TrendTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(_years ? 'All years' : 'Last 12 months',
+                Text(_years ? 'All Years' : 'Last 12 Months',
                     style: const TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
                 Text('Income ${fmtMoney(income, cur)}'),
@@ -622,7 +622,7 @@ class _NetWorthTabState extends State<NetWorthTab> {
                 runSpacing: 8,
                 children: [
                   _chip(context, 'Now', fmtMoney(nowV, cur)),
-                  _chip(context, 'Change over 12 months',
+                  _chip(context, 'Change Over 12 Months',
                       '${nowV - yearAgo >= 0 ? '+' : ''}${fmtMoney(nowV - yearAgo, cur)}'),
                   _chip(context, 'Highest',
                       '${fmtMoney(peak.$2, cur)} · ${DateFormat('MMM yyyy').format(peak.$1)}'),

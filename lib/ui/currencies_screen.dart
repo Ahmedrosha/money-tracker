@@ -20,7 +20,7 @@ class CurrenciesScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Exchange rates'),
+        title: const Text('Exchange Rates'),
         actions: [
           state.refreshingRates
               ? const Padding(
@@ -31,7 +31,7 @@ class CurrenciesScreen extends StatelessWidget {
                       child: CircularProgressIndicator(strokeWidth: 2)),
                 )
               : IconButton(
-                  tooltip: 'Refresh online rates',
+                  tooltip: 'Refresh Online Rates',
                   icon: const Icon(Icons.refresh),
                   onPressed: () async {
                     try {
@@ -123,7 +123,7 @@ class _RateTile extends StatelessWidget {
           if (manual)
             TextButton(
               onPressed: () => Navigator.pop(ctx, '__auto__'),
-              child: const Text('Use online rate'),
+              child: const Text('Use Online Rate'),
             ),
           TextButton(
               onPressed: () => Navigator.pop(ctx),

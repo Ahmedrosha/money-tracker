@@ -336,7 +336,7 @@ class _OutlookTabState extends State<OutlookTab> {
                 '${fmtMoney(low.$2, cur)} · ${dayFmt2.format(low.$1)}',
                 warn: low.$2 < 0),
             _chip(context, 'Coming in', fmtMoney(inflow, cur)),
-            _chip(context, 'Going out', fmtMoney(outflow, cur)),
+            _chip(context, 'Going Out', fmtMoney(outflow, cur)),
           ],
         ),
       ),
@@ -526,7 +526,7 @@ class _AllocationTabState extends State<AllocationTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Net worth', style: small),
+              Text('Net Worth', style: small),
               Text(fmtMoney(totalA - totalD, cur),
                   style: Theme.of(context)
                       .textTheme
@@ -537,10 +537,10 @@ class _AllocationTabState extends State<AllocationTab> {
             ],
           ),
         ),
-        _heading(context, 'What you own', sub: '$cur · tap to see accounts'),
+        _heading(context, 'What You Own', sub: '$cur · tap to see accounts'),
         for (final g in assets) group(g, totalA, null),
         if (debts.isNotEmpty) ...[
-          _heading(context, 'What you owe', sub: cur),
+          _heading(context, 'What You Owe', sub: cur),
           for (final g in debts) group(g, totalD, kExpenseColor),
         ],
         Padding(
@@ -683,7 +683,7 @@ class _CompareTabState extends State<CompareTab> {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
           child: SegmentedButton<bool>(
             segments: const [
-              ButtonSegment(value: false, label: Text('Compare months')),
+              ButtonSegment(value: false, label: Text('Compare Months')),
               ButtonSegment(value: true, label: Text('Payees')),
             ],
             selected: {_payees},
@@ -736,7 +736,7 @@ class _CompareTabState extends State<CompareTab> {
                 child: Center(child: CircularProgressIndicator()));
           }
           final rows = d.groups.values.toList();
-          final total = _Cmp('', 'All spending', null);
+          final total = _Cmp('', 'All Spending', null);
           for (final r in rows) {
             total.now += r.now;
             total.prev += r.prev;
@@ -792,11 +792,11 @@ class _CompareTabState extends State<CompareTab> {
     }
     final cur = state.baseCurrency;
     const labels = {
-      _PPeriod.thisMonth: 'This month',
-      _PPeriod.lastMonth: 'Last month',
-      _PPeriod.thisYear: 'This year',
-      _PPeriod.last12: 'Last 12 months',
-      _PPeriod.all: 'All time',
+      _PPeriod.thisMonth: 'This Month',
+      _PPeriod.lastMonth: 'Last Month',
+      _PPeriod.thisYear: 'This Year',
+      _PPeriod.last12: 'Last 12 Months',
+      _PPeriod.all: 'All Time',
     };
     return [
       Padding(
@@ -948,8 +948,8 @@ class _CmpTile extends StatelessWidget {
                 ],
               ),
             ),
-            cell('Last month', row.prev),
-            cell('12-mo avg', row.avg),
+            cell('Last Month', row.prev),
+            cell('12-Mo Avg', row.avg),
             if (onTap != null) const Icon(Icons.chevron_right),
           ],
         ),

@@ -18,7 +18,7 @@ class RecurringScreen extends StatelessWidget {
     final ended = state.rules.where((r) => r.finished).toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Recurring items')),
+      appBar: AppBar(title: const Text('Recurring Items')),
       body: state.rules.isEmpty
           ? const Center(
               child: Padding(

@@ -44,7 +44,7 @@ class AccountsScreen extends StatelessWidget {
         actions: [
           const HideAmountsButton(),
           IconButton(
-            tooltip: 'Find account',
+            tooltip: 'Find Account',
             icon: const Icon(Icons.search),
             onPressed: () => Navigator.push(
               context,
@@ -57,12 +57,12 @@ class AccountsScreen extends StatelessWidget {
             initialValue: state.accountsGroupBy,
             onSelected: state.setAccountsGroupBy,
             itemBuilder: (_) => const [
-              PopupMenuItem(value: 'type', child: Text('Group by type')),
-              PopupMenuItem(value: 'bank', child: Text('Group by bank')),
+              PopupMenuItem(value: 'type', child: Text('Group by Type')),
+              PopupMenuItem(value: 'bank', child: Text('Group by Bank')),
             ],
           ),
           IconButton(
-            tooltip: 'Add account',
+            tooltip: 'Add Account',
             icon: const Icon(Icons.add_card),
             onPressed: () => _openEdit(context, null),
           ),
@@ -178,7 +178,7 @@ class AccountsScreen extends StatelessWidget {
                   FilledButton.icon(
                     onPressed: () => _openEdit(context, null),
                     icon: const Icon(Icons.add),
-                    label: const Text('Add account'),
+                    label: const Text('Add Account'),
                   ),
                 ],
               ),
@@ -189,9 +189,14 @@ class AccountsScreen extends StatelessWidget {
               total: sec.value.fold<double>(
                   0, (s, a) => s + state.toBase(a.balance, a.currency)),
               currency: state.baseCurrency,
+              count: sec.value.length,
+              collapsed: state.isCollapsed('acc:${byBank ? 'bank' : 'type'}:${sec.key}'),
+              onTap: () => state.toggleCollapsed(
+                  'acc:${byBank ? 'bank' : 'type'}:${sec.key}'),
             ),
-            for (final a in sec.value)
-              _AccountTile(account: a, showBank: !byBank),
+            if (!state.isCollapsed('acc:${byBank ? 'bank' : 'type'}:${sec.key}'))
+              for (final a in sec.value)
+                _AccountTile(account: a, showBank: !byBank),
           ],
           if (archived.isNotEmpty)
             ExpansionTile(
@@ -240,7 +245,7 @@ class _NetWorthCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Net worth',
+            Text('Net Worth',
                 style: TextStyle(color: scheme.onPrimaryContainer)),
             const SizedBox(height: 4),
             Text(
@@ -266,7 +271,7 @@ class _NetWorthCard extends StatelessWidget {
                 ),
                 Expanded(
                   child: _MiniStat(
-                      label: 'Expected end of month',
+                      label: 'Expected End of Month',
                       value: fmtAmount(state.projectedEom),
                       color: scheme.onPrimaryContainer),
                 ),
@@ -302,25 +307,40 @@ class _MiniStat extends StatelessWidget {
 }
 
 class _GroupHeader extends StatelessWidget {
-  const _GroupHeader(
-      {required this.title, required this.total, required this.currency});
+  const _GroupHeader({
+    required this.title,
+    required this.total,
+    required this.currency,
+    required this.count,
+    required this.collapsed,
+    required this.onTap,
+  });
 
   final String title;
   final double total;
   final String currency;
+  final int count;
+  final bool collapsed;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final style = Theme.of(context).textTheme.titleSmall?.copyWith(
         color: Theme.of(context).colorScheme.primary,
         fontWeight: FontWeight.bold);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-      child: Row(
-        children: [
-          Expanded(child: Text(title, style: style)),
-          Text(fmtMoney(total, currency), style: style),
-        ],
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 12, 16, 4),
+        child: Row(
+          children: [
+            CollapseArrow(collapsed: collapsed),
+            const SizedBox(width: 4),
+            Expanded(
+                child: Text(collapsed ? '$title ($count)' : title, style: style)),
+            Text(fmtMoney(total, currency), style: style),
+          ],
+        ),
       ),
     );
   }

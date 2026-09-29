@@ -29,12 +29,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
         actions: [
           TextButton.icon(
             icon: const Icon(Icons.filter_list),
-            label: Text(account?.name ?? 'All accounts',
+            label: Text(account?.name ?? 'All Accounts',
                 overflow: TextOverflow.ellipsis),
             onPressed: () async {
               final id = await pickAccount(context,
                   current: _accountId,
-                  title: 'Show calendar for',
+                  title: 'Show Calendar for',
                   allowAll: true);
               if (id == null) return;
               setState(() => _accountId = id == -1 ? null : id);
@@ -176,7 +176,7 @@ class _CalendarViewState extends State<CalendarView> {
           final last = c.last;
           if (last != null) {
             add(last.closeDate,
-                _CardEvent(c, 'Statement closed', last.amount));
+                _CardEvent(c, 'Statement Closed', last.amount));
             add(
                 last.dueDate,
                 _CardEvent(
@@ -271,7 +271,7 @@ class _CalendarViewState extends State<CalendarView> {
                           color: kIncomeColor, fontWeight: FontWeight.w600)),
                 ],
                 IconButton(
-                  tooltip: 'Add on this day',
+                  tooltip: 'Add on This Day',
                   icon: const Icon(Icons.add_circle_outline),
                   onPressed: () {
                     final now = DateTime.now();

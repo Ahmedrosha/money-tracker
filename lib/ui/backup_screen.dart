@@ -143,7 +143,7 @@ class _BackupScreenState extends State<BackupScreen> {
     final state = AppScope.of(context);
     final last = state.lastBackup;
     return Scaffold(
-      appBar: AppBar(title: const Text('Backup & restore')),
+      appBar: AppBar(title: const Text('Backup & Restore')),
       body: AbsorbPointer(
         absorbing: _busy,
         child: ListView(
@@ -160,20 +160,20 @@ class _BackupScreenState extends State<BackupScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.cloud_upload_outlined),
-              title: const Text('Back up & share'),
+              title: const Text('Back Up & Share'),
               subtitle: const Text('Save to Google Drive, email, WhatsApp…'),
               onTap: _share,
             ),
             ListTile(
               leading: const Icon(Icons.save_alt),
-              title: const Text('Back up to phone storage'),
+              title: const Text('Back Up to Phone Storage'),
               subtitle: const Text('Choose a folder, e.g. Downloads'),
               onTap: _saveToPhone,
             ),
             const Divider(),
             ListTile(
               leading: const Icon(Icons.restore),
-              title: const Text('Restore from backup'),
+              title: const Text('Restore from Backup'),
               subtitle: const Text('Replaces all current data'),
               onTap: _restore,
             ),
@@ -186,7 +186,7 @@ class _BackupScreenState extends State<BackupScreen> {
               ),
             ListTile(
               leading: const Icon(Icons.undo),
-              title: const Text('Undo last restore'),
+              title: const Text('Undo Last Restore'),
               subtitle: const Text('Bring back the data from before restoring'),
               onTap: _undoRestore,
             ),

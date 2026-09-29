@@ -72,7 +72,7 @@ class _NotificationSettingsScreenState
           ListTile(
             enabled: on,
             leading: const Icon(Icons.schedule),
-            title: const Text('Time of day'),
+            title: const Text('Time of Day'),
             subtitle: Text(TimeOfDay(hour: _s.hour, minute: _s.minute).format(context)),
             onTap: () async {
               final t = await showTimePicker(
@@ -88,7 +88,7 @@ class _NotificationSettingsScreenState
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-            child: Text('Credit card payments',
+            child: Text('Credit Card Payments',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     color: Theme.of(context).colorScheme.primary)),
           ),
@@ -116,28 +116,28 @@ class _NotificationSettingsScreenState
           ),
           SwitchListTile(
             secondary: const Icon(Icons.receipt_long_outlined),
-            title: const Text('Statement closed'),
+            title: const Text('Statement Closed'),
             subtitle: const Text('The day after a card statement closes'),
             value: _s.statementClosed,
             onChanged: on ? (v) => _update(() => _s.statementClosed = v) : null,
           ),
           SwitchListTile(
             secondary: const Icon(Icons.repeat),
-            title: const Text('Recurring items'),
+            title: const Text('Recurring Items'),
             subtitle: const Text('On the day a subscription, salary… is due'),
             value: _s.recurring,
             onChanged: on ? (v) => _update(() => _s.recurring = v) : null,
           ),
           SwitchListTile(
             secondary: const Icon(Icons.backup_outlined),
-            title: const Text('Backup reminder'),
+            title: const Text('Backup Reminder'),
             subtitle: const Text('Every 7 days, only when Dropbox is not connected'),
             value: _s.backup,
             onChanged: on ? (v) => _update(() => _s.backup = v) : null,
           ),
           SwitchListTile(
             secondary: const Icon(Icons.savings_outlined),
-            title: const Text('Budget alerts'),
+            title: const Text('Budget Alerts'),
             subtitle: const Text('When a budget reaches 80% and when it is exceeded'),
             value: _s.budgets,
             onChanged: on ? (v) => _update(() => _s.budgets = v) : null,
@@ -145,7 +145,7 @@ class _NotificationSettingsScreenState
           const Divider(),
           ListTile(
             leading: const Icon(Icons.send_outlined),
-            title: const Text('Send a test notification'),
+            title: const Text('Send a Test Notification'),
             onTap: () async {
               await state.notifier.requestPermission();
               await state.notifier.showTest();

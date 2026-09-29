@@ -57,15 +57,15 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
               }
             },
             itemBuilder: (_) => const [
-              PopupMenuItem(value: 'edit', child: Text('Edit account')),
+              PopupMenuItem(value: 'edit', child: Text('Edit Account')),
               PopupMenuItem(
-                  value: 'balance', child: Text('Set current balance')),
+                  value: 'balance', child: Text('Set Current Balance')),
             ],
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        tooltip: 'Add transaction',
+        tooltip: 'Add Transaction',
         onPressed: () => Navigator.push(
           context,
           MaterialPageRoute(

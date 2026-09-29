@@ -474,7 +474,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
           final choice = await showDialog<String>(
             context: context,
             builder: (ctx) => AlertDialog(
-              title: const Text('Delete installment'),
+              title: const Text('Delete Installment'),
               content: const Text(
                   'Delete only this installment, or the whole plan?'),
               actions: [
@@ -483,10 +483,10 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                     child: const Text('Cancel')),
                 TextButton(
                     onPressed: () => Navigator.pop(ctx, 'one'),
-                    child: const Text('This one')),
+                    child: const Text('This One')),
                 FilledButton(
                     onPressed: () => Navigator.pop(ctx, 'all'),
-                    child: const Text('Whole plan')),
+                    child: const Text('Whole Plan')),
               ],
             ),
           );
@@ -515,9 +515,9 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
   String get _title {
     switch (_mode) {
       case _Mode.newTxn:
-        return 'New transaction';
+        return 'New Transaction';
       case _Mode.editTxn:
-        return 'Edit transaction';
+        return 'Edit Transaction';
       case _Mode.editPlan:
         return 'Edit installment plan';
       case _Mode.editRule:
@@ -538,7 +538,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
 
     if (state.activeAccounts.isEmpty && _mode == _Mode.newTxn) {
       return Scaffold(
-        appBar: AppBar(title: const Text('New transaction')),
+        appBar: AppBar(title: const Text('New Transaction')),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(32),
@@ -553,7 +553,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                     MaterialPageRoute(
                         builder: (_) => const AccountEditScreen()),
                   ),
-                  child: const Text('Add account'),
+                  child: const Text('Add Account'),
                 ),
               ],
             ),
@@ -676,7 +676,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                   return null;
                 },
                 builder: (field) => AccountField(
-                  label: 'To account',
+                  label: 'To Account',
                   value: _toAccountId,
                   errorText: field.errorText,
                   onChanged: (v) => setState(() {
@@ -699,7 +699,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                   onFieldSubmitted: (_) => _settleExpression(_toAmount),
                   onTapOutside: (_) => _settleExpression(_toAmount),
                   decoration: InputDecoration(
-                    labelText: 'Amount received',
+                    labelText: 'Amount Received',
                     suffixText: toAccount!.currency,
                     helperText: rate == null
                         ? 'No rate available — enter manually'
@@ -708,7 +708,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                     border: const OutlineInputBorder(),
                     suffixIcon: _toAmountEdited
                         ? IconButton(
-                            tooltip: 'Recalculate from rate',
+                            tooltip: 'Recalculate from Rate',
                             icon: const Icon(Icons.refresh),
                             onPressed: () => setState(() {
                               _toAmountEdited = false;
@@ -760,7 +760,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                 onTap: _pickPostDate,
                 child: InputDecorator(
                   decoration: InputDecoration(
-                    labelText: 'Post date',
+                    labelText: 'Post Date',
                     helperText: _postDate == null
                         ? 'Same as transaction date — change it if the bank posted it later'
                         : 'Decides which statement it falls in',
@@ -858,7 +858,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                     MaterialPageRoute(
                         builder: (_) => TransactionEditScreen(planTxn: t)),
                   ),
-                  child: const Text('Edit plan'),
+                  child: const Text('Edit Plan'),
                 ),
         ),
       ));
@@ -868,7 +868,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       out.add(Card(
         child: ListTile(
           leading: const Icon(Icons.repeat),
-          title: const Text('From a recurring item'),
+          title: const Text('From a Recurring Item'),
           subtitle: Text(rule == null
               ? 'The recurring item was deleted'
               : '${rule.scheduleLabel} · changes here apply to this entry only'),
@@ -880,7 +880,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                     MaterialPageRoute(
                         builder: (_) => TransactionEditScreen(rule: rule)),
                   ),
-                  child: const Text('Edit all'),
+                  child: const Text('Edit All'),
                 ),
         ),
       ));
@@ -926,7 +926,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       SwitchListTile(
         contentPadding: EdgeInsets.zero,
         secondary: const Icon(Icons.view_week_outlined),
-        title: const Text('Split into monthly installments'),
+        title: const Text('Split Into Monthly Installments'),
         subtitle: const Text('e.g. credit card installments'),
         value: _installments,
         onChanged: (v) => setState(() {
@@ -952,7 +952,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
             Expanded(
               flex: 2,
               child: LabeledDropdown<DateTime>(
-                label: 'First installment',
+                label: 'First Installment',
                 value: _startMonth,
                 items: [
                   for (final m in monthOptions)
@@ -1030,7 +1030,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
           segments: const [
             ButtonSegment(value: EndType.never, label: Text('Never')),
             ButtonSegment(value: EndType.count, label: Text('After')),
-            ButtonSegment(value: EndType.date, label: Text('On date')),
+            ButtonSegment(value: EndType.date, label: Text('On Date')),
           ],
           selected: {_endType},
           onSelectionChanged: (s) => setState(() => _endType = s.first),
@@ -1059,7 +1059,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
             onTap: _pickEndDate,
             child: InputDecorator(
               decoration: const InputDecoration(
-                labelText: 'End date',
+                labelText: 'End Date',
                 border: OutlineInputBorder(),
                 suffixIcon: Icon(Icons.event),
               ),

@@ -176,7 +176,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isNew ? 'New account' : 'Edit account'),
+        title: Text(_isNew ? 'New Account' : 'Edit Account'),
         actions: [
           if (!_isNew)
             IconButton(
@@ -195,7 +195,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
               controller: _name,
               textCapitalization: TextCapitalization.words,
               decoration: const InputDecoration(
-                labelText: 'Account name',
+                labelText: 'Account Name',
                 hintText: 'e.g. Current, Visa Gold, Wallet',
                 border: OutlineInputBorder(),
               ),
@@ -211,7 +211,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
               },
               child: InputDecorator(
                 decoration: InputDecoration(
-                  labelText: 'Account type',
+                  labelText: 'Account Type',
                   border: const OutlineInputBorder(),
                   prefixIcon: Icon(accountTypeIcon(_type)),
                   suffixIcon: const Icon(Icons.arrow_drop_down),
@@ -265,7 +265,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
             ),
             if (_type == AccountType.creditCard) ...[
               const SizedBox(height: 24),
-              Text('Credit card',
+              Text('Credit Card',
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       color: Theme.of(context).colorScheme.primary)),
               const SizedBox(height: 12),
@@ -274,7 +274,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 decoration: InputDecoration(
-                  labelText: 'Credit limit',
+                  labelText: 'Credit Limit',
                   suffixText: _currency,
                   border: const OutlineInputBorder(),
                 ),
@@ -292,7 +292,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
                       controller: _statementDay,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
-                        labelText: 'Statement closing day',
+                        labelText: 'Statement Closing Day',
                         helperText: 'Cycle end, e.g. 25',
                         border: OutlineInputBorder(),
                       ),
@@ -306,7 +306,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
                       controller: _dueDay,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
-                        labelText: 'Payment due day',
+                        labelText: 'Payment Due Day',
                         helperText: 'Of the next month, e.g. 15',
                         border: OutlineInputBorder(),
                       ),
@@ -322,7 +322,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 decoration: const InputDecoration(
-                  labelText: 'Minimum payment',
+                  labelText: 'Minimum Payment',
                   suffixText: '% of statement',
                   border: OutlineInputBorder(),
                 ),
@@ -336,7 +336,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
             const SizedBox(height: 8),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Exclude from net worth'),
+              title: const Text('Exclude from Net Worth'),
               subtitle: const Text('Track it, but leave it out of totals'),
               value: _exclude,
               onChanged: (v) => setState(() => _exclude = v),

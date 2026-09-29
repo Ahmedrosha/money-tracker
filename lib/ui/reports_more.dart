@@ -7,6 +7,7 @@ import '../util/format.dart';
 import 'widgets.dart';
 
 String _short(double v) {
+  if (amountsHidden) return '•';
   final a = v.abs();
   final sign = v < 0 ? '-' : '';
   if (a >= 1e6) return '$sign${(a / 1e6).toStringAsFixed(a >= 1e7 ? 0 : 1)}M';

@@ -116,7 +116,10 @@ class BudgetsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Budgets')),
+      appBar: AppBar(
+        title: const Text('Budgets'),
+        actions: const [HideAmountsButton()],
+      ),
       body: const BudgetsTab(),
       floatingActionButton: FloatingActionButton(
         tooltip: 'Add budget',
@@ -292,7 +295,7 @@ class _BudgetEditScreenState extends State<BudgetEditScreen> {
     _target = b?.target ?? '';
     _rollover = b?.rollover ?? false;
     _start = b?.start ?? DateTime(n.year, n.month);
-    if (b != null) _amount.text = fmtAmount(b.amount).replaceAll(',', '');
+    if (b != null) _amount.text = fmtAmountRaw(b.amount).replaceAll(',', '');
   }
 
   @override

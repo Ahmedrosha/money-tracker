@@ -151,7 +151,7 @@ class _CalcPadState extends State<_CalcPad> {
                   ),
                   Text(
                     preview != null
-                        ? '= ${fmtAmount(preview)}${widget.currency == null ? '' : ' ${widget.currency}'}'
+                        ? '= ${fmtAmountRaw(preview)}${widget.currency == null ? '' : ' ${widget.currency}'}'
                         : (widget.currency ?? ''),
                     style: TextStyle(color: scheme.primary),
                   ),

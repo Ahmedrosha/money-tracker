@@ -78,11 +78,11 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
         ? null
         : (_type.isLiability ? -a.openingBalance : a.openingBalance);
     _opening = TextEditingController(
-        text: opening == null ? '' : fmtAmount(opening).replaceAll(',', ''));
+        text: opening == null ? '' : fmtAmountRaw(opening).replaceAll(',', ''));
     _limit = TextEditingController(
         text: a?.creditLimit == null
             ? ''
-            : fmtAmount(a!.creditLimit!).replaceAll(',', ''));
+            : fmtAmountRaw(a!.creditLimit!).replaceAll(',', ''));
     _statementDay =
         TextEditingController(text: a?.statementDay?.toString() ?? '');
     _dueDay = TextEditingController(text: a?.dueDay?.toString() ?? '');

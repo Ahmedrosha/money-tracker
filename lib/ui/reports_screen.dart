@@ -53,6 +53,7 @@ class ReportsScreen extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Reports'),
+          actions: const [HideAmountsButton()],
           bottom: const TabBar(
             isScrollable: true,
             tabAlignment: TabAlignment.start,
@@ -508,6 +509,7 @@ class _MonthBars extends StatelessWidget {
   final String currency;
 
   static String _short(double v) {
+    if (amountsHidden) return '•';
     if (v >= 1e6) return '${(v / 1e6).toStringAsFixed(1)}M';
     if (v >= 1e3) return '${(v / 1e3).toStringAsFixed(v >= 1e4 ? 0 : 1)}k';
     return v.toStringAsFixed(0);

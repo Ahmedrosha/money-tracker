@@ -89,3 +89,37 @@ if "</application>" not in m:
 m = m.replace("</application>", receivers.lstrip("\n"), 1)
 open(manifest, "w").write(m)
 print("Patched notifications setup")
+
+# ---- App lock (local_auth) ----
+# Needs a FragmentActivity, the biometric permission and AppCompat themes.
+import glob
+acts = glob.glob("build_app/android/app/src/main/kotlin/**/MainActivity.kt", recursive=True)
+if not acts:
+    sys.exit("MainActivity.kt not found")
+for act in acts:
+    a = open(act).read()
+    a = a.replace("io.flutter.embedding.android.FlutterActivity",
+                  "io.flutter.embedding.android.FlutterFragmentActivity")
+    a = re.sub(r":\s*FlutterActivity\(\)", ": FlutterFragmentActivity()", a)
+    open(act, "w").write(a)
+    print(a)
+
+m = open(manifest).read()
+m = m.replace("<application",
+              '<uses-permission android:name="android.permission.USE_BIOMETRIC"/>\n    <application', 1)
+open(manifest, "w").write(m)
+
+s = open(path).read()
+if path.endswith(".kts"):
+    s += '\ndependencies {\n    implementation("androidx.appcompat:appcompat:1.7.0")\n}\n'
+else:
+    s += '\ndependencies {\n    implementation "androidx.appcompat:appcompat:1.7.0"\n}\n'
+open(path, "w").write(s)
+
+for styles in glob.glob("build_app/android/app/src/main/res/values*/styles.xml"):
+    x = open(styles).read()
+    x = x.replace("@android:style/Theme.Light.NoTitleBar", "Theme.AppCompat.Light.NoActionBar")
+    x = x.replace("@android:style/Theme.Black.NoTitleBar", "Theme.AppCompat.NoActionBar")
+    open(styles, "w").write(x)
+    print("Patched", styles)
+print("Patched app lock setup")

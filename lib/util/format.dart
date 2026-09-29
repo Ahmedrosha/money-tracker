@@ -7,13 +7,23 @@ final DateFormat dayFmt = DateFormat('EEE, d MMM yyyy');
 final DateFormat shortDateFmt = DateFormat('d MMM yyyy');
 final DateFormat monthFmt = DateFormat('MMMM yyyy');
 
-String fmtAmount(double v) {
+/// When true, amounts on screen are shown as dots (the hide button).
+bool amountsHidden = false;
+const String kHiddenAmount = '••••';
+
+/// Amount for display; dots while amounts are hidden.
+String fmtAmount(double v) => amountsHidden ? kHiddenAmount : fmtAmountRaw(v);
+
+/// Always the real amount (input fields, notifications).
+String fmtAmountRaw(double v) {
   // Avoid "-0.00".
   if (v.abs() < 0.005) v = 0;
   return _amountFmt.format(v);
 }
 
 String fmtMoney(double v, String currency) => '${fmtAmount(v)} $currency';
+
+String fmtMoneyRaw(double v, String currency) => '${fmtAmountRaw(v)} $currency';
 
 /// Parses user input like "1,234.5" or "1234,5".
 double? parseAmount(String input) {

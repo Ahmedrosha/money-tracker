@@ -883,3 +883,19 @@ class _CategorySheetState extends State<_CategorySheet> {
     );
   }
 }
+
+/// Eye button that hides or shows all amounts in the app.
+class HideAmountsButton extends StatelessWidget {
+  const HideAmountsButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final hidden = state.hideAmounts;
+    return IconButton(
+      tooltip: hidden ? 'Show amounts' : 'Hide amounts',
+      icon: Icon(hidden ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+      onPressed: () => state.setHideAmounts(!hidden),
+    );
+  }
+}

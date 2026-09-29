@@ -41,6 +41,7 @@ class AccountsScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Accounts'),
         actions: [
+          const HideAmountsButton(),
           IconButton(
             tooltip: 'Find account',
             icon: const Icon(Icons.search),

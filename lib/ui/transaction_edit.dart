@@ -802,7 +802,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     final parts = <String>[];
     final amt = parseAmount(_amount.text);
     if (hasOperator(_amount.text)) {
-      parts.add(amt == null ? 'Incomplete calculation' : '= ${fmtAmount(amt)}');
+      parts.add(amt == null ? 'Incomplete calculation' : '= ${fmtAmountRaw(amt)}');
     }
     final base = state.baseCurrency;
     if (account != null &&
@@ -813,7 +813,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       final v = state.convert(amt, account.currency, base);
       parts.add(v == null
           ? 'No $base rate for ${account.currency} yet'
-          : '≈ ${fmtMoney(v, base)}');
+          : '≈ ${fmtMoneyRaw(v, base)}');
     }
     if (_type == TxType.expense && (amt ?? 0) < 0) parts.add('negative = refund');
     return parts.isEmpty ? null : parts.join(' · ');
@@ -837,7 +837,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
           title: Text('Installment ${t.planIndex}/${plan?.months ?? '?'}'),
           subtitle: Text(plan == null
               ? 'Changes here apply to this installment only'
-              : 'Total ${fmtAmount(plan.total)} · changes here apply to this installment only'),
+              : 'Total ${fmtAmountRaw(plan.total)} · changes here apply to this installment only'),
           trailing: plan == null
               ? null
               : TextButton(
@@ -954,8 +954,8 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
         const SizedBox(height: 8),
         if (parts != null)
           Text(
-            '$_months × ${fmtAmount(parts.first)} ${account?.currency ?? ''}'
-            '${parts.last != parts.first ? ' (last ${fmtAmount(parts.last)})' : ''}'
+            '$_months × ${fmtAmountRaw(parts.first)} ${account?.currency ?? ''}'
+            '${parts.last != parts.first ? ' (last ${fmtAmountRaw(parts.last)})' : ''}'
             '\n${monthFmt.format(_startMonth)} → ${monthFmt.format(lastMonth)}, on day ${_date.day}',
             style: Theme.of(context).textTheme.bodySmall,
           ),

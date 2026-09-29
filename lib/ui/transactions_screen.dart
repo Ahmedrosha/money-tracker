@@ -116,6 +116,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           ),
         ),
         actions: [
+          const HideAmountsButton(),
           IconButton(
             tooltip: 'Search all transactions',
             icon: const Icon(Icons.search),

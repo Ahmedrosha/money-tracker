@@ -70,6 +70,25 @@ class AppState extends ChangeNotifier {
 
   bool refreshingRates = false;
 
+  /// Amounts shown as dots (remembered between sessions).
+  bool get hideAmounts => amountsHidden;
+
+  Future<void> setHideAmounts(bool v) async {
+    amountsHidden = v;
+    await db.setSetting('hide_amounts', v ? '1' : '0');
+    version++;
+    notifyListeners();
+  }
+
+  /// Ask for Face ID / fingerprint / passcode when opening the app.
+  bool lockEnabled = false;
+
+  Future<void> setLockEnabled(bool v) async {
+    lockEnabled = v;
+    await db.setSetting('lock_enabled', v ? '1' : '0');
+    notifyListeners();
+  }
+
   Future<void> load() async {
     baseCurrency = await db.getSetting('base_currency') ?? 'EGP';
     accountsGroupBy = await db.getSetting('accounts_group_by') ?? 'type';
@@ -77,6 +96,8 @@ class AppState extends ChangeNotifier {
     groupOrder = await db.getSetting('group_order') ?? 'value_desc';
     weekStart = int.tryParse(await db.getSetting('week_start') ?? '') ??
         DateTime.saturday;
+    amountsHidden = await db.getSetting('hide_amounts') == '1';
+    lockEnabled = await db.getSetting('lock_enabled') == '1';
     final lb = int.tryParse(await db.getSetting('last_backup') ?? '');
     lastBackup = lb == null ? null : DateTime.fromMillisecondsSinceEpoch(lb);
     await dropbox.init();
@@ -232,8 +253,8 @@ class AppState extends ChangeNotifier {
               ? '🚨 ${st.name} budget exceeded'
               : '⚠️ ${st.name} budget at $pct%',
           level == 100
-              ? 'Spent ${fmtMoney(st.spent, baseCurrency)} of ${fmtAmount(st.limit)} — ${fmtAmount(-st.left)} over'
-              : 'Spent ${fmtMoney(st.spent, baseCurrency)} of ${fmtAmount(st.limit)} — ${fmtAmount(st.left)} left this month',
+              ? 'Spent ${fmtMoneyRaw(st.spent, baseCurrency)} of ${fmtAmountRaw(st.limit)} — ${fmtAmountRaw(-st.left)} over'
+              : 'Spent ${fmtMoneyRaw(st.spent, baseCurrency)} of ${fmtAmountRaw(st.limit)} — ${fmtAmountRaw(st.left)} left this month',
         );
       }
     } catch (_) {}
@@ -431,8 +452,8 @@ class AppState extends ChangeNotifier {
           out.add(Reminder(
             at(last.dueDate, d),
             '💳 ${a.fullName}',
-            '${fmtMoney(last.remaining, cur)} due ${reminderWhen(d, last.dueDate)}'
-                '${last.minimumDue > 0 ? ' · minimum ${fmtAmount(last.minimumDue)}' : ''}',
+            '${fmtMoneyRaw(last.remaining, cur)} due ${reminderWhen(d, last.dueDate)}'
+                '${last.minimumDue > 0 ? ' · minimum ${fmtAmountRaw(last.minimumDue)}' : ''}',
           ));
         }
       }
@@ -446,14 +467,14 @@ class AppState extends ChangeNotifier {
             out.add(Reminder(
               at(nextDue, d),
               '💳 ${a.fullName}',
-              'About ${fmtMoney(est, cur)} due ${reminderWhen(d, nextDue)}',
+              'About ${fmtMoneyRaw(est, cur)} due ${reminderWhen(d, nextDue)}',
             ));
           }
           if (s.statementClosed) {
             out.add(Reminder(
               at(nextClose.add(const Duration(days: 1))),
               '🧾 ${a.fullName} statement closed',
-              'About ${fmtMoney(est, cur)}, due ${shortDateFmt.format(nextDue)}',
+              'About ${fmtMoneyRaw(est, cur)}, due ${shortDateFmt.format(nextDue)}',
             ));
           }
         }
@@ -473,7 +494,7 @@ class AppState extends ChangeNotifier {
         out.add(Reminder(
           at(o.date),
           '🔁 $name',
-          '${fmtMoney(r.amount, acc?.currency ?? baseCurrency)} is due today — open the app to confirm',
+          '${fmtMoneyRaw(r.amount, acc?.currency ?? baseCurrency)} is due today — open the app to confirm',
         ));
       }
     }

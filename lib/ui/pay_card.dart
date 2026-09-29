@@ -14,7 +14,7 @@ Future<void> showPayCard(BuildContext context, CardSummary c) async {
       ('Statement balance', 'Pay the full statement, no interest',
           last.remaining),
     if (last != null && last.minimumDue > 0)
-      ('Minimum due', '${fmtAmount(last.minPct)}% of statement',
+      ('Minimum due', '${fmtAmountRaw(last.minPct)}% of statement',
           last.minimumDue),
     if (c.owedNow > 0)
       ('Current balance', 'Everything spent so far, incl. this cycle',

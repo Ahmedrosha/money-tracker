@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/app_lock.dart';
 import '../state/app_state.dart';
 import '../util/currencies.dart';
 import 'backup_screen.dart';
@@ -20,6 +21,15 @@ class SettingsScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         children: [
+          const _LockTile(),
+          SwitchListTile(
+            secondary: const Icon(Icons.visibility_off_outlined),
+            title: const Text('Hide amounts'),
+            subtitle: const Text('Show •••• instead of numbers. Also the eye button at the top of each screen.'),
+            value: state.hideAmounts,
+            onChanged: (v) => state.setHideAmounts(v),
+          ),
+          const Divider(),
           ListTile(
             leading: const Icon(Icons.flag_outlined),
             title: const Text('Main currency'),
@@ -125,7 +135,7 @@ class SettingsScreen extends StatelessWidget {
             leading: Icon(Icons.info_outline),
             title: Text('Money Tracker'),
             subtitle: Text(
-                'Version 0.18 — Budgets tab, calendar inside Transactions'),
+                'Version 0.19 — app lock, hide amounts'),
           ),
         ],
       ),
@@ -141,5 +151,47 @@ class SettingsScreen extends StatelessWidget {
       default:
         return 'Monday';
     }
+  }
+}
+
+class _LockTile extends StatefulWidget {
+  const _LockTile();
+
+  @override
+  State<_LockTile> createState() => _LockTileState();
+}
+
+class _LockTileState extends State<_LockTile> {
+  final _lock = AppLock();
+  late final Future<String> _method = _lock.methodName();
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    return FutureBuilder<String>(
+      future: _method,
+      builder: (context, snap) => SwitchListTile(
+        secondary: const Icon(Icons.lock_outline),
+        title: const Text('App lock'),
+        subtitle: Text(
+            '${snap.data ?? 'Face ID / fingerprint'} when opening the app and after a minute away. Phone passcode works too.'),
+        isThreeLine: true,
+        value: state.lockEnabled,
+        onChanged: (v) async {
+          if (v) {
+            if (!await _lock.available()) {
+              if (context.mounted) {
+                showSnack(context,
+                    'Set up a screen lock (Face ID, fingerprint or passcode) on your phone first');
+              }
+              return;
+            }
+            // Confirm it works before turning it on.
+            if (!await _lock.authenticate()) return;
+          }
+          await state.setLockEnabled(v);
+        },
+      ),
+    );
   }
 }

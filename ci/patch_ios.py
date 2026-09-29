@@ -51,6 +51,7 @@ p.setdefault("NSCameraUsageDescription",
              "Only used if you choose to take a photo to attach.")
 p.setdefault("NSMicrophoneUsageDescription",
              "Not used by Money Tracker.")
+p["NSFaceIDUsageDescription"] = "Face ID unlocks Money Tracker."
 p.setdefault("NSLocationWhenInUseUsageDescription",
              "Not used by Money Tracker.")
 p.setdefault("NSAppleMusicUsageDescription",

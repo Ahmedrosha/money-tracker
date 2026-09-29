@@ -404,6 +404,10 @@ class Txn {
   /// statement it belongs to. Null = same as [date].
   final DateTime? postDate;
 
+  /// Transfers into a credit card: the day the card counted the payment.
+  /// Decides which statement it belongs to. Null = same as [date].
+  final DateTime? toPostDate;
+
   const Txn({
     this.id,
     required this.type,
@@ -419,6 +423,7 @@ class Txn {
     this.planIndex,
     this.recurringId,
     this.postDate,
+    this.toPostDate,
   });
 
   bool get isFuture => date.isAfter(DateTime.now());
@@ -450,6 +455,7 @@ class Txn {
         'plan_index': planIndex,
         'recurring_id': recurringId,
         'post_date': postDate?.millisecondsSinceEpoch,
+        'to_post_date': toPostDate?.millisecondsSinceEpoch,
       };
 
   factory Txn.fromMap(Map<String, Object?> m) => Txn(
@@ -469,6 +475,9 @@ class Txn {
         postDate: m['post_date'] == null
             ? null
             : DateTime.fromMillisecondsSinceEpoch(m['post_date'] as int),
+        toPostDate: m['to_post_date'] == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(m['to_post_date'] as int),
       );
 }
 

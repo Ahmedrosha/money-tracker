@@ -39,7 +39,7 @@ class AppDb {
 
   final Database db;
 
-  static const int schemaVersion = 6;
+  static const int schemaVersion = 7;
 
   static Future<String> dbPath() async =>
       p.join(await getDatabasesPath(), 'money_tracker.db');
@@ -112,6 +112,7 @@ class AppDb {
         await _migrateToV4(db);
         await _migrateToV5(db);
         await _migrateToV6(db);
+        await _migrateToV7(db);
         await _seed(db);
       },
       onUpgrade: (db, oldV, newV) async {
@@ -120,6 +121,7 @@ class AppDb {
         if (oldV < 4) await _migrateToV4(db);
         if (oldV < 5) await _migrateToV5(db);
         if (oldV < 6) await _migrateToV6(db);
+        if (oldV < 7) await _migrateToV7(db);
       },
     );
     return AppDb._(db);
@@ -255,6 +257,10 @@ class AppDb {
     ''');
   }
 
+  static Future<void> _migrateToV7(Database db) async {
+    await db.execute('ALTER TABLE transactions ADD COLUMN to_post_date INTEGER');
+  }
+
   static Future<void> _seed(Database db) async {
     const expense = [
       ['Food & Dining', 'food', 0xFFFB8C00],
@@ -356,12 +362,14 @@ class AppDb {
     final r = await db.rawQuery('''
       SELECT a.opening_balance
         + COALESCE((SELECT SUM(amount) FROM transactions
-            WHERE account_id = a.id AND type = 'income' AND date <= ?), 0)
+            WHERE account_id = a.id AND type = 'income'
+              AND COALESCE(post_date, date) <= ?), 0)
         - COALESCE((SELECT SUM(amount) FROM transactions
             WHERE account_id = a.id AND type IN ('expense', 'transfer')
               AND COALESCE(post_date, date) <= ?), 0)
         + COALESCE((SELECT SUM(COALESCE(to_amount, amount)) FROM transactions
-            WHERE to_account_id = a.id AND type = 'transfer' AND date <= ?), 0)
+            WHERE to_account_id = a.id AND type = 'transfer'
+              AND COALESCE(to_post_date, date) <= ?), 0)
         AS balance
       FROM accounts a WHERE a.id = ?
     ''', [t, t, t, accountId]);
@@ -378,9 +386,11 @@ class AppDb {
     final r = await db.rawQuery('''
       SELECT
         COALESCE((SELECT SUM(amount) FROM transactions
-          WHERE account_id = ? AND type = 'income' AND date > ? AND date <= ?), 0)
+          WHERE account_id = ? AND type = 'income'
+            AND COALESCE(post_date, date) > ? AND COALESCE(post_date, date) <= ?), 0)
         + COALESCE((SELECT SUM(COALESCE(to_amount, amount)) FROM transactions
-          WHERE to_account_id = ? AND type = 'transfer' AND date > ? AND date <= ?), 0)
+          WHERE to_account_id = ? AND type = 'transfer'
+            AND COALESCE(to_post_date, date) > ? AND COALESCE(to_post_date, date) <= ?), 0)
         AS credits
     ''', [accountId, f, t, accountId, f, t]);
     final v = r.first['credits'];
@@ -407,6 +417,36 @@ class AppDb {
     ''', [accountId, now.millisecondsSinceEpoch]);
     final v = r.first['s'];
     return v is num ? v.toDouble() : 0;
+  }
+
+  /// Everything a card statement is made of: charges and credits whose
+  /// posting date on [accountId] is in (from, to], oldest first.
+  Future<List<Txn>> statementTxns(int accountId, DateTime from, DateTime to) async {
+    final f = from.millisecondsSinceEpoch;
+    final t = to.millisecondsSinceEpoch;
+    final rows = await db.rawQuery('''
+      SELECT *,
+        CASE WHEN to_account_id = ? AND type = 'transfer'
+             THEN COALESCE(to_post_date, date)
+             ELSE COALESCE(post_date, date) END AS eff
+      FROM transactions
+      WHERE (account_id = ? AND COALESCE(post_date, date) > ? AND COALESCE(post_date, date) <= ?)
+         OR (to_account_id = ? AND type = 'transfer'
+             AND COALESCE(to_post_date, date) > ? AND COALESCE(to_post_date, date) <= ?)
+      ORDER BY eff, id
+    ''', [accountId, accountId, f, t, accountId, f, t]);
+    return rows.map(Txn.fromMap).toList();
+  }
+
+  /// Sets the day [t] counts on card [accountId] (its statement).
+  Future<void> setCardPostDate(Txn t, int accountId, DateTime when) async {
+    final incoming = t.type == TxType.transfer && t.toAccountId == accountId;
+    await db.update(
+      'transactions',
+      {(incoming ? 'to_post_date' : 'post_date'): when.millisecondsSinceEpoch},
+      where: 'id = ?',
+      whereArgs: [t.id],
+    );
   }
 
   Future<List<String>> bankNames() async {

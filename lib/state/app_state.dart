@@ -321,6 +321,13 @@ class AppState extends ChangeNotifier {
     return out;
   }
 
+  /// Moves [t] onto the statement that ends at [close] of [card] by setting
+  /// the day it counts on the card.
+  Future<void> moveToStatement(Txn t, Account card, DateTime when) async {
+    await db.setCardPostDate(t, card.id!, when);
+    await _reloadAll();
+  }
+
   /// Cards whose last statement still has something to pay, soonest first.
   List<CardSummary> get cardsDue {
     final list = cards.values

@@ -5,6 +5,7 @@ import '../state/app_state.dart';
 import '../util/format.dart';
 import 'account_edit.dart';
 import 'pay_card.dart';
+import 'statement_detail.dart';
 import 'widgets.dart';
 
 /// Credit card block on the account screen: limit, statement, pay.
@@ -126,6 +127,15 @@ class CardPanel extends StatelessWidget {
                         onPressed: () => Navigator.push(
                           context,
                           MaterialPageRoute(
+                              builder: (_) => StatementDetailScreen(
+                                  card: a, close: last.closeDate)),
+                        ),
+                        child: const Text('Details'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
                               builder: (_) => StatementsScreen(card: a)),
                         ),
                         child: const Text('All statements'),
@@ -147,6 +157,14 @@ class CardPanel extends StatelessWidget {
             margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: ListTile(
               leading: const Icon(Icons.autorenew),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => StatementDetailScreen(
+                      card: a, close: summary.nextClose!, open: true),
+                ),
+              ),
               title: Text(
                   'Current cycle: ${fmtMoney(summary.cycleSpent, cur)} spent'),
               subtitle: Text(
@@ -208,8 +226,21 @@ class StatementsScreen extends StatelessWidget {
                 subtitle: Text(
                     '$status\nPaid in cycle after closing: ${fmtAmount(st.paid)}'),
                 isThreeLine: true,
-                trailing: Text(fmtMoney(st.amount, card.currency),
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(fmtMoney(st.amount, card.currency),
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                    const Icon(Icons.chevron_right),
+                  ],
+                ),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        StatementDetailScreen(card: card, close: st.closeDate),
+                  ),
+                ),
               );
             },
           );

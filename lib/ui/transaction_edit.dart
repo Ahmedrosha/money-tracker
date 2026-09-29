@@ -377,7 +377,19 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       planId: widget.txn?.planId,
       planIndex: widget.txn?.planIndex,
       recurringId: widget.txn?.recurringId ?? widget.occurrence?.rule.id,
-      postDate: _showPostDate(state) ? (_postDate ?? _date) : null,
+      // Where the post date isn't shown (e.g. a payment moved to another
+      // statement), keep it as long as the date itself is unchanged.
+      postDate: _showPostDate(state)
+          ? (_postDate ?? _date)
+          : (widget.txn != null && widget.txn!.date == _date
+              ? widget.txn!.postDate
+              : null),
+      toPostDate: isTransfer &&
+              widget.txn != null &&
+              widget.txn!.date == _date &&
+              widget.txn!.toAccountId == _toAccountId
+          ? widget.txn!.toPostDate
+          : null,
     );
 
     if (_installments && _type == TxType.expense) {

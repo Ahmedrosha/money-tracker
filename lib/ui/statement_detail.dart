@@ -6,9 +6,9 @@ import '../util/format.dart';
 import 'transaction_edit.dart';
 import 'widgets.dart';
 
-/// One card cycle: from the day after [prevClose] up to [close].
-/// [open] = the cycle hasn't closed yet.
-class StatementDetailScreen extends StatelessWidget {
+/// A card's statements, one cycle at a time; arrows (or a swipe) move to
+/// the previous or next statement.
+class StatementDetailScreen extends StatefulWidget {
   const StatementDetailScreen({
     super.key,
     required this.card,
@@ -19,6 +19,68 @@ class StatementDetailScreen extends StatelessWidget {
   final Account card;
   final DateTime close;
   final bool open;
+
+  @override
+  State<StatementDetailScreen> createState() => _StatementDetailScreenState();
+}
+
+class _StatementDetailScreenState extends State<StatementDetailScreen> {
+  late DateTime _close = widget.close;
+
+  int get _day => widget.card.statementDay!;
+
+  /// The cycle still open today can't be passed.
+  bool get _isOpen => _close.isAfter(DateTime.now());
+
+  void _go(int months) {
+    final next = cycleCloseIn(_close.year, _close.month + months, _day);
+    // Stop at the cycle that is open now.
+    final lastOpen = cycleCloseIn(
+        lastCloseBefore(DateTime.now(), _day).year,
+        lastCloseBefore(DateTime.now(), _day).month + 1,
+        _day);
+    if (next.isAfter(lastOpen)) return;
+    setState(() => _close = next);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      // Swipe right = earlier statement, swipe left = later one.
+      onHorizontalDragEnd: (d) {
+        final v = d.primaryVelocity ?? 0;
+        if (v > 300) _go(-1);
+        if (v < -300) _go(1);
+      },
+      child: _StatementPage(
+        key: ValueKey(_close),
+        card: widget.card,
+        close: _close,
+        open: _isOpen,
+        onPrev: () => _go(-1),
+        onNext: _isOpen ? null : () => _go(1),
+      ),
+    );
+  }
+}
+
+/// One card cycle: from the day after [prevClose] up to [close].
+/// [open] = the cycle hasn't closed yet.
+class _StatementPage extends StatelessWidget {
+  const _StatementPage({
+    super.key,
+    required this.card,
+    required this.close,
+    this.open = false,
+    this.onPrev,
+    this.onNext,
+  });
+
+  final Account card;
+  final DateTime close;
+  final bool open;
+  final VoidCallback? onPrev;
+  final VoidCallback? onNext;
 
   DateTime get prevClose =>
       cycleCloseIn(close.year, close.month - 1, card.statementDay!);
@@ -36,6 +98,18 @@ class StatementDetailScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(open ? 'Current Cycle' : 'Statement ${shortDateFmt.format(close)}'),
+        actions: [
+          IconButton(
+            tooltip: 'Previous Statement',
+            icon: const Icon(Icons.chevron_left),
+            onPressed: onPrev,
+          ),
+          IconButton(
+            tooltip: 'Next Statement',
+            icon: const Icon(Icons.chevron_right),
+            onPressed: onNext,
+          ),
+        ],
       ),
       body: FutureBuilder<_Data>(
         key: ValueKey('${state.version}-$close'),

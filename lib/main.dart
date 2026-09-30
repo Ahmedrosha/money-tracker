@@ -194,7 +194,17 @@ class _MoneyAppState extends State<MoneyApp> with WidgetsBindingObserver {
         home: const HomeScreen(),
         builder: (context, child) => Stack(
           children: [
-            child ?? const SizedBox(),
+            // Keep every screen above Android's navigation buttons /
+            // gesture bar (the strip below uses the screen colour).
+            ColoredBox(
+              color: Theme.of(context).colorScheme.surface,
+              child: SafeArea(
+                top: false,
+                left: false,
+                right: false,
+                child: child ?? const SizedBox(),
+              ),
+            ),
             if (_locked) _LockScreen(onUnlock: _unlock),
           ],
         ),

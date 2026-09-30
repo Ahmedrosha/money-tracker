@@ -7,6 +7,7 @@ import '../util/currencies.dart';
 import 'gold_panel.dart';
 import 'invest_panel.dart';
 import 'loan_panel.dart';
+import 'search_screen.dart';
 import 'account_edit.dart';
 import 'calendar_screen.dart';
 import 'card_panel.dart';
@@ -47,9 +48,29 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
         title: Text(account.fullName),
         actions: [
           IconButton(
+            tooltip: 'Search This Account',
+            icon: const Icon(Icons.search),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => SearchScreen(initialAccountId: account.id)),
+            ),
+          ),
+          IconButton(
             tooltip: _calendar ? 'List view' : 'Calendar view',
             icon: Icon(_calendar ? Icons.view_list : Icons.calendar_month),
             onPressed: () => setState(() => _calendar = !_calendar),
+          ),
+          IconButton(
+            tooltip: 'Add Transaction',
+            icon: const Icon(Icons.add),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    TransactionEditScreen(initialAccountId: account.id),
+              ),
+            ),
           ),
           PopupMenuButton<String>(
             onSelected: (v) {

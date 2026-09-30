@@ -13,7 +13,11 @@ enum _Range { any, thisMonth, thisYear, last12, custom }
 
 /// Search across every transaction, including archived accounts.
 class SearchScreen extends StatefulWidget {
-  const SearchScreen({super.key, this.initialQuery, this.initialType});
+  const SearchScreen(
+      {super.key, this.initialQuery, this.initialType, this.initialAccountId});
+
+  /// Search inside this account only (can be cleared).
+  final int? initialAccountId;
 
   /// Opens with this text (e.g. a payee) already searched.
   final String? initialQuery;
@@ -41,6 +45,7 @@ class _SearchScreenState extends State<SearchScreen> {
     super.initState();
     _ctrl.text = widget.initialQuery ?? '';
     _type = widget.initialType;
+    _accountId = widget.initialAccountId;
   }
 
   @override

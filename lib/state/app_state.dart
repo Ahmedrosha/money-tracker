@@ -100,6 +100,15 @@ class AppState extends ChangeNotifier {
     return out;
   }
 
+  /// Order of Expenses / Income / Transfers on the Transactions screen.
+  List<TxType> sectionOrder = const [TxType.expense, TxType.income, TxType.transfer];
+
+  Future<void> setSectionOrder(List<TxType> order) async {
+    sectionOrder = List.unmodifiable(order);
+    await db.setSetting('section_order', order.map((t) => t.name).join(','));
+    notifyListeners();
+  }
+
   /// Transactions screen order: 'date' or 'category'.
   String txnSort = 'date';
 
@@ -165,6 +174,14 @@ class AppState extends ChangeNotifier {
     accountsGroupBy = await db.getSetting('accounts_group_by') ?? 'type';
     txnSort = await db.getSetting('txn_sort') ?? 'date';
     accountsOrder = await db.getSetting('accounts_order') ?? 'manual';
+    final so = (await db.getSetting('section_order') ?? '')
+        .split(',')
+        .map((n) => TxType.values.where((t) => t.name == n).firstOrNull)
+        .whereType<TxType>()
+        .toList();
+    sectionOrder = so.length == 3
+        ? List.unmodifiable(so)
+        : const [TxType.expense, TxType.income, TxType.transfer];
     groupOrder = await db.getSetting('group_order') ?? 'value_desc';
     weekStart = int.tryParse(await db.getSetting('week_start') ?? '') ??
         DateTime.saturday;

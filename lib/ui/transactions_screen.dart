@@ -248,9 +248,30 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 child: Row(
                   children: [
                     _chip('All', null),
-                    _chip('Expenses', TxType.expense),
-                    _chip('Income', TxType.income),
-                    _chip('Transfers', TxType.transfer),
+                    // Long-press and drag to change the order of these
+                    // (also the order of the sections below).
+                    SizedBox(
+                      height: 48,
+                      child: ReorderableListView(
+                        scrollDirection: Axis.horizontal,
+                        shrinkWrap: true,
+                        buildDefaultDragHandles: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        onReorder: (from, to) {
+                          final list = [...state.sectionOrder];
+                          if (to > from) to -= 1;
+                          list.insert(to, list.removeAt(from));
+                          state.setSectionOrder(list);
+                        },
+                        children: [
+                          for (final t in state.sectionOrder)
+                            KeyedSubtree(
+                              key: ValueKey(t),
+                              child: _chip(_sectionName(t), t),
+                            ),
+                        ],
+                      ),
+                    ),
                     const SizedBox(width: 4),
                     PopupMenuButton<String>(
                       tooltip: 'Sort by',
@@ -303,26 +324,29 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     if (list.isNotEmpty) out.add(_orderBar(context, state));
     // Section headers collapse their whole list (remembered).
     bool open(String name) => !showHeaders || !state.isCollapsed('tx:$name');
-    if (expenses.isNotEmpty) {
-      if (showHeaders) out.add(_sectionTitle(context, 'Expenses', state));
-      if (open('Expenses')) {
-        out.addAll(_categoryGroups(context, state, expenses, kExpenseColor));
-      }
-    }
-    if (incomes.isNotEmpty) {
-      if (showHeaders) out.add(_sectionTitle(context, 'Income', state));
-      if (open('Income')) {
-        out.addAll(_categoryGroups(context, state, incomes, kIncomeColor));
-      }
-    }
-    if (transfers.isNotEmpty) {
-      if (showHeaders) out.add(_sectionTitle(context, 'Transfers', state));
-      if (open('Transfers')) {
-        out.addAll(_transferGroups(context, state, transfers));
-      }
+    for (final t in state.sectionOrder) {
+      final name = _sectionName(t);
+      final items = t == TxType.expense
+          ? expenses
+          : t == TxType.income
+              ? incomes
+              : transfers;
+      if (items.isEmpty) continue;
+      if (showHeaders) out.add(_sectionTitle(context, name, state));
+      if (!open(name)) continue;
+      out.addAll(t == TxType.transfer
+          ? _transferGroups(context, state, transfers)
+          : _categoryGroups(context, state, items,
+              t == TxType.expense ? kExpenseColor : kIncomeColor));
     }
     return out;
   }
+
+  static String _sectionName(TxType t) => t == TxType.expense
+      ? 'Expenses'
+      : t == TxType.income
+          ? 'Income'
+          : 'Transfers';
 
   /// Compares two groups according to the chosen order.
   static int _compare(AppState state, double va, double vb, int ca, int cb,

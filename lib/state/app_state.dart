@@ -403,6 +403,58 @@ class AppState extends ChangeNotifier {
     } catch (_) {}
   }
 
+  // ---------------- Reset ----------------
+
+  /// Deletes data on this phone. [everything]: like a fresh install
+  /// (welcome screens again); otherwise accounts, transactions, budgets and
+  /// portfolios go but categories and settings stay. Dropbox is
+  /// disconnected first so the Dropbox copy and the other phone are left
+  /// alone. A copy of the current data is kept in [safetyDir] so
+  /// Backup & restore → Undo can bring it back.
+  Future<void> resetData({required bool everything, required String safetyDir}) async {
+    while (dropbox.busy) {
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
+    if (dropbox.connected) await dropbox.disconnect();
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await db.backupTo('$safetyDir/before-restore-$now.db');
+    if (everything) {
+      await db.close();
+      final target = await AppDb.dbPath();
+      for (final suffix in ['', '-wal', '-shm', '-journal']) {
+        final f = File('$target$suffix');
+        if (await f.exists()) await f.delete();
+      }
+      db = await AppDb.open();
+      setupStep = 0;
+      await load();
+    } else {
+      await db.db.transaction((tx) async {
+        for (final t in [
+          'trades',
+          'stock_prices',
+          'budgets',
+          'recurring',
+          'transactions',
+          'plans',
+          'accounts',
+        ]) {
+          await tx.delete(t);
+        }
+        await tx.delete('settings',
+            where: "key IN ('sample_accounts', 'sample_budgets', 'last_backup', 'collapsed') OR key LIKE 'budget_alert_%'");
+      });
+      _sampleAccounts = [];
+      _sampleBudgets = [];
+      lastBackup = null;
+      collapsed = {};
+      await _reloadAll();
+    }
+    version++;
+    notifyListeners();
+    await rescheduleReminders();
+  }
+
   // ---------------- First launch ----------------
 
   /// A new install with nothing in it yet: show the welcome screens.

@@ -9,6 +9,7 @@ import 'dropbox_screen.dart';
 import 'notification_settings.dart';
 import 'currencies_screen.dart';
 import 'recurring_screen.dart';
+import 'reset_screen.dart';
 import 'widgets.dart';
 import '../l10n/l10n.dart';
 
@@ -173,9 +174,19 @@ class SettingsScreen extends StatelessWidget {
             const Divider(),
           ],
           ListTile(
+            leading: Icon(Icons.restart_alt,
+                color: Theme.of(context).colorScheme.error),
+            title: Text(tr('Reset App'),
+                style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            subtitle: Text(tr('Delete your data or start over like a new install')),
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const ResetScreen())),
+          ),
+          const Divider(),
+          ListTile(
             leading: const Icon(Icons.info_outline),
             title: const Text('Expense & Wealth Tracker'),
-            subtitle: Text(tr('Version 0.30 — welcome screens and sample data')),
+            subtitle: Text(tr('Version 0.31 — reset option')),
           ),
         ],
       ),

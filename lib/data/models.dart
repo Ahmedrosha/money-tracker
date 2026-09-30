@@ -163,6 +163,23 @@ class Account {
   /// Loan plan (null = plain loan account, tracked by balance only).
   final LoanTerms? loan;
 
+  /// Investment tracking: 'holdings' (stocks with prices), 'simple'
+  /// (total value typed in now and then) or null (balance only).
+  final String? investMode;
+
+  /// Simple mode: last portfolio value entered, when, and the account
+  /// balance at that moment (so later deposits/withdrawals still count).
+  final double? investValue;
+  final DateTime? investValueAt;
+  final double? investBase;
+
+  /// Portfolio value including stock prices (not stored; set by the app).
+  final double? marketValue;
+
+  /// What the account is worth now: market value for tracked portfolios,
+  /// otherwise the balance.
+  double get worth => marketValue ?? balance;
+
   /// Computed current balance in the account's own currency (not stored).
   /// Only includes transactions dated up to now.
   final double balance;
@@ -182,8 +199,23 @@ class Account {
     this.dueDay,
     this.minPayPct,
     this.loan,
+    this.investMode,
+    this.investValue,
+    this.investValueAt,
+    this.investBase,
+    this.marketValue,
     this.balance = 0,
   });
+
+  Account withMarketValue(double? v) => Account(
+        id: id, name: name, bank: bank, type: type, currency: currency,
+        openingBalance: openingBalance, archived: archived,
+        sortOrder: sortOrder, excludeTotal: excludeTotal,
+        creditLimit: creditLimit, statementDay: statementDay, dueDay: dueDay,
+        minPayPct: minPayPct, loan: loan, investMode: investMode,
+        investValue: investValue, investValueAt: investValueAt,
+        investBase: investBase, marketValue: v, balance: balance,
+      );
 
   /// "CIB · Visa Gold" or just the name when there is no bank.
   String get fullName => bank.isEmpty ? name : '$bank · $name';
@@ -208,6 +240,10 @@ class Account {
         'due_day': dueDay,
         'min_pay_pct': minPayPct,
         ...LoanTerms.toColumns(loan),
+        'invest_mode': investMode,
+        'invest_value': investValue,
+        'invest_value_at': investValueAt?.millisecondsSinceEpoch,
+        'invest_base': investBase,
       };
 
   factory Account.fromMap(Map<String, Object?> m) => Account(
@@ -227,6 +263,14 @@ class Account {
         minPayPct:
             m['min_pay_pct'] == null ? null : _toDouble(m['min_pay_pct']),
         loan: LoanTerms.fromColumns(m),
+        investMode: m['invest_mode'] as String?,
+        investValue:
+            m['invest_value'] == null ? null : _toDouble(m['invest_value']),
+        investValueAt: m['invest_value_at'] == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(m['invest_value_at'] as int),
+        investBase:
+            m['invest_base'] == null ? null : _toDouble(m['invest_base']),
         balance: _toDouble(m['balance']),
       );
 }
@@ -1059,4 +1103,112 @@ class LoanRow {
   final double balanceAfter;
   const LoanRow(this.index, this.date, this.payment, this.principal,
       this.interest, this.balanceAfter);
+}
+
+
+// ---------------------------------------------------------------------------
+// Stocks
+// ---------------------------------------------------------------------------
+
+/// A buy or sell of shares in an investment account.
+class Trade {
+  final int? id;
+  final int accountId;
+  final String symbol;
+  final DateTime date;
+  final bool buy;
+  final double qty;
+  final double price;
+  final double fees;
+
+  /// Sells: profit or loss against the average cost at the time.
+  final double realized;
+
+  /// Linked entries (fee expense, profit/loss) so they can be removed too.
+  final int? feeTxnId;
+  final int? pnlTxnId;
+
+  const Trade({
+    this.id,
+    required this.accountId,
+    required this.symbol,
+    required this.date,
+    required this.buy,
+    required this.qty,
+    required this.price,
+    this.fees = 0,
+    this.realized = 0,
+    this.feeTxnId,
+    this.pnlTxnId,
+  });
+
+  Map<String, Object?> toMap() => {
+        if (id != null) 'id': id,
+        'account_id': accountId,
+        'symbol': symbol,
+        'date': date.millisecondsSinceEpoch,
+        'side': buy ? 'buy' : 'sell',
+        'qty': qty,
+        'price': price,
+        'fees': fees,
+        'realized': realized,
+        'fee_txn_id': feeTxnId,
+        'pnl_txn_id': pnlTxnId,
+      };
+
+  factory Trade.fromMap(Map<String, Object?> m) => Trade(
+        id: m['id'] as int?,
+        accountId: m['account_id'] as int,
+        symbol: m['symbol'] as String,
+        date: DateTime.fromMillisecondsSinceEpoch(m['date'] as int),
+        buy: m['side'] == 'buy',
+        qty: _toDouble(m['qty']),
+        price: _toDouble(m['price']),
+        fees: _toDouble(m['fees']),
+        realized: _toDouble(m['realized']),
+        feeTxnId: m['fee_txn_id'] as int?,
+        pnlTxnId: m['pnl_txn_id'] as int?,
+      );
+}
+
+/// Shares of one stock held now, at average cost.
+class Holding {
+  final String symbol;
+  double qty = 0;
+
+  /// Total cost of the shares still held.
+  double cost = 0;
+  double? price;
+  bool manualPrice = false;
+  DateTime? priceAt;
+  Holding(this.symbol);
+
+  double get avgCost => qty > 0 ? cost / qty : 0;
+  double get value => price == null ? cost : qty * price!;
+  double get gain => value - cost;
+}
+
+/// Latest known price of a stock.
+class StockPrice {
+  final String symbol;
+  final double price;
+  final bool manual;
+  final DateTime? updatedAt;
+  const StockPrice(this.symbol, this.price, {this.manual = false, this.updatedAt});
+
+  Map<String, Object?> toMap() => {
+        'symbol': symbol,
+        'price': price,
+        'manual': manual ? 1 : 0,
+        'updated_at': updatedAt?.millisecondsSinceEpoch,
+      };
+
+  factory StockPrice.fromMap(Map<String, Object?> m) => StockPrice(
+        m['symbol'] as String,
+        _toDouble(m['price']),
+        manual: (m['manual'] as int? ?? 0) == 1,
+        updatedAt: m['updated_at'] == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(m['updated_at'] as int),
+      );
 }

@@ -248,7 +248,7 @@ class AccountsScreen extends StatelessWidget {
               title: sec.key,
               // Accounts marked "not in net worth" don't count here either.
               total: sec.value.where((a) => !a.excludeTotal).fold<double>(
-                  0, (s, a) => s + state.toBase(a.balance, a.currency)),
+                  0, (s, a) => s + state.toBase(a.worth, a.currency)),
               currency: state.baseCurrency,
               count: sec.value.length,
               collapsed: state.isCollapsed('acc:${byBank ? 'bank' : 'type'}:${sec.key}'),
@@ -291,7 +291,7 @@ class _NetWorthCard extends StatelessWidget {
     var assets = 0.0;
     var debts = 0.0;
     for (final a in state.countedAccounts) {
-      final v = state.toBase(a.balance, a.currency);
+      final v = state.toBase(a.worth, a.currency);
       if (v >= 0) {
         assets += v;
       } else {
@@ -418,7 +418,7 @@ class _AccountTile extends StatelessWidget {
     final state = AppScope.of(context);
     final card = state.cards[account.id];
     final showBase = account.currency != state.baseCurrency &&
-        state.convert(account.balance, account.currency, state.baseCurrency) !=
+        state.convert(account.worth, account.currency, state.baseCurrency) !=
             null;
     return ListTile(
       leading: CircleAvatar(child: Icon(accountTypeIcon(account.type))),
@@ -436,15 +436,15 @@ class _AccountTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Text(
-            fmtMoney(account.balance, account.currency),
+            fmtMoney(account.worth, account.currency),
             style: TextStyle(
               fontWeight: FontWeight.w600,
-              color: amountColor(context, account.balance),
+              color: amountColor(context, account.worth),
             ),
           ),
           if (showBase)
             Text(
-              '≈ ${fmtMoney(state.toBase(account.balance, account.currency), state.baseCurrency)}',
+              '≈ ${fmtMoney(state.toBase(account.worth, account.currency), state.baseCurrency)}',
               style: Theme.of(context).textTheme.bodySmall,
             ),
         ],

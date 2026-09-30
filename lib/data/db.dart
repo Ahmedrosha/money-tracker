@@ -39,7 +39,7 @@ class AppDb {
 
   final Database db;
 
-  static const int schemaVersion = 8;
+  static const int schemaVersion = 9;
 
   static Future<String> dbPath() async =>
       p.join(await getDatabasesPath(), 'money_tracker.db');
@@ -114,6 +114,7 @@ class AppDb {
         await _migrateToV6(db);
         await _migrateToV7(db);
         await _migrateToV8(db);
+        await _migrateToV9(db);
         await _seed(db);
       },
       onUpgrade: (db, oldV, newV) async {
@@ -124,6 +125,7 @@ class AppDb {
         if (oldV < 6) await _migrateToV6(db);
         if (oldV < 7) await _migrateToV7(db);
         if (oldV < 8) await _migrateToV8(db);
+        if (oldV < 9) await _migrateToV9(db);
       },
     );
     return AppDb._(db);
@@ -272,6 +274,38 @@ class AppDb {
     ]) {
       await db.execute('ALTER TABLE accounts ADD COLUMN $col');
     }
+  }
+
+  static Future<void> _migrateToV9(Database db) async {
+    for (final col in const [
+      'invest_mode TEXT', 'invest_value REAL', 'invest_value_at INTEGER',
+      'invest_base REAL',
+    ]) {
+      await db.execute('ALTER TABLE accounts ADD COLUMN $col');
+    }
+    await db.execute('''
+      CREATE TABLE trades (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        symbol TEXT NOT NULL,
+        date INTEGER NOT NULL,
+        side TEXT NOT NULL,
+        qty REAL NOT NULL,
+        price REAL NOT NULL,
+        fees REAL NOT NULL DEFAULT 0,
+        realized REAL NOT NULL DEFAULT 0,
+        fee_txn_id INTEGER,
+        pnl_txn_id INTEGER
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE stock_prices (
+        symbol TEXT PRIMARY KEY,
+        price REAL NOT NULL,
+        manual INTEGER NOT NULL DEFAULT 0,
+        updated_at INTEGER
+      )
+    ''');
   }
 
   static Future<void> _seed(Database db) async {
@@ -814,6 +848,33 @@ class AppDb {
       GROUP BY TRIM(t.payee) COLLATE NOCASE, a.currency
     ''', [type.name, from.millisecondsSinceEpoch, to.millisecondsSinceEpoch]);
   }
+
+  // ---------------- Stocks ----------------
+
+  Future<List<Trade>> trades() async {
+    final rows = await db.query('trades', orderBy: 'date, id');
+    return rows.map(Trade.fromMap).toList();
+  }
+
+  Future<int> insertTrade(Trade t) => db.insert('trades', t.toMap());
+
+  Future<void> deleteTrade(Trade t) async {
+    await db.transaction((tx) async {
+      for (final id in [t.feeTxnId, t.pnlTxnId]) {
+        if (id != null) await tx.delete('transactions', where: 'id = ?', whereArgs: [id]);
+      }
+      await tx.delete('trades', where: 'id = ?', whereArgs: [t.id]);
+    });
+  }
+
+  Future<List<StockPrice>> stockPrices() async {
+    final rows = await db.query('stock_prices');
+    return rows.map(StockPrice.fromMap).toList();
+  }
+
+  Future<void> upsertStockPrice(StockPrice p) => db.insert(
+      'stock_prices', p.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace);
 
   // ---------------- Rates ----------------
 

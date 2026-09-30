@@ -135,7 +135,7 @@ class SettingsScreen extends StatelessWidget {
             leading: Icon(Icons.info_outline),
             title: Text('Money Tracker'),
             subtitle: Text(
-                'Version 0.25 — loans with repayment plans'),
+                'Version 0.26 — stock portfolios (EGX)'),
           ),
         ],
       ),

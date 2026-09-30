@@ -462,12 +462,12 @@ class _AllocationTabState extends State<AllocationTab> {
   List<_Group> _groups(AppState state, bool positive) {
     final map = <String, _Group>{};
     for (final a in state.countedAccounts) {
-      final v = state.toBase(a.balance, a.currency);
+      final v = state.toBase(a.worth, a.currency);
       if (v.abs() < 0.005 || (v > 0) != positive) continue;
       final g = map.putIfAbsent(_groupOf(a), () => _Group(_groupOf(a)));
       g.accounts.add((a, v));
       g.total += v;
-      g.native += a.balance;
+      g.native += a.worth;
     }
     final list = map.values.toList()
       ..sort((x, y) => y.total.abs().compareTo(x.total.abs()));
@@ -513,7 +513,7 @@ class _AllocationTabState extends State<AllocationTab> {
                 title: Text(a.fullName),
                 subtitle: a.currency == cur
                     ? null
-                    : Text(fmtMoney(a.balance, a.currency)),
+                    : Text(fmtMoney(a.worth, a.currency)),
                 trailing: Text(fmtAmount(v.abs())),
               ),
           ],

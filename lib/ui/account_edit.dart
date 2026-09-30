@@ -67,6 +67,12 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
 
   bool get _isNew => widget.account == null;
 
+  // Investment tracking: null / 'holdings' / 'simple'.
+  String? _investMode;
+
+  bool get _showInvest =>
+      _type == AccountType.investment || _type == AccountType.funds;
+
   // Loan plan.
   bool _loanPlan = true;
   LoanMode _loanMode = LoanMode.installments;
@@ -140,6 +146,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
     _archived = a?.archived ?? false;
     _exclude = a?.excludeTotal ?? false;
     _currency = a?.currency ?? 'EGP';
+    _investMode = a?.investMode ?? (a == null ? 'holdings' : null);
     final n = DateTime.now();
     final l = a?.loan;
     _loanFirstDue = l?.firstDue ?? DateTime(n.year, n.month + 1, n.day);
@@ -204,6 +211,10 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
     }
     final a = Account(
       loan: _type == AccountType.loan ? (loan ?? widget.account?.loan) : null,
+      investMode: _showInvest ? _investMode : null,
+      investValue: widget.account?.investValue,
+      investValueAt: widget.account?.investValueAt,
+      investBase: widget.account?.investBase,
       id: widget.account?.id,
       name: _name.text.trim(),
       bank: _type.hasBank ? _bank.trim() : '',
@@ -503,6 +514,32 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
               ),
             ),
             if (_showLoan) ..._loanSection(),
+            if (_showInvest) ...[
+              const SizedBox(height: 24),
+              Text('Portfolio Tracking',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.primary)),
+              const SizedBox(height: 8),
+              SegmentedButton<String?>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(value: 'holdings', label: Text('Stocks')),
+                  ButtonSegment(value: 'simple', label: Text('Total Value')),
+                  ButtonSegment(value: null, label: Text('Balance Only')),
+                ],
+                selected: {_investMode},
+                onSelectionChanged: (v) => setState(() => _investMode = v.first),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _investMode == 'holdings'
+                    ? 'Record buys and sells of each stock; valued at live EGX prices (or your own).'
+                    : _investMode == 'simple'
+                        ? 'Now and then type the portfolio total shown by your broker.'
+                        : 'Just the money in the account, no market value.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
             if (!(_showLoan && _loanPlan && _isNew)) ...[
             const SizedBox(height: 16),
             TextFormField(

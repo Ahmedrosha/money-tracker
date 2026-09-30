@@ -9,6 +9,7 @@ import '../services/dropbox.dart';
 import '../services/notifications.dart';
 import '../util/format.dart';
 import '../services/rates.dart';
+import '../services/stocks.dart';
 
 class AppState extends ChangeNotifier {
   AppState(this.db) {
@@ -86,8 +87,8 @@ class AppState extends ChangeNotifier {
       case 'name':
         out.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       case 'balance':
-        out.sort((a, b) => toBase(b.balance, b.currency)
-            .compareTo(toBase(a.balance, a.currency)));
+        out.sort((a, b) => toBase(b.worth, b.currency)
+            .compareTo(toBase(a.worth, a.currency)));
       default:
         // Stable: equal positions keep the list's own order (bank, name).
         final pos = {for (var i = 0; i < list.length; i++) list[i].id: i};
@@ -183,6 +184,9 @@ class AppState extends ChangeNotifier {
 
   Future<void> _reloadAll() async {
     accounts = await db.accountsWithBalances();
+    trades = await db.trades();
+    stockPrices = {for (final p in await db.stockPrices()) p.symbol: p};
+    _applyMarketValues();
     categories = await db.categories();
     rates = {for (final r in await db.rates()) r.code: r};
     rules = await db.recurringRules();
@@ -424,6 +428,10 @@ class AppState extends ChangeNotifier {
     }
     for (final o in pendingOccurrences(DateTime(1970), eom)) {
       sum += _occurrenceEffect(o);
+    }
+    // Portfolios: add today's market gain on top of the balance.
+    for (final a in countedAccounts) {
+      if (a.marketValue != null) sum += toBase(a.worth - a.balance, a.currency);
     }
     projectedEom = sum;
   }
@@ -697,7 +705,7 @@ class AppState extends ChangeNotifier {
   double get netWorth {
     var sum = 0.0;
     for (final a in countedAccounts) {
-      sum += toBase(a.balance, a.currency);
+      sum += toBase(a.worth, a.currency);
     }
     return sum;
   }
@@ -718,6 +726,15 @@ class AppState extends ChangeNotifier {
   /// Refreshes rates if they are older than [maxAge]. Errors are swallowed.
   Future<void> autoRefreshRates(
       {Duration maxAge = const Duration(hours: 12)}) async {
+    // Stock prices: refresh when older than an hour.
+    DateTime? sp;
+    for (final p in stockPrices.values) {
+      if (p.manual || p.updatedAt == null) continue;
+      if (sp == null || p.updatedAt!.isBefore(sp)) sp = p.updatedAt;
+    }
+    if (sp == null || DateTime.now().difference(sp).inMinutes >= 60) {
+      refreshStockPrices().catchError((_) => 0);
+    }
     final last = lastRateUpdate;
     // A currency in use with no rate yet (e.g. a new gold karat): refresh now.
     final missing = usedCurrencies.any((c) => c != 'USD' && !rates.containsKey(c));
@@ -804,6 +821,214 @@ class AppState extends ChangeNotifier {
     } else {
       await db.updateAccount(a);
     }
+    await _reloadAll();
+  }
+
+  // ---------------- Stocks ----------------
+
+  List<Trade> trades = [];
+  Map<String, StockPrice> stockPrices = {};
+  final StockPriceService _stockService = StockPriceService();
+  bool refreshingStocks = false;
+
+  /// Shares held now in an account, at average cost (sells reduce the
+  /// cost at the average price).
+  List<Holding> holdings(int accountId) {
+    final map = <String, Holding>{};
+    for (final t in trades) {
+      if (t.accountId != accountId) continue;
+      final h = map.putIfAbsent(t.symbol, () => Holding(t.symbol));
+      if (t.buy) {
+        h.qty += t.qty;
+        h.cost += t.qty * t.price;
+      } else {
+        final avg = h.avgCost;
+        h.qty -= t.qty;
+        h.cost -= t.qty * avg;
+        if (h.qty < 1e-9) {
+          h.qty = 0;
+          h.cost = 0;
+        }
+      }
+    }
+    final out = map.values.where((h) => h.qty > 1e-9).toList()
+      ..sort((a, b) => a.symbol.compareTo(b.symbol));
+    for (final h in out) {
+      final p = stockPrices[h.symbol];
+      if (p != null) {
+        h.price = p.price;
+        h.manualPrice = p.manual;
+        h.priceAt = p.updatedAt;
+      }
+    }
+    return out;
+  }
+
+  /// Portfolio value for tracked investment accounts.
+  void _applyMarketValues() {
+    accounts = [
+      for (final a in accounts)
+        if (a.investMode == 'holdings')
+          a.withMarketValue(a.balance +
+              holdings(a.id!).fold<double>(0, (s, h) => s + h.gain))
+        else if (a.investMode == 'simple' && a.investValue != null)
+          a.withMarketValue(
+              a.investValue! + (a.balance - (a.investBase ?? a.balance)))
+        else
+          a,
+    ];
+  }
+
+  /// Cash in a holdings account (balance minus the cost of shares held).
+  double portfolioCash(Account a) =>
+      a.balance - holdings(a.id!).fold<double>(0, (s, h) => s + h.cost);
+
+  /// Money put in minus money taken out (transfers), in the account currency.
+  Future<double> invested(Account a) async {
+    final txns = await db.transactions(accountId: a.id);
+    var v = a.openingBalance;
+    for (final t in txns) {
+      if (t.isFuture || t.type != TxType.transfer) continue;
+      if (t.toAccountId == a.id) v += t.toAmount ?? t.amount;
+      if (t.accountId == a.id) v -= t.amount;
+    }
+    return v;
+  }
+
+  Future<int?> _categoryNamed(String name, TxType kind, String icon) async {
+    for (final c in categories) {
+      if (c.kind == kind && c.name.toLowerCase() == name.toLowerCase()) {
+        return c.id;
+      }
+    }
+    return db.insertCategory(Category(
+        name: name, group: 'Investments', kind: kind, icon: icon,
+        color: 0xFF00897B));
+  }
+
+  /// Records a buy or sell. Fees become an expense; a sell's profit or
+  /// loss (against the average cost) becomes income (negative = loss).
+  Future<void> addTrade(Account a, String symbol, bool buy, double qty,
+      double price, double fees, DateTime date) async {
+    symbol = symbol.trim().toUpperCase();
+    double realized = 0;
+    if (!buy) {
+      final h = holdings(a.id!).where((h) => h.symbol == symbol).firstOrNull;
+      if (h == null || h.qty + 1e-9 < qty) {
+        throw Exception('You hold ${h?.qty ?? 0} $symbol shares');
+      }
+      realized = (price - h.avgCost) * qty;
+    }
+    int? feeId, pnlId;
+    if (fees > 0.004) {
+      feeId = await db.insertTxn(Txn(
+        type: TxType.expense,
+        date: date,
+        amount: fees,
+        accountId: a.id!,
+        categoryId: await _categoryNamed('Brokerage Fees', TxType.expense, 'fees'),
+        payee: a.name,
+        note: '${buy ? 'Buy' : 'Sell'} $symbol',
+      ));
+    }
+    if (!buy && realized.abs() > 0.004) {
+      pnlId = await db.insertTxn(Txn(
+        type: TxType.income,
+        date: date,
+        amount: (realized * 100).roundToDouble() / 100,
+        accountId: a.id!,
+        categoryId: await _categoryNamed('Stock Profit', TxType.income, 'interest'),
+        payee: symbol,
+        note: 'Sold ${_qty(qty)} $symbol at ${fmtAmountRaw(price)}',
+      ));
+    }
+    await db.insertTrade(Trade(
+      accountId: a.id!,
+      symbol: symbol,
+      date: date,
+      buy: buy,
+      qty: qty,
+      price: price,
+      fees: fees,
+      realized: realized,
+      feeTxnId: feeId,
+      pnlTxnId: pnlId,
+    ));
+    if (buy && !stockPrices.containsKey(symbol)) {
+      // Until a live price arrives, value it at the price paid.
+      await db.upsertStockPrice(
+          StockPrice(symbol, price, updatedAt: DateTime.now()));
+    }
+    await _reloadAll();
+    if (buy) refreshStockPrices(only: {symbol});
+  }
+
+  static String _qty(double q) =>
+      q == q.roundToDouble() ? q.toStringAsFixed(0) : q.toString();
+
+  Future<void> deleteTrade(Trade t) async {
+    await db.deleteTrade(t);
+    await _reloadAll();
+  }
+
+  Future<void> setStockPrice(String symbol, double price) async {
+    await db.upsertStockPrice(StockPrice(symbol, price,
+        manual: true, updatedAt: DateTime.now()));
+    await _reloadAll();
+  }
+
+  Future<void> clearManualStockPrice(String symbol) async {
+    final p = stockPrices[symbol];
+    if (p != null) {
+      await db.upsertStockPrice(StockPrice(symbol, p.price, updatedAt: p.updatedAt));
+    }
+    await refreshStockPrices(only: {symbol});
+  }
+
+  /// Fetches prices for held symbols (manual prices are left alone).
+  /// Returns how many were updated.
+  Future<int> refreshStockPrices({Set<String>? only}) async {
+    final symbols = <String>{};
+    for (final a in accounts) {
+      if (a.investMode != 'holdings') continue;
+      for (final h in holdings(a.id!)) {
+        symbols.add(h.symbol);
+      }
+    }
+    if (only != null) symbols.retainAll(only);
+    symbols.removeWhere((s) => stockPrices[s]?.manual ?? false);
+    if (symbols.isEmpty) return 0;
+    refreshingStocks = true;
+    notifyListeners();
+    var n = 0;
+    try {
+      for (final s in symbols) {
+        final p = await _stockService.fetch(s);
+        if (p == null) continue;
+        await db.upsertStockPrice(StockPrice(s, p, updatedAt: DateTime.now()));
+        n++;
+      }
+    } finally {
+      refreshingStocks = false;
+    }
+    if (n > 0) {
+      // Prices only change values, not data: no Dropbox upload needed.
+      stockPrices = {for (final p in await db.stockPrices()) p.symbol: p};
+      _applyMarketValues();
+      version++;
+    }
+    notifyListeners();
+    return n;
+  }
+
+  /// Simple mode: the portfolio total as shown by the broker.
+  Future<void> setInvestValue(Account a, double value) async {
+    await db.updateAccount(Account.fromMap({
+      ...a.toMap(),
+      'invest_value': value,
+      'invest_value_at': DateTime.now().millisecondsSinceEpoch,
+      'invest_base': a.balance,
+    }));
     await _reloadAll();
   }
 

@@ -5,6 +5,7 @@ import '../state/app_state.dart';
 import '../util/format.dart';
 import '../util/currencies.dart';
 import 'gold_panel.dart';
+import 'invest_panel.dart';
 import 'loan_panel.dart';
 import 'account_edit.dart';
 import 'calendar_screen.dart';
@@ -135,6 +136,8 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                     if (isGold(account.currency))
                       GoldPanel(account: account, txns: txns),
                     if (account.loan != null) LoanPanel(account: account),
+                    if (account.investMode != null)
+                      InvestPanel(account: account),
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
@@ -268,7 +271,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
   Widget _header(
       BuildContext context, AppState state, Account account, int? count) {
     final liability = account.type.isLiability;
-    final shown = liability ? -account.balance : account.balance;
+    final shown = liability ? -account.balance : account.worth;
     final scheme = Theme.of(context).colorScheme;
     return Card(
       margin: const EdgeInsets.all(16),
@@ -292,7 +295,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
             if (account.currency != state.baseCurrency &&
                 state.convert(1, account.currency, state.baseCurrency) != null)
               Text(
-                '≈ ${fmtMoney(state.toBase(account.balance, account.currency), state.baseCurrency)}',
+                '≈ ${fmtMoney(state.toBase(account.worth, account.currency), state.baseCurrency)}',
                 style: TextStyle(color: scheme.onPrimaryContainer),
               ),
             if (count != null) ...[

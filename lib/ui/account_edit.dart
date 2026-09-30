@@ -67,6 +67,54 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
 
   bool get _isNew => widget.account == null;
 
+  // Loan plan.
+  bool _loanPlan = true;
+  LoanMode _loanMode = LoanMode.installments;
+  final _loanPayment = TextEditingController();
+  final _loanMonths = TextEditingController();
+  final _loanPrincipal = TextEditingController();
+  final _loanRate = TextEditingController();
+  bool _loanFlat = true;
+  late DateTime _loanFirstDue;
+  int? _loanPayFrom;
+  int? _loanReceivedInto;
+  final _loanReceived = TextEditingController();
+
+  /// Show the plan section: new loans, or loans that already have a plan.
+  bool get _showLoan =>
+      _type == AccountType.loan && (_isNew || widget.account?.loan != null);
+
+  LoanTerms? _buildLoan() {
+    if (!_showLoan || !_loanPlan) return null;
+    final months = int.tryParse(_loanMonths.text.trim()) ?? 0;
+    if (months <= 0) return null;
+    final old = widget.account?.loan;
+    if (_loanMode == LoanMode.installments) {
+      final p = parseAmount(_loanPayment.text)?.abs() ?? 0;
+      if (p <= 0) return null;
+      return LoanTerms(
+          mode: LoanMode.installments,
+          payment: p,
+          months: months,
+          firstDue: _loanFirstDue,
+          payAccountId: _loanPayFrom,
+          nextIndex: old?.nextIndex ?? 0);
+    }
+    final principal = parseAmount(_loanPrincipal.text)?.abs() ?? 0;
+    final rate = parseAmount(_loanRate.text)?.abs() ?? 0;
+    if (principal <= 0) return null;
+    return LoanTerms(
+        mode: LoanMode.interest,
+        payment: LoanTerms.interestPayment(principal, rate, months, _loanFlat),
+        months: months,
+        firstDue: _loanFirstDue,
+        payAccountId: _loanPayFrom,
+        principal: principal,
+        rate: rate,
+        flat: _loanFlat,
+        nextIndex: old?.nextIndex ?? 0);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -92,6 +140,18 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
     _archived = a?.archived ?? false;
     _exclude = a?.excludeTotal ?? false;
     _currency = a?.currency ?? 'EGP';
+    final n = DateTime.now();
+    final l = a?.loan;
+    _loanFirstDue = l?.firstDue ?? DateTime(n.year, n.month + 1, n.day);
+    if (l != null) {
+      _loanMode = l.mode;
+      _loanPayment.text = _trimNum(l.payment);
+      _loanMonths.text = '${l.months}';
+      _loanPrincipal.text = l.principal > 0 ? _trimNum(l.principal) : '';
+      _loanRate.text = l.rate > 0 ? _trimNum(l.rate) : '';
+      _loanFlat = l.flat;
+      _loanPayFrom = l.payAccountId;
+    }
   }
 
   bool _defaultsApplied = false;
@@ -113,6 +173,9 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
     _statementDay.dispose();
     _dueDay.dispose();
     _minPct.dispose();
+    for (final c in [_loanPayment, _loanMonths, _loanPrincipal, _loanRate, _loanReceived]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -133,7 +196,14 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
     final state = AppScope.read(context);
     final opening = parseAmount(_opening.text) ?? 0;
     final card = _type == AccountType.creditCard;
+    final loan = _buildLoan();
+    if (_showLoan && _loanPlan && loan == null) {
+      setState(() => _saving = false);
+      showSnack(context, 'Fill in the loan amounts and number of months');
+      return;
+    }
     final a = Account(
+      loan: _type == AccountType.loan ? (loan ?? widget.account?.loan) : null,
       id: widget.account?.id,
       name: _name.text.trim(),
       bank: _type.hasBank ? _bank.trim() : '',
@@ -148,7 +218,15 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
       dueDay: card ? int.tryParse(_dueDay.text.trim()) : null,
       minPayPct: card ? parseAmount(_minPct.text)?.abs() : null,
     );
-    await state.saveAccount(a);
+    if (_isNew && loan != null) {
+      final received = _loanMode == LoanMode.interest
+          ? loan.principal
+          : (parseAmount(_loanReceived.text)?.abs() ?? 0);
+      await state.createLoan(a,
+          receivedInto: _loanReceivedInto, received: received);
+    } else {
+      await state.saveAccount(a);
+    }
     if (!mounted) return;
     Navigator.pop(context);
   }
@@ -170,6 +248,154 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
     await state.deleteAccount(id);
     if (!mounted) return;
     Navigator.of(context).popUntil((r) => r.isFirst);
+  }
+
+  List<Widget> _loanSection() {
+    final cur = currencyUnit(_currency);
+    final small = Theme.of(context).textTheme.bodySmall;
+    final preview = _buildLoan();
+    return [
+      const SizedBox(height: 24),
+      Text('Loan',
+          style: Theme.of(context)
+              .textTheme
+              .titleSmall
+              ?.copyWith(color: Theme.of(context).colorScheme.primary)),
+      if (_isNew)
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Repayment Plan'),
+          subtitle: const Text('Monthly installments, schedule and reminders'),
+          value: _loanPlan,
+          onChanged: (v) => setState(() => _loanPlan = v),
+        ),
+      if (_loanPlan) ...[
+        const SizedBox(height: 8),
+        SegmentedButton<LoanMode>(
+          segments: const [
+            ButtonSegment(value: LoanMode.installments, label: Text('Installments')),
+            ButtonSegment(value: LoanMode.interest, label: Text('Principal + Interest')),
+          ],
+          selected: {_loanMode},
+          onSelectionChanged: (v) => setState(() => _loanMode = v.first),
+        ),
+        const SizedBox(height: 4),
+        Text(
+            _loanMode == LoanMode.installments
+                ? 'You know the monthly installment. The loan balance is all installments still to pay.'
+                : 'You know the amount borrowed and the rate. Each installment is split: principal reduces the loan, interest is recorded as an expense.',
+            style: small),
+        const SizedBox(height: 12),
+        if (_loanMode == LoanMode.interest) ...[
+          TextFormField(
+            controller: _loanPrincipal,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+                labelText: 'Amount Borrowed',
+                suffixText: cur,
+                border: const OutlineInputBorder()),
+          ),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(
+              child: TextFormField(
+                controller: _loanRate,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                    labelText: 'Interest Rate',
+                    suffixText: '% / year',
+                    border: OutlineInputBorder()),
+              ),
+            ),
+            const SizedBox(width: 12),
+            SegmentedButton<bool>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(value: true, label: Text('Flat')),
+                ButtonSegment(value: false, label: Text('Declining')),
+              ],
+              selected: {_loanFlat},
+              onSelectionChanged: (v) => setState(() => _loanFlat = v.first),
+            ),
+          ]),
+          const SizedBox(height: 12),
+        ] else ...[
+          TextFormField(
+            controller: _loanPayment,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+                labelText: 'Monthly Installment',
+                suffixText: cur,
+                border: const OutlineInputBorder()),
+          ),
+          const SizedBox(height: 12),
+        ],
+        TextFormField(
+          controller: _loanMonths,
+          keyboardType: TextInputType.number,
+          onChanged: (_) => setState(() {}),
+          decoration: const InputDecoration(
+              labelText: 'Number of Months', border: OutlineInputBorder()),
+        ),
+        if (preview != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              _loanMode == LoanMode.interest
+                  ? 'Installment ${fmtMoneyRaw(preview.payment, _currency)} · total interest '
+                      '${fmtMoneyRaw(preview.schedule().fold<double>(0, (s, r) => s + r.interest), _currency)}'
+                  : 'Total to repay ${fmtMoneyRaw(preview.startOwed, _currency)}',
+              style: small?.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ),
+        const SizedBox(height: 12),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.event),
+          title: const Text('First Installment'),
+          subtitle: Text(dayFmt.format(_loanFirstDue)),
+          onTap: () async {
+            final d = await showDatePicker(
+                context: context,
+                initialDate: _loanFirstDue,
+                firstDate: DateTime(2000),
+                lastDate: DateTime(2100));
+            if (d != null) setState(() => _loanFirstDue = d);
+          },
+        ),
+        AccountField(
+          label: 'Pay Installments From',
+          value: _loanPayFrom,
+          onChanged: (v) => setState(() => _loanPayFrom = v),
+        ),
+        if (_isNew) ...[
+          const SizedBox(height: 12),
+          AccountField(
+            label: 'Money Received Into (optional)',
+            value: _loanReceivedInto,
+            onChanged: (v) => setState(() => _loanReceivedInto = v),
+          ),
+          if (_loanMode == LoanMode.installments && _loanReceivedInto != null) ...[
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _loanReceived,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                  labelText: 'Amount Received',
+                  suffixText: cur,
+                  border: const OutlineInputBorder()),
+            ),
+          ],
+          const SizedBox(height: 4),
+          Text(
+              'If you choose where the money went, that account gets it as a transfer from this loan.',
+              style: small),
+        ],
+      ],
+    ];
   }
 
   @override
@@ -276,6 +502,8 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
                 child: Text('$_currency — ${currencyName(_currency)}'),
               ),
             ),
+            if (_showLoan) ..._loanSection(),
+            if (!(_showLoan && _loanPlan && _isNew)) ...[
             const SizedBox(height: 16),
             TextFormField(
               controller: _opening,
@@ -296,6 +524,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
                 return parseAmount(v) == null ? 'Invalid number' : null;
               },
             ),
+            ],
             if (_type == AccountType.creditCard) ...[
               const SizedBox(height: 24),
               Text('Credit Card',

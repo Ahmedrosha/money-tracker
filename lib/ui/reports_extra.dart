@@ -5,6 +5,7 @@ import '../data/models.dart';
 import '../state/app_state.dart';
 import '../util/currencies.dart';
 import '../util/format.dart';
+import 'account_detail.dart';
 import 'reports_more.dart';
 import 'search_screen.dart';
 import 'widgets.dart';
@@ -225,6 +226,19 @@ class _OutlookTabState extends State<OutlookTab> {
         first = false;
         prevClose = close;
         close = cycleCloseIn(close.year, close.month + 1, a.statementDay!);
+      }
+    }
+
+    // Loan installments still to pay.
+    for (final a in state.plannedLoans) {
+      final t = a.loan!;
+      final from = liquid[t.payAccountId];
+      if (from == null) continue;
+      for (final r in t.schedule().skip(t.nextIndex)) {
+        if (!r.date.isBefore(end)) break;
+        events.add(_Event(notBefore(r.date),
+            '${a.name} installment ${r.index + 1}/${t.months}',
+            -state.toBase(r.payment, a.currency), Icons.request_quote_outlined));
       }
     }
 
@@ -990,4 +1004,125 @@ class _CmpList extends StatelessWidget {
       ],
     );
   }
+}
+
+// ===========================================================================
+// Loans overview
+// ===========================================================================
+
+class LoansTab extends StatelessWidget {
+  const LoansTab({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final base = state.baseCurrency;
+    final loans = state.accounts
+        .where((a) => !a.archived && a.type == AccountType.loan)
+        .toList()
+      ..sort((a, b) => a.balance.compareTo(b.balance));
+    if (loans.isEmpty) {
+      return const Center(child: Text('No loans'));
+    }
+    var owed = 0.0, monthly = 0.0, interestLeft = 0.0;
+    final now = DateTime.now();
+    for (final a in loans) {
+      if (a.balance < 0) owed += state.toBase(-a.balance, a.currency);
+      final t = a.loan;
+      if (t == null) continue;
+      final rows = t.schedule().skip(t.nextIndex).toList();
+      if (rows.isNotEmpty) monthly += state.toBase(rows.first.payment, a.currency);
+      interestLeft += state.toBase(
+          rows.fold<double>(0, (s, r) => s + r.interest), a.currency);
+    }
+    final small = Theme.of(context).textTheme.bodySmall;
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 32),
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _stat(context, 'Total Owed', fmtMoney(owed, base)),
+              _stat(context, 'Monthly Installments', fmtMoney(monthly, base)),
+              if (interestLeft > 0)
+                _stat(context, 'Interest Still to Pay', fmtMoney(interestLeft, base)),
+            ],
+          ),
+        ),
+        _heading(context, 'Your Loans', sub: 'Tap a loan for its schedule'),
+        for (final a in loans)
+          () {
+            final t = a.loan;
+            final rows = t?.schedule();
+            final paid = t == null ? 0 : t.nextIndex.clamp(0, rows!.length);
+            final next = t == null || paid >= rows!.length ? null : rows[paid];
+            final frac = t == null || t.months == 0 ? null : paid / t.months;
+            final overdue = next != null &&
+                next.date.isBefore(DateTime(now.year, now.month, now.day + 1));
+            return InkWell(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => AccountDetailScreen(accountId: a.id!)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Expanded(
+                          child: Text(a.fullName,
+                              style: const TextStyle(fontWeight: FontWeight.w600))),
+                      Text(fmtMoney(-a.balance, a.currency),
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                    ]),
+                    if (frac != null) ...[
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: frac.clamp(0.0, 1.0),
+                          minHeight: 8,
+                          backgroundColor:
+                              Theme.of(context).colorScheme.surfaceContainerHighest,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$paid of ${t!.months} paid · ends ${shortDateFmt.format(rows!.last.date)}'
+                        '${next == null ? '' : ' · ${overdue ? 'due' : 'next'} ${fmtAmount(next.payment)} on ${shortDateFmt.format(next.date)}'}'
+                        '${a.excludeTotal ? ' · not in net worth' : ''}',
+                        style: small?.copyWith(color: overdue ? kExpenseColor : null),
+                      ),
+                    ] else
+                      Text(
+                          'No repayment plan (balance only)${a.excludeTotal ? ' · not in net worth' : ''}',
+                          style: small),
+                  ],
+                ),
+              ),
+            );
+          }(),
+      ],
+    );
+  }
+
+  Widget _stat(BuildContext context, String label, String value) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: Theme.of(context).textTheme.bodySmall),
+            Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
+          ],
+        ),
+      );
 }

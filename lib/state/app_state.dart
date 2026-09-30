@@ -582,6 +582,22 @@ class AppState extends ChangeNotifier {
       }
     }
 
+    // Loan installments: on the due day (and the days chosen for cards).
+    if (s.recurring) {
+      for (final a in plannedLoans) {
+        final t = a.loan!;
+        for (final r in t.schedule().skip(t.nextIndex).take(3)) {
+          for (final d in {0, ...s.cardDays.where((d) => d > 0)}) {
+            out.add(Reminder(
+              at(r.date, d),
+              '🏦 ${a.fullName}',
+              '${fmtMoneyRaw(r.payment, a.currency)} installment ${r.index + 1}/${t.months} due ${reminderWhen(d, r.date)}',
+            ));
+          }
+        }
+      }
+    }
+
     if (s.backup && !dropbox.connected && accounts.isNotEmpty) {
       var when = at((lastBackup ?? now).add(const Duration(days: 7)));
       if (!when.isAfter(now)) when = at(now.add(const Duration(days: 1)));
@@ -788,6 +804,118 @@ class AppState extends ChangeNotifier {
     } else {
       await db.updateAccount(a);
     }
+    await _reloadAll();
+  }
+
+  // ---------------- Loans ----------------
+
+  /// Loan accounts with a repayment plan.
+  List<Account> get plannedLoans =>
+      accounts.where((a) => !a.archived && a.loan != null).toList();
+
+  /// Installments whose date has arrived and aren't recorded yet.
+  List<(Account, LoanRow)> get loansDue {
+    final end = DateTime.now();
+    final today = DateTime(end.year, end.month, end.day + 1);
+    final out = <(Account, LoanRow)>[];
+    for (final a in plannedLoans) {
+      final t = a.loan!;
+      for (final r in t.schedule()) {
+        if (r.index < t.nextIndex) continue;
+        if (!r.date.isBefore(today)) break;
+        out.add((a, r));
+      }
+    }
+    out.sort((x, y) => x.$2.date.compareTo(y.$2.date));
+    return out;
+  }
+
+  /// Next unpaid installment of a loan, if any.
+  LoanRow? nextInstallment(Account a) {
+    final t = a.loan;
+    if (t == null) return null;
+    final rows = t.schedule();
+    return t.nextIndex < rows.length ? rows[t.nextIndex] : null;
+  }
+
+  Future<int?> _loanInterestCategory() async {
+    for (final c in categories) {
+      if (c.kind == TxType.expense && c.name.toLowerCase() == 'loan interest') {
+        return c.id;
+      }
+    }
+    return db.insertCategory(const Category(
+        name: 'Loan Interest', group: 'Bank', kind: TxType.expense,
+        icon: 'fees', color: 0xFF607D8B));
+  }
+
+  /// Creates a loan account with a plan. When the money was received into
+  /// another account, that is recorded as a transfer out of the loan.
+  Future<void> createLoan(Account a,
+      {int? receivedInto, double received = 0}) async {
+    final t = a.loan!;
+    final gotMoney = receivedInto != null && received > 0.004;
+    // Owed at start = total to repay. Money received shows as a transfer,
+    // the rest (installments mode) is the loan's cost.
+    final opening = -(t.startOwed - (gotMoney ? received : 0));
+    final id = await db.insertAccount(Account.fromMap(
+        {...a.toMap(), 'opening_balance': opening}..remove('id')));
+    if (gotMoney) {
+      final to = accountById(receivedInto);
+      await db.insertTxn(Txn(
+        type: TxType.transfer,
+        date: DateTime.now(),
+        amount: received,
+        accountId: id,
+        toAccountId: receivedInto,
+        toAmount: to == null || to.currency == a.currency
+            ? null
+            : convert(received, a.currency, to.currency),
+        note: 'Loan received',
+      ));
+    }
+    await _reloadAll();
+  }
+
+  /// Records one installment: a transfer from the paying account into the
+  /// loan (principal) and, for interest loans, the interest as an expense.
+  Future<void> payLoanInstallment(Account loan, LoanRow row,
+      {int? fromAccountId, DateTime? date}) async {
+    final t = loan.loan!;
+    final from = fromAccountId ?? t.payAccountId;
+    if (from == null) throw Exception('Choose the account you pay from');
+    final when = date ?? (row.date.isAfter(DateTime.now()) ? DateTime.now() : row.date);
+    final label = 'Installment ${row.index + 1}/${t.months}';
+    final payFrom = accountById(from);
+    final conv = payFrom == null || payFrom.currency == loan.currency
+        ? null
+        : convert(row.principal, loan.currency, payFrom.currency);
+    await db.insertTxn(Txn(
+      type: TxType.transfer,
+      date: when,
+      amount: conv ?? row.principal,
+      accountId: from,
+      toAccountId: loan.id,
+      toAmount: conv == null ? null : row.principal,
+      note: '${loan.name} · $label',
+    ));
+    if (row.interest > 0.004) {
+      await db.insertTxn(Txn(
+        type: TxType.expense,
+        date: when,
+        amount: payFrom == null || payFrom.currency == loan.currency
+            ? row.interest
+            : (convert(row.interest, loan.currency, payFrom.currency) ?? row.interest),
+        accountId: from,
+        categoryId: await _loanInterestCategory(),
+        payee: loan.fullName,
+        note: 'Interest · $label',
+      ));
+    }
+    await db.updateAccount(Account.fromMap({
+      ...loan.toMap(),
+      ...LoanTerms.toColumns(t.copyWith(nextIndex: row.index + 1)),
+    }));
     await _reloadAll();
   }
 

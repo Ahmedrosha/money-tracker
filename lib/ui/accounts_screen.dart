@@ -6,6 +6,7 @@ import '../util/format.dart';
 import 'account_detail.dart';
 import 'account_edit.dart';
 import 'account_search.dart';
+import 'loan_panel.dart';
 import 'reorder_accounts.dart';
 import 'backup_screen.dart';
 import 'due_screen.dart';
@@ -161,6 +162,29 @@ class AccountsScreen extends StatelessWidget {
                         onPressed: () => state.dismissCard(c.card.id!),
                       ),
                     ],
+                  ),
+                ),
+              ),
+            ),
+          for (final (loan, row) in state.loansDue)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Card(
+                color: Theme.of(context).colorScheme.secondaryContainer,
+                child: ListTile(
+                  leading: const Icon(Icons.request_quote_outlined),
+                  title: Text(
+                      '${loan.fullName}: ${fmtMoney(row.payment, loan.currency)} due'),
+                  subtitle: Text(
+                      'Installment ${row.index + 1} of ${loan.loan!.months} · ${shortDateFmt.format(row.date)}'),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => AccountDetailScreen(accountId: loan.id!)),
+                  ),
+                  trailing: FilledButton.tonal(
+                    onPressed: () => payLoan(context, loan, row),
+                    child: const Text('Pay'),
                   ),
                 ),
               ),

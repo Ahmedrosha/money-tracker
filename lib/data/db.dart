@@ -39,7 +39,7 @@ class AppDb {
 
   final Database db;
 
-  static const int schemaVersion = 7;
+  static const int schemaVersion = 8;
 
   static Future<String> dbPath() async =>
       p.join(await getDatabasesPath(), 'money_tracker.db');
@@ -113,6 +113,7 @@ class AppDb {
         await _migrateToV5(db);
         await _migrateToV6(db);
         await _migrateToV7(db);
+        await _migrateToV8(db);
         await _seed(db);
       },
       onUpgrade: (db, oldV, newV) async {
@@ -122,6 +123,7 @@ class AppDb {
         if (oldV < 5) await _migrateToV5(db);
         if (oldV < 6) await _migrateToV6(db);
         if (oldV < 7) await _migrateToV7(db);
+        if (oldV < 8) await _migrateToV8(db);
       },
     );
     return AppDb._(db);
@@ -259,6 +261,17 @@ class AppDb {
 
   static Future<void> _migrateToV7(Database db) async {
     await db.execute('ALTER TABLE transactions ADD COLUMN to_post_date INTEGER');
+  }
+
+  static Future<void> _migrateToV8(Database db) async {
+    for (final col in const [
+      'loan_mode TEXT', 'loan_payment REAL', 'loan_months INTEGER',
+      'loan_first_due INTEGER', 'loan_pay_account INTEGER',
+      'loan_principal REAL', 'loan_rate REAL', 'loan_flat INTEGER',
+      'loan_next INTEGER NOT NULL DEFAULT 0',
+    ]) {
+      await db.execute('ALTER TABLE accounts ADD COLUMN $col');
+    }
   }
 
   static Future<void> _seed(Database db) async {

@@ -5,6 +5,7 @@ import '../state/app_state.dart';
 import '../util/format.dart';
 import '../util/currencies.dart';
 import 'gold_panel.dart';
+import 'loan_panel.dart';
 import 'account_edit.dart';
 import 'calendar_screen.dart';
 import 'card_panel.dart';
@@ -133,6 +134,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                     if (card != null) CardPanel(summary: card),
                     if (isGold(account.currency))
                       GoldPanel(account: account, txns: txns),
+                    if (account.loan != null) LoanPanel(account: account),
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),

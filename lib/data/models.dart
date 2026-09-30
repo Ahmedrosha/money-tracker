@@ -160,6 +160,9 @@ class Account {
   /// Minimum payment as % of the statement.
   final double? minPayPct;
 
+  /// Loan plan (null = plain loan account, tracked by balance only).
+  final LoanTerms? loan;
+
   /// Computed current balance in the account's own currency (not stored).
   /// Only includes transactions dated up to now.
   final double balance;
@@ -178,6 +181,7 @@ class Account {
     this.statementDay,
     this.dueDay,
     this.minPayPct,
+    this.loan,
     this.balance = 0,
   });
 
@@ -203,6 +207,7 @@ class Account {
         'statement_day': statementDay,
         'due_day': dueDay,
         'min_pay_pct': minPayPct,
+        ...LoanTerms.toColumns(loan),
       };
 
   factory Account.fromMap(Map<String, Object?> m) => Account(
@@ -221,6 +226,7 @@ class Account {
         dueDay: m['due_day'] as int?,
         minPayPct:
             m['min_pay_pct'] == null ? null : _toDouble(m['min_pay_pct']),
+        loan: LoanTerms.fromColumns(m),
         balance: _toDouble(m['balance']),
       );
 }
@@ -898,4 +904,159 @@ class BudgetStatus {
   double get left => limit - spent;
   double get fraction => limit <= 0 ? (spent > 0 ? 1.0 : 0.0) : spent / limit;
   bool get over => spent > limit + 0.004;
+}
+
+
+// ---------------------------------------------------------------------------
+// Loans
+// ---------------------------------------------------------------------------
+
+enum LoanMode { installments, interest }
+
+/// How a loan is repaid. Stored on the loan account.
+class LoanTerms {
+  final LoanMode mode;
+
+  /// Monthly installment (installments mode; computed for interest mode).
+  final double payment;
+  final int months;
+  final DateTime firstDue;
+
+  /// Account the installments are paid from.
+  final int? payAccountId;
+
+  // Interest mode.
+  final double principal;
+
+  /// Yearly interest rate in %.
+  final double rate;
+
+  /// true = flat rate (common for Egyptian personal loans), false =
+  /// declining balance.
+  final bool flat;
+
+  /// Installments already handled (confirmed); the next one is this index.
+  final int nextIndex;
+
+  const LoanTerms({
+    required this.mode,
+    required this.payment,
+    required this.months,
+    required this.firstDue,
+    this.payAccountId,
+    this.principal = 0,
+    this.rate = 0,
+    this.flat = true,
+    this.nextIndex = 0,
+  });
+
+  LoanTerms copyWith({int? nextIndex}) => LoanTerms(
+        mode: mode,
+        payment: payment,
+        months: months,
+        firstDue: firstDue,
+        payAccountId: payAccountId,
+        principal: principal,
+        rate: rate,
+        flat: flat,
+        nextIndex: nextIndex ?? this.nextIndex,
+      );
+
+  /// Monthly payment for an interest loan.
+  static double interestPayment(double p, double ratePct, int n, bool flat) {
+    if (n <= 0) return 0;
+    if (flat) return (p + p * ratePct / 100 * n / 12) / n;
+    final r = ratePct / 100 / 12;
+    if (r == 0) return p / n;
+    return p * r / (1 - _pow(1 + r, -n));
+  }
+
+  static double _pow(double b, int e) {
+    var out = 1.0;
+    final n = e.abs();
+    for (var i = 0; i < n; i++) {
+      out *= b;
+    }
+    return e < 0 ? 1 / out : out;
+  }
+
+  static double _r2(double v) => (v * 100).roundToDouble() / 100;
+
+  /// Every installment with its date and split.
+  List<LoanRow> schedule() {
+    final out = <LoanRow>[];
+    if (mode == LoanMode.installments) {
+      var left = payment * months;
+      for (var i = 0; i < months; i++) {
+        left -= payment;
+        out.add(LoanRow(i, addMonths(firstDue, i), payment, payment, 0,
+            left.abs() < 0.005 ? 0 : left));
+      }
+      return out;
+    }
+    var bal = principal;
+    final totalInterest = principal * rate / 100 * months / 12;
+    for (var i = 0; i < months; i++) {
+      double interest, princ;
+      if (flat) {
+        interest = _r2(totalInterest / months);
+        princ = i == months - 1 ? bal : _r2(principal / months);
+      } else {
+        interest = _r2(bal * rate / 100 / 12);
+        princ = i == months - 1 ? bal : _r2(payment - interest);
+      }
+      bal -= princ;
+      out.add(LoanRow(i, addMonths(firstDue, i), _r2(princ + interest), princ,
+          interest, bal.abs() < 0.005 ? 0 : bal));
+    }
+    return out;
+  }
+
+  /// What the loan account should show as owed at the start.
+  double get startOwed =>
+      mode == LoanMode.installments ? payment * months : principal;
+
+  static Map<String, Object?> toColumns(LoanTerms? t) => {
+        'loan_mode': t?.mode.name,
+        'loan_payment': t?.payment,
+        'loan_months': t?.months,
+        'loan_first_due': t?.firstDue.millisecondsSinceEpoch,
+        'loan_pay_account': t?.payAccountId,
+        'loan_principal': t?.principal,
+        'loan_rate': t?.rate,
+        'loan_flat': t == null ? null : (t.flat ? 1 : 0),
+        'loan_next': t?.nextIndex ?? 0,
+      };
+
+  static LoanTerms? fromColumns(Map<String, Object?> m) {
+    final mode = m['loan_mode'] as String?;
+    if (mode == null || m['loan_months'] == null || m['loan_first_due'] == null) {
+      return null;
+    }
+    return LoanTerms(
+      mode: mode == 'interest' ? LoanMode.interest : LoanMode.installments,
+      payment: _toDouble(m['loan_payment']),
+      months: m['loan_months'] as int,
+      firstDue: DateTime.fromMillisecondsSinceEpoch(m['loan_first_due'] as int),
+      payAccountId: m['loan_pay_account'] as int?,
+      principal: _toDouble(m['loan_principal']),
+      rate: _toDouble(m['loan_rate']),
+      flat: (m['loan_flat'] as int? ?? 1) == 1,
+      nextIndex: m['loan_next'] as int? ?? 0,
+    );
+  }
+}
+
+/// One installment of a loan.
+class LoanRow {
+  final int index; // 0-based
+  final DateTime date;
+  final double payment;
+  final double principal;
+  final double interest;
+
+  /// Still owed after this installment.
+  final double balanceAfter;
+  const LoanRow(this.index, this.date, this.payment, this.principal,
+      this.interest, this.balanceAfter);
 }

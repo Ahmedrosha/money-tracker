@@ -49,7 +49,7 @@ class ReportsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 8,
+      length: 9,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Reports'),
@@ -66,6 +66,7 @@ class ReportsScreen extends StatelessWidget {
               Tab(text: 'Net Worth'),
               Tab(text: 'Allocation'),
               Tab(text: 'Cards'),
+              Tab(text: 'Loans'),
             ],
           ),
         ),
@@ -78,6 +79,7 @@ class ReportsScreen extends StatelessWidget {
           NetWorthTab(),
           AllocationTab(),
           CardsTab(),
+          LoansTab(),
         ]),
       ),
     );

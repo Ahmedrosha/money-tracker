@@ -79,6 +79,71 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
   EndType _endType = EndType.never;
   DateTime? _endDate;
 
+  // InstaPay fee (new expenses and transfers only).
+  bool _instaPay = false;
+  final _fee = TextEditingController();
+  bool _feeEdited = false;
+
+  bool get _showFee =>
+      (_mode == _Mode.newTxn || _mode == _Mode.confirm) &&
+      (_type == TxType.expense || _type == TxType.transfer) &&
+      !_installments &&
+      !_repeat;
+
+  void _updateFee() {
+    if (!_instaPay || _feeEdited) return;
+    final a = parseAmount(_amount.text);
+    final t = a == null || a == 0 ? '' : AppState.instaPayFee(a).toStringAsFixed(2);
+    if (_fee.text != t) setState(() => _fee.text = t);
+  }
+
+  List<Widget> _feeSection() {
+    if (!_showFee) return const [];
+    return [
+      const SizedBox(height: 8),
+      CheckboxListTile(
+        contentPadding: EdgeInsets.zero,
+        controlAffinity: ListTileControlAffinity.leading,
+        title: const Text('InstaPay Fee'),
+        subtitle: const Text('0.1% · min 0.50 · max 20 — saved as a separate expense'),
+        value: _instaPay,
+        onChanged: (v) {
+          setState(() {
+            _instaPay = v ?? false;
+            _feeEdited = false;
+          });
+          _updateFee();
+        },
+      ),
+      if (_instaPay)
+        TextFormField(
+          controller: _fee,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          onChanged: (_) => _feeEdited = true,
+          decoration: InputDecoration(
+            labelText: 'Fee',
+            border: const OutlineInputBorder(),
+            helperText: _feeEdited ? 'Edited' : 'Worked out from the amount; you can change it',
+            suffixIcon: _feeEdited
+                ? IconButton(
+                    tooltip: 'Recalculate',
+                    icon: const Icon(Icons.refresh),
+                    onPressed: () {
+                      _feeEdited = false;
+                      _updateFee();
+                    },
+                  )
+                : null,
+          ),
+          validator: (v) {
+            if (!_instaPay) return null;
+            final f = parseAmount(v ?? '');
+            return f == null || f < 0 ? 'Enter the fee' : null;
+          },
+        ),
+    ];
+  }
+
   /// True once the user typed the received amount themselves.
   bool _toAmountEdited = false;
   bool _saving = false;
@@ -93,6 +158,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
   void initState() {
     super.initState();
     _amount = TextEditingController();
+    _amount.addListener(_updateFee);
     _toAmount = TextEditingController();
     _payee = TextEditingController();
     _note = TextEditingController();
@@ -239,6 +305,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     _toAmount.dispose();
     _payee.dispose();
     _note.dispose();
+    _fee.dispose();
     _interval.dispose();
     _endCount.dispose();
     super.dispose();
@@ -446,6 +513,19 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       await state.confirmOccurrence(widget.occurrence!, template);
     } else {
       await state.saveTxn(template);
+    }
+    // InstaPay fee: its own expense from the same account.
+    if (_showFee && _instaPay) {
+      final fee = parseAmount(_fee.text)?.abs() ?? 0;
+      if (fee > 0.004) {
+        final what = isTransfer
+            ? 'Transfer to ${state.accountById(_toAccountId)?.name ?? ''}'
+            : (template.payee.isNotEmpty
+                ? template.payee
+                : (state.categoryById(_categoryId)?.name ?? 'Expense'));
+        await state.addInstaPayFee(_accountId!, _date, fee,
+            note: 'Fee for $what (${fmtAmountRaw(amount.abs())})');
+      }
     }
     if (!mounted) return;
     Navigator.pop(context);
@@ -795,6 +875,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                 border: OutlineInputBorder(),
               ),
             ),
+            ..._feeSection(),
             ..._installmentSection(account),
             ..._repeatSection(),
             const SizedBox(height: 24),

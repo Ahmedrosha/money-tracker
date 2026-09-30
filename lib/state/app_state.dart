@@ -807,6 +807,40 @@ class AppState extends ChangeNotifier {
     await _reloadAll();
   }
 
+  // ---------------- InstaPay fee ----------------
+
+  /// InstaPay: 0.1% of the amount, at least 0.50 and at most 20.
+  static double instaPayFee(double amount) {
+    final f = amount.abs() * 0.001;
+    final c = f < 0.5 ? 0.5 : (f > 20 ? 20.0 : f);
+    return (c * 100).roundToDouble() / 100;
+  }
+
+  /// Records the fee as its own expense from [accountId].
+  Future<void> addInstaPayFee(int accountId, DateTime date, double fee,
+      {String note = ''}) async {
+    int? cat;
+    for (final c in categories) {
+      if (c.kind == TxType.expense && c.name.toLowerCase() == 'instapay fees') {
+        cat = c.id;
+        break;
+      }
+    }
+    cat ??= await db.insertCategory(const Category(
+        name: 'InstaPay Fees', group: 'Bank', kind: TxType.expense,
+        icon: 'fees', color: 0xFF607D8B));
+    await db.insertTxn(Txn(
+      type: TxType.expense,
+      date: date,
+      amount: fee,
+      accountId: accountId,
+      categoryId: cat,
+      payee: 'InstaPay',
+      note: note,
+    ));
+    await _reloadAll();
+  }
+
   // ---------------- Loans ----------------
 
   /// Loan accounts with a repayment plan.

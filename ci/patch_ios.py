@@ -36,7 +36,7 @@ open(pbx, "w").write(s)
 plist_path = os.path.join(ios, "Runner/Info.plist")
 with open(plist_path, "rb") as f:
     p = plistlib.load(f)
-p["CFBundleDisplayName"] = "Money Tracker"
+p["CFBundleDisplayName"] = "Expense & Wealth Tracker"
 p["CFBundleName"] = "Money Tracker"
 # Only standard HTTPS is used, so no export compliance paperwork.
 p["ITSAppUsesNonExemptEncryption"] = False
@@ -50,12 +50,12 @@ p.setdefault("NSPhotoLibraryUsageDescription",
 p.setdefault("NSCameraUsageDescription",
              "Only used if you choose to take a photo to attach.")
 p.setdefault("NSMicrophoneUsageDescription",
-             "Not used by Money Tracker.")
-p["NSFaceIDUsageDescription"] = "Face ID unlocks Money Tracker."
+             "Not used by Expense & Wealth Tracker.")
+p["NSFaceIDUsageDescription"] = "Face ID unlocks Expense & Wealth Tracker."
 p.setdefault("NSLocationWhenInUseUsageDescription",
-             "Not used by Money Tracker.")
+             "Not used by Expense & Wealth Tracker.")
 p.setdefault("NSAppleMusicUsageDescription",
-             "Not used by Money Tracker.")
+             "Not used by Expense & Wealth Tracker.")
 with open(plist_path, "wb") as f:
     plistlib.dump(p, f)
 

@@ -538,12 +538,12 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
               const SizedBox(height: 8),
               SegmentedButton<String?>(
                 showSelectedIcon: false,
-                segments: const [
+                segments: [
                   ButtonSegment(
                       value: 'holdings',
                       label: Text(_type == AccountType.crypto ? 'Coins' : 'Stocks')),
-                  ButtonSegment(value: 'simple', label: Text('Total Value')),
-                  ButtonSegment(value: null, label: Text('Balance Only')),
+                  const ButtonSegment(value: 'simple', label: Text('Total Value')),
+                  const ButtonSegment(value: null, label: Text('Balance Only')),
                 ],
                 selected: {_investMode},
                 onSelectionChanged: (v) => setState(() => _investMode = v.first),

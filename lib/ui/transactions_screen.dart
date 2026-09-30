@@ -166,7 +166,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           final items = <(DateTime, Object)>[
             for (final t in list) (t.date, t),
             for (final o in pending) (o.date, o),
-          ]..sort((a, b) => b.$1.compareTo(a.$1));
+          ]..sort((a, b) => state.txnSort == 'date_asc'
+              ? a.$1.compareTo(b.$1)
+              : b.$1.compareTo(a.$1));
 
           // Build rows: day headers + entries.
           final rows = <Widget>[];
@@ -255,14 +257,21 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       initialValue: state.txnSort,
                       onSelected: state.setTxnSort,
                       itemBuilder: (_) => const [
-                        PopupMenuItem(value: 'date', child: Text('Sort by Date')),
+                        PopupMenuItem(
+                            value: 'date', child: Text('By Date · Newest First')),
+                        PopupMenuItem(
+                            value: 'date_asc', child: Text('By Date · Oldest First')),
                         PopupMenuItem(
                             value: 'category',
                             child: Text('Sort by Type (Category / Account)')),
                       ],
                       child: Chip(
                         avatar: const Icon(Icons.sort, size: 18),
-                        label: Text(byCategory ? 'By type' : 'By date'),
+                        label: Text(byCategory
+                            ? 'By type'
+                            : state.txnSort == 'date_asc'
+                                ? 'Oldest first'
+                                : 'Newest first'),
                       ),
                     ),
                   ],

@@ -39,7 +39,7 @@ class AppDb {
 
   final Database db;
 
-  static const int schemaVersion = 9;
+  static const int schemaVersion = 10;
 
   static Future<String> dbPath() async =>
       p.join(await getDatabasesPath(), 'money_tracker.db');
@@ -115,6 +115,7 @@ class AppDb {
         await _migrateToV7(db);
         await _migrateToV8(db);
         await _migrateToV9(db);
+        await _migrateToV10(db);
         await _seed(db);
       },
       onUpgrade: (db, oldV, newV) async {
@@ -126,6 +127,7 @@ class AppDb {
         if (oldV < 7) await _migrateToV7(db);
         if (oldV < 8) await _migrateToV8(db);
         if (oldV < 9) await _migrateToV9(db);
+        if (oldV < 10) await _migrateToV10(db);
       },
     );
     return AppDb._(db);
@@ -305,6 +307,22 @@ class AppDb {
         manual INTEGER NOT NULL DEFAULT 0,
         updated_at INTEGER
       )
+    ''');
+  }
+
+  static Future<void> _migrateToV10(Database db) async {
+    await db.execute('ALTER TABLE transactions ADD COLUMN fee_for INTEGER');
+    // Link InstaPay fees saved earlier to the transaction saved just
+    // before them (same account, same moment).
+    await db.execute('''
+      UPDATE transactions SET fee_for = id - 1
+      WHERE type = 'expense' AND payee = 'InstaPay' AND fee_for IS NULL
+        AND EXISTS (SELECT 1 FROM transactions m
+                    WHERE m.id = transactions.id - 1
+                      AND m.account_id = transactions.account_id
+                      AND m.date = transactions.date
+                      AND m.type IN ('expense', 'transfer')
+                      AND m.payee <> 'InstaPay')
     ''');
   }
 
@@ -578,6 +596,13 @@ class AppDb {
 
   Future<int> insertTxn(Txn t) => db.insert('transactions', t.toMap());
 
+  /// The fee entry linked to a transaction, if any.
+  Future<Txn?> feeOf(int txnId) async {
+    final rows = await db.query('transactions',
+        where: 'fee_for = ?', whereArgs: [txnId], limit: 1);
+    return rows.isEmpty ? null : Txn.fromMap(rows.first);
+  }
+
   /// Sum and count per category (and account currency) for [type] with
   /// dates in [from, to).
   Future<List<Map<String, Object?>>> categoryTotals(
@@ -727,7 +752,8 @@ class AppDb {
       db.update('transactions', t.toMap(), where: 'id = ?', whereArgs: [t.id]);
 
   Future<void> deleteTxn(int id) async {
-    await db.delete('transactions', where: 'id = ?', whereArgs: [id]);
+    await db.delete('transactions',
+        where: 'id = ? OR fee_for = ?', whereArgs: [id, id]);
     await db.execute(
         'DELETE FROM plans WHERE id NOT IN (SELECT DISTINCT plan_id FROM transactions WHERE plan_id IS NOT NULL)');
   }

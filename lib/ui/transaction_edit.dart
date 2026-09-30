@@ -84,11 +84,29 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
   final _fee = TextEditingController();
   bool _feeEdited = false;
 
+  /// Fee already linked to the transaction being edited.
+  Txn? _existingFee;
+
   bool get _showFee =>
-      (_mode == _Mode.newTxn || _mode == _Mode.confirm) &&
+      (_mode == _Mode.newTxn ||
+          _mode == _Mode.confirm ||
+          (_mode == _Mode.editTxn &&
+              widget.txn?.planId == null &&
+              widget.txn?.feeFor == null)) &&
       (_type == TxType.expense || _type == TxType.transfer) &&
       !_installments &&
       !_repeat;
+
+  Future<void> _loadFee(int txnId) async {
+    final f = await AppScope.read(context).db.feeOf(txnId);
+    if (f == null || !mounted) return;
+    setState(() {
+      _existingFee = f;
+      _instaPay = true;
+      _feeEdited = true; // keep the amount that was saved
+      _fee.text = f.amount.toStringAsFixed(2);
+    });
+  }
 
   void _updateFee() {
     if (!_instaPay || _feeEdited) return;
@@ -219,6 +237,9 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     _categoryId = t.categoryId;
     _date = t.date;
     if (t.postedLater) _postDate = t.postDate;
+    if (t.id != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadFee(t.id!));
+    }
   }
 
   void _fillFromRule(RecurringRule r) {
@@ -509,21 +530,23 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       } else {
         await state.createRule(rule);
       }
-    } else if (_mode == _Mode.confirm) {
-      await state.confirmOccurrence(widget.occurrence!, template);
     } else {
-      await state.saveTxn(template);
-    }
-    // InstaPay fee: its own expense from the same account.
-    if (_showFee && _instaPay) {
-      final fee = parseAmount(_fee.text)?.abs() ?? 0;
-      if (fee > 0.004) {
+      final int mainId;
+      if (_mode == _Mode.confirm) {
+        mainId = await state.confirmOccurrence(widget.occurrence!, template);
+      } else {
+        mainId = await state.saveTxn(template);
+      }
+      // InstaPay fee: its own expense from the same account, linked to
+      // this transaction (added, changed or removed).
+      if (_showFee && (_instaPay || _existingFee != null)) {
+        final fee = _instaPay ? (parseAmount(_fee.text)?.abs() ?? 0) : 0.0;
         final what = isTransfer
             ? 'Transfer to ${state.accountById(_toAccountId)?.name ?? ''}'
             : (template.payee.isNotEmpty
                 ? template.payee
                 : (state.categoryById(_categoryId)?.name ?? 'Expense'));
-        await state.addInstaPayFee(_accountId!, _date, fee,
+        await state.setInstaPayFee(mainId, _accountId!, _date, fee,
             note: 'Fee for $what (${fmtAmountRaw(amount.abs())})');
       }
     }

@@ -458,6 +458,9 @@ class Txn {
   /// Decides which statement it belongs to. Null = same as [date].
   final DateTime? toPostDate;
 
+  /// A fee entry (e.g. InstaPay): the transaction it belongs to.
+  final int? feeFor;
+
   const Txn({
     this.id,
     required this.type,
@@ -474,6 +477,7 @@ class Txn {
     this.recurringId,
     this.postDate,
     this.toPostDate,
+    this.feeFor,
   });
 
   bool get isFuture => date.isAfter(DateTime.now());
@@ -506,6 +510,7 @@ class Txn {
         'recurring_id': recurringId,
         'post_date': postDate?.millisecondsSinceEpoch,
         'to_post_date': toPostDate?.millisecondsSinceEpoch,
+        'fee_for': feeFor,
       };
 
   factory Txn.fromMap(Map<String, Object?> m) => Txn(
@@ -528,6 +533,7 @@ class Txn {
         toPostDate: m['to_post_date'] == null
             ? null
             : DateTime.fromMillisecondsSinceEpoch(m['to_post_date'] as int),
+        feeFor: m['fee_for'] as int?,
       );
 }
 

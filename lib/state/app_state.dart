@@ -1041,9 +1041,34 @@ class AppState extends ChangeNotifier {
     return (c * 100).roundToDouble() / 100;
   }
 
+  /// Adds, updates or removes the InstaPay fee linked to transaction
+  /// [mainId]. [fee] null or 0 removes it.
+  Future<void> setInstaPayFee(int mainId, int accountId, DateTime date,
+      double? fee, {String note = ''}) async {
+    final old = await db.feeOf(mainId);
+    if (fee == null || fee <= 0.004) {
+      if (old != null) {
+        await db.deleteTxn(old.id!);
+        await _reloadAll();
+      }
+      return;
+    }
+    if (old != null) {
+      await db.updateTxn(Txn.fromMap({
+        ...old.toMap(),
+        'amount': fee,
+        'date': date.millisecondsSinceEpoch,
+        'account_id': accountId,
+      }));
+      await _reloadAll();
+      return;
+    }
+    await addInstaPayFee(accountId, date, fee, note: note, feeFor: mainId);
+  }
+
   /// Records the fee as its own expense from [accountId].
   Future<void> addInstaPayFee(int accountId, DateTime date, double fee,
-      {String note = ''}) async {
+      {String note = '', int? feeFor}) async {
     int? cat;
     for (final c in categories) {
       if (c.kind == TxType.expense && c.name.toLowerCase() == 'instapay fees') {
@@ -1062,6 +1087,7 @@ class AppState extends ChangeNotifier {
       categoryId: cat,
       payee: 'InstaPay',
       note: note,
+      feeFor: feeFor,
     ));
     await _reloadAll();
   }
@@ -1236,13 +1262,17 @@ class AppState extends ChangeNotifier {
 
   // ---------------- Transactions ----------------
 
-  Future<void> saveTxn(Txn t) async {
+  /// Saves and returns the transaction's id.
+  Future<int> saveTxn(Txn t) async {
+    int id;
     if (t.id == null) {
-      await db.insertTxn(t);
+      id = await db.insertTxn(t);
     } else {
       await db.updateTxn(t);
+      id = t.id!;
     }
     await _reloadAll();
+    return id;
   }
 
   Future<void> deleteTxn(int id) async {
@@ -1316,9 +1346,10 @@ class AppState extends ChangeNotifier {
 
   /// Records occurrence [o] as the transaction [t] (possibly edited by the
   /// user) and moves the rule past it.
-  Future<void> confirmOccurrence(Occurrence o, [Txn? t]) async {
-    await db.insertTxn(t ?? o.rule.toTxn(o.index));
+  Future<int> confirmOccurrence(Occurrence o, [Txn? t]) async {
+    final id = await db.insertTxn(t ?? o.rule.toTxn(o.index));
     await _advance(o);
+    return id;
   }
 
   Future<void> skipOccurrence(Occurrence o) => _advance(o);

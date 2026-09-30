@@ -82,7 +82,7 @@ class AccountsScreen extends StatelessWidget {
                   );
               return [
                 item('group:type', 'Group by Type', state.accountsGroupBy == 'type'),
-                item('group:bank', 'Group by Bank', state.accountsGroupBy == 'bank'),
+                item('group:bank', 'Group by Bank / Platform', state.accountsGroupBy == 'bank'),
                 const PopupMenuDivider(),
                 item('order:manual', 'Manual Order', state.accountsOrder == 'manual'),
                 item('order:name', 'Name A–Z', state.accountsOrder == 'name'),

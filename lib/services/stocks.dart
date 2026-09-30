@@ -28,3 +28,35 @@ class StockPriceService {
     return null;
   }
 }
+
+/// Crypto prices in US dollars: Binance (COIN/USDT), then CryptoCompare.
+class CryptoPriceService {
+  static const _stable = {'USDT', 'USDC', 'BUSD', 'FDUSD', 'DAI', 'TUSD'};
+
+  Future<double?> fetchUsd(String symbol) async {
+    final s = symbol.toUpperCase();
+    if (_stable.contains(s)) return 1.0;
+    try {
+      final res = await http
+          .get(Uri.https('api.binance.com', '/api/v3/ticker/price',
+              {'symbol': '${s}USDT'}))
+          .timeout(const Duration(seconds: 15));
+      if (res.statusCode == 200) {
+        final p = double.tryParse(
+            (jsonDecode(res.body) as Map<String, dynamic>)['price'].toString());
+        if (p != null && p > 0) return p;
+      }
+    } catch (_) {}
+    try {
+      final res = await http
+          .get(Uri.https('min-api.cryptocompare.com', '/data/price',
+              {'fsym': s, 'tsyms': 'USD'}))
+          .timeout(const Duration(seconds: 15));
+      if (res.statusCode == 200) {
+        final p = (jsonDecode(res.body) as Map<String, dynamic>)['USD'];
+        if (p is num && p > 0) return p.toDouble();
+      }
+    } catch (_) {}
+    return null;
+  }
+}

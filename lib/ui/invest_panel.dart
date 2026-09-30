@@ -7,7 +7,7 @@ import 'transaction_edit.dart';
 import 'widgets.dart';
 
 String _qty(double q) =>
-    q == q.roundToDouble() ? q.toStringAsFixed(0) : q.toStringAsFixed(4).replaceFirst(RegExp(r'0+$'), '');
+    q == q.roundToDouble() ? q.toStringAsFixed(0) : q.toStringAsFixed(8).replaceFirst(RegExp(r'0+$'), '');
 
 String _pct(double gain, double base) =>
     base.abs() < 0.01 ? '' : ' (${gain >= 0 ? '+' : ''}${(gain / base * 100).toStringAsFixed(1)}%)';
@@ -99,6 +99,7 @@ class InvestPanel extends StatelessWidget {
 
   Widget _holdings(BuildContext context, AppState state, double? invested) {
     final cur = account.currency;
+    final crypto = account.type == AccountType.crypto;
     final hs = state.holdings(account.id!);
     final small = Theme.of(context).textTheme.bodySmall;
     final holdValue = hs.fold<double>(0, (s, h) => s + h.value);
@@ -132,12 +133,12 @@ class InvestPanel extends StatelessWidget {
                   ),
           ]),
           _row('Portfolio value', fmtMoney(account.worth, cur), bold: true),
-          _row('Stocks', fmtMoney(holdValue, cur)),
+          _row(crypto ? 'Coins' : 'Stocks', fmtMoney(holdValue, cur)),
           _row('Cash', fmtMoney(cash, cur)),
           if (invested != null) _row('Money invested', fmtMoney(invested, cur)),
           _gainRow(context, account.worth, invested),
           if (latest != null)
-            Text('Prices from Yahoo Finance, ${shortDateFmt.format(latest)} '
+            Text('Prices from ${crypto ? 'Binance' : 'Yahoo Finance'}, ${shortDateFmt.format(latest)} '
                 '${TimeOfDay.fromDateTime(latest).format(context)}',
                 style: small),
           const SizedBox(height: 8),
@@ -156,14 +157,14 @@ class InvestPanel extends StatelessWidget {
             ),
             OutlinedButton.icon(
               icon: const Icon(Icons.payments_outlined),
-              label: const Text('Dividend'),
+              label: Text(crypto ? 'Reward' : 'Dividend'),
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (_) => TransactionEditScreen(
                     initialAccountId: account.id,
                     initialType: TxType.income,
-                    initialNote: 'Dividend',
+                    initialNote: crypto ? 'Staking / earn reward' : 'Dividend',
                   ),
                 ),
               ),
@@ -221,7 +222,7 @@ class InvestPanel extends StatelessWidget {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(
             title: Text(h.symbol, style: Theme.of(ctx).textTheme.titleMedium),
-            subtitle: Text('${_qty(h.qty)} shares · cost ${fmtMoney(h.cost, account.currency)}'),
+            subtitle: Text('${_qty(h.qty)} ${account.type == AccountType.crypto ? h.symbol : 'shares'} · cost ${fmtMoney(h.cost, account.currency)}'),
           ),
           ListTile(
               leading: const Icon(Icons.add),
@@ -251,11 +252,12 @@ class InvestPanel extends StatelessWidget {
       case 'sell':
         await showTradeSheet(context, account, buy: false, symbol: h.symbol);
       case 'price':
-        final v = await _askAmount(context, '${h.symbol} Price', 'Price per share',
+        final v = await _askAmount(context, '${h.symbol} Price',
+            account.type == AccountType.crypto ? 'Price per coin' : 'Price per share',
             account.currency, initial: h.price);
-        if (v != null) await state.setStockPrice(h.symbol, v);
+        if (v != null) await state.setStockPrice(account, h.symbol, v);
       case 'live':
-        await state.clearManualStockPrice(h.symbol);
+        await state.clearManualStockPrice(account, h.symbol);
     }
   }
 }
@@ -333,6 +335,7 @@ class _TradeFormState extends State<_TradeForm> {
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     final cur = widget.account.currency;
+    final crypto = widget.account.type == AccountType.crypto;
     final held = state.holdings(widget.account.id!);
     final qty = parseAmount(_qtyC.text) ?? 0;
     final price = parseAmount(_price.text) ?? 0;
@@ -358,10 +361,10 @@ class _TradeFormState extends State<_TradeForm> {
               controller: _symbol,
               textCapitalization: TextCapitalization.characters,
               onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(
-                labelText: 'Stock Symbol',
-                hintText: 'e.g. COMI, TMGH, FWRY',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: crypto ? 'Coin' : 'Stock Symbol',
+                hintText: crypto ? 'e.g. BTC, ETH, SOL' : 'e.g. COMI, TMGH, FWRY',
+                border: const OutlineInputBorder(),
               ),
             ),
             if (held.isNotEmpty) ...[
@@ -387,8 +390,9 @@ class _TradeFormState extends State<_TradeForm> {
                   controller: _qtyC,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   onChanged: (_) => setState(() {}),
-                  decoration: const InputDecoration(
-                      labelText: 'Shares', border: OutlineInputBorder()),
+                  decoration: InputDecoration(
+                      labelText: crypto ? 'Amount' : 'Shares',
+                      border: const OutlineInputBorder()),
                 ),
               ),
               const SizedBox(width: 12),
@@ -398,7 +402,7 @@ class _TradeFormState extends State<_TradeForm> {
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
-                      labelText: 'Price per Share',
+                      labelText: crypto ? 'Price per Coin' : 'Price per Share',
                       suffixText: cur,
                       border: const OutlineInputBorder()),
                 ),
@@ -440,7 +444,8 @@ class _TradeFormState extends State<_TradeForm> {
                   : () async {
                       final sym = _symbol.text.trim().toUpperCase();
                       if (sym.isEmpty || qty <= 0 || price <= 0) {
-                        showSnack(context, 'Enter the symbol, shares and price');
+                        showSnack(context,
+                            crypto ? 'Enter the coin, amount and price' : 'Enter the symbol, shares and price');
                         return;
                       }
                       setState(() => _saving = true);

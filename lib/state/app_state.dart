@@ -732,7 +732,7 @@ class AppState extends ChangeNotifier {
       if (p.manual || p.updatedAt == null) continue;
       if (sp == null || p.updatedAt!.isBefore(sp)) sp = p.updatedAt;
     }
-    if (sp == null || DateTime.now().difference(sp).inMinutes >= 60) {
+    if (sp == null || DateTime.now().difference(sp).inMinutes >= 15) {
       refreshStockPrices().catchError((_) => 0);
     }
     final last = lastRateUpdate;
@@ -829,11 +829,18 @@ class AppState extends ChangeNotifier {
   List<Trade> trades = [];
   Map<String, StockPrice> stockPrices = {};
   final StockPriceService _stockService = StockPriceService();
+  final CryptoPriceService _cryptoService = CryptoPriceService();
+
+  /// Price table key: coins are kept apart from EGX symbols ("C:BTC").
+  /// Coin prices are stored in USD, stock prices in EGP.
+  static String priceKey(Account a, String symbol) =>
+      a.type == AccountType.crypto ? 'C:$symbol' : symbol;
   bool refreshingStocks = false;
 
   /// Shares held now in an account, at average cost (sells reduce the
   /// cost at the average price).
   List<Holding> holdings(int accountId) {
+    final acc = accountById(accountId);
     final map = <String, Holding>{};
     for (final t in trades) {
       if (t.accountId != accountId) continue;
@@ -854,9 +861,11 @@ class AppState extends ChangeNotifier {
     final out = map.values.where((h) => h.qty > 1e-9).toList()
       ..sort((a, b) => a.symbol.compareTo(b.symbol));
     for (final h in out) {
-      final p = stockPrices[h.symbol];
+      final p = acc == null ? null : stockPrices[priceKey(acc, h.symbol)];
       if (p != null) {
-        h.price = p.price;
+        h.price = acc!.type == AccountType.crypto
+            ? (convert(p.price, 'USD', acc.currency) ?? p.price)
+            : p.price;
         h.manualPrice = p.manual;
         h.priceAt = p.updatedAt;
       }
@@ -915,7 +924,7 @@ class AppState extends ChangeNotifier {
     if (!buy) {
       final h = holdings(a.id!).where((h) => h.symbol == symbol).firstOrNull;
       if (h == null || h.qty + 1e-9 < qty) {
-        throw Exception('You hold ${h?.qty ?? 0} $symbol shares');
+        throw Exception('You hold only ${h?.qty ?? 0} $symbol');
       }
       realized = (price - h.avgCost) * qty;
     }
@@ -937,7 +946,9 @@ class AppState extends ChangeNotifier {
         date: date,
         amount: (realized * 100).roundToDouble() / 100,
         accountId: a.id!,
-        categoryId: await _categoryNamed('Stock Profit', TxType.income, 'interest'),
+        categoryId: await _categoryNamed(
+            a.type == AccountType.crypto ? 'Crypto Profit' : 'Stock Profit',
+            TxType.income, 'interest'),
         payee: symbol,
         note: 'Sold ${_qty(qty)} $symbol at ${fmtAmountRaw(price)}',
       ));
@@ -954,13 +965,17 @@ class AppState extends ChangeNotifier {
       feeTxnId: feeId,
       pnlTxnId: pnlId,
     ));
-    if (buy && !stockPrices.containsKey(symbol)) {
+    final key = priceKey(a, symbol);
+    if (buy && !stockPrices.containsKey(key)) {
       // Until a live price arrives, value it at the price paid.
+      final stored = a.type == AccountType.crypto
+          ? (convert(price, a.currency, 'USD') ?? price)
+          : price;
       await db.upsertStockPrice(
-          StockPrice(symbol, price, updatedAt: DateTime.now()));
+          StockPrice(key, stored, updatedAt: DateTime.now()));
     }
     await _reloadAll();
-    if (buy) refreshStockPrices(only: {symbol});
+    if (buy) refreshStockPrices(only: {key});
   }
 
   static String _qty(double q) =>
@@ -971,18 +986,23 @@ class AppState extends ChangeNotifier {
     await _reloadAll();
   }
 
-  Future<void> setStockPrice(String symbol, double price) async {
-    await db.upsertStockPrice(StockPrice(symbol, price,
+  /// [price] is in the account's currency.
+  Future<void> setStockPrice(Account a, String symbol, double price) async {
+    final stored = a.type == AccountType.crypto
+        ? (convert(price, a.currency, 'USD') ?? price)
+        : price;
+    await db.upsertStockPrice(StockPrice(priceKey(a, symbol), stored,
         manual: true, updatedAt: DateTime.now()));
     await _reloadAll();
   }
 
-  Future<void> clearManualStockPrice(String symbol) async {
-    final p = stockPrices[symbol];
+  Future<void> clearManualStockPrice(Account a, String symbol) async {
+    final key = priceKey(a, symbol);
+    final p = stockPrices[key];
     if (p != null) {
-      await db.upsertStockPrice(StockPrice(symbol, p.price, updatedAt: p.updatedAt));
+      await db.upsertStockPrice(StockPrice(key, p.price, updatedAt: p.updatedAt));
     }
-    await refreshStockPrices(only: {symbol});
+    await refreshStockPrices(only: {key});
   }
 
   /// Fetches prices for held symbols (manual prices are left alone).
@@ -992,7 +1012,7 @@ class AppState extends ChangeNotifier {
     for (final a in accounts) {
       if (a.investMode != 'holdings') continue;
       for (final h in holdings(a.id!)) {
-        symbols.add(h.symbol);
+        symbols.add(priceKey(a, h.symbol));
       }
     }
     if (only != null) symbols.retainAll(only);
@@ -1003,7 +1023,9 @@ class AppState extends ChangeNotifier {
     var n = 0;
     try {
       for (final s in symbols) {
-        final p = await _stockService.fetch(s);
+        final p = s.startsWith('C:')
+            ? await _cryptoService.fetchUsd(s.substring(2))
+            : await _stockService.fetch(s);
         if (p == null) continue;
         await db.upsertStockPrice(StockPrice(s, p, updatedAt: DateTime.now()));
         n++;

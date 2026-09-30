@@ -18,7 +18,15 @@ class AccountEditScreen extends StatefulWidget {
 /// Free-text bank name with suggestions from banks already used.
 class _BankField extends StatelessWidget {
   const _BankField(
-      {required this.initial, required this.options, required this.onChanged});
+      {super.key,
+      required this.initial,
+      required this.options,
+      required this.onChanged,
+      this.label = 'Bank',
+      this.hint = 'e.g. CIB, NBE, Banque Misr'});
+
+  final String label;
+  final String hint;
 
   final String initial;
   final List<String> options;
@@ -38,11 +46,11 @@ class _BankField extends StatelessWidget {
         controller: controller,
         focusNode: focus,
         textCapitalization: TextCapitalization.words,
-        decoration: const InputDecoration(
-          labelText: 'Bank',
-          hintText: 'e.g. CIB, NBE, Banque Misr',
-          border: OutlineInputBorder(),
-          prefixIcon: Icon(Icons.account_balance),
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          border: const OutlineInputBorder(),
+          prefixIcon: const Icon(Icons.account_balance),
         ),
         onChanged: onChanged,
       ),
@@ -71,7 +79,9 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
   String? _investMode;
 
   bool get _showInvest =>
-      _type == AccountType.investment || _type == AccountType.funds;
+      _type == AccountType.investment ||
+      _type == AccountType.funds ||
+      _type == AccountType.crypto;
 
   // Loan plan.
   bool _loanPlan = true;
@@ -446,7 +456,10 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
                 if (t != null) {
                   setState(() {
                     // New gold accounts are measured in grams by default.
-                    if (_isNew && t == AccountType.gold && !isGold(_currency)) {
+                    if (_isNew && t == AccountType.crypto) {
+                      // Crypto is priced in dollars (USDT counts as USD).
+                      _currency = 'USD';
+                    } else if (_isNew && t == AccountType.gold && !isGold(_currency)) {
                       _currency = 'XAU21';
                     } else if (_isNew && t != AccountType.gold && isGold(_currency)) {
                       _currency = AppScope.read(context).baseCurrency;
@@ -468,6 +481,9 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
             if (_type.hasBank) ...[
               const SizedBox(height: 16),
               _BankField(
+                key: ValueKey(_type.bankLabel),
+                label: _type.bankLabel,
+                hint: _type.bankHint,
                 initial: _bank,
                 options: AppScope.of(context).bankNames,
                 onChanged: (v) => _bank = v,
@@ -523,7 +539,9 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
               SegmentedButton<String?>(
                 showSelectedIcon: false,
                 segments: const [
-                  ButtonSegment(value: 'holdings', label: Text('Stocks')),
+                  ButtonSegment(
+                      value: 'holdings',
+                      label: Text(_type == AccountType.crypto ? 'Coins' : 'Stocks')),
                   ButtonSegment(value: 'simple', label: Text('Total Value')),
                   ButtonSegment(value: null, label: Text('Balance Only')),
                 ],
@@ -533,7 +551,9 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
               const SizedBox(height: 4),
               Text(
                 _investMode == 'holdings'
-                    ? 'Record buys and sells of each stock; valued at live EGX prices (or your own).'
+                    ? (_type == AccountType.crypto
+                        ? 'Record buys and sells of each coin; valued at live prices from Binance (or your own).'
+                        : 'Record buys and sells of each stock; valued at live EGX prices (or your own).')
                     : _investMode == 'simple'
                         ? 'Now and then type the portfolio total shown by your broker.'
                         : 'Just the money in the account, no market value.',

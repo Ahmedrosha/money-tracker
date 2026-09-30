@@ -118,6 +118,31 @@ extension AccountTypeX on AccountType {
   bool get isLiability =>
       this == AccountType.creditCard || this == AccountType.loan;
 
+  /// What the "bank" field means for this type.
+  String get bankLabel {
+    switch (this) {
+      case AccountType.investment:
+      case AccountType.funds:
+        return 'Broker / Platform';
+      case AccountType.crypto:
+        return 'Exchange / Wallet';
+      default:
+        return 'Bank';
+    }
+  }
+
+  String get bankHint {
+    switch (this) {
+      case AccountType.investment:
+      case AccountType.funds:
+        return 'e.g. Thndr, EFG Hermes, CI Capital';
+      case AccountType.crypto:
+        return 'e.g. Binance, Bybit, Trust Wallet';
+      default:
+        return 'e.g. CIB, NBE, Banque Misr';
+    }
+  }
+
   /// Types that usually have no bank.
   bool get hasBank =>
       this != AccountType.cash &&

@@ -198,6 +198,22 @@ class Account {
   final DateTime? investValueAt;
   final double? investBase;
 
+  /// Property / car / other asset: market value of the whole item, your
+  /// ownership share in % (100 = all yours), and when the value was set.
+  final double? assetValue;
+  final double? assetShare;
+  final DateTime? assetValueAt;
+
+  /// Your share of [assetValue].
+  double? get assetShareValue =>
+      assetValue == null ? null : assetValue! * (assetShare ?? 100) / 100;
+
+  /// Types valued at a market value you enter.
+  bool get hasAssetValue =>
+      type == AccountType.property ||
+      type == AccountType.car ||
+      type == AccountType.otherAsset;
+
   /// Portfolio value including stock prices (not stored; set by the app).
   final double? marketValue;
 
@@ -228,6 +244,9 @@ class Account {
     this.investValue,
     this.investValueAt,
     this.investBase,
+    this.assetValue,
+    this.assetShare,
+    this.assetValueAt,
     this.marketValue,
     this.balance = 0,
   });
@@ -239,7 +258,9 @@ class Account {
         creditLimit: creditLimit, statementDay: statementDay, dueDay: dueDay,
         minPayPct: minPayPct, loan: loan, investMode: investMode,
         investValue: investValue, investValueAt: investValueAt,
-        investBase: investBase, marketValue: v, balance: balance,
+        investBase: investBase, assetValue: assetValue,
+        assetShare: assetShare, assetValueAt: assetValueAt,
+        marketValue: v, balance: balance,
       );
 
   /// "CIB · Visa Gold" or just the name when there is no bank.
@@ -269,6 +290,9 @@ class Account {
         'invest_value': investValue,
         'invest_value_at': investValueAt?.millisecondsSinceEpoch,
         'invest_base': investBase,
+        'asset_value': assetValue,
+        'asset_share': assetShare,
+        'asset_value_at': assetValueAt?.millisecondsSinceEpoch,
       };
 
   factory Account.fromMap(Map<String, Object?> m) => Account(
@@ -296,6 +320,13 @@ class Account {
             : DateTime.fromMillisecondsSinceEpoch(m['invest_value_at'] as int),
         investBase:
             m['invest_base'] == null ? null : _toDouble(m['invest_base']),
+        assetValue:
+            m['asset_value'] == null ? null : _toDouble(m['asset_value']),
+        assetShare:
+            m['asset_share'] == null ? null : _toDouble(m['asset_share']),
+        assetValueAt: m['asset_value_at'] == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(m['asset_value_at'] as int),
         balance: _toDouble(m['balance']),
       );
 }

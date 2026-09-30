@@ -39,7 +39,7 @@ class AppDb {
 
   final Database db;
 
-  static const int schemaVersion = 10;
+  static const int schemaVersion = 11;
 
   static Future<String> dbPath() async =>
       p.join(await getDatabasesPath(), 'money_tracker.db');
@@ -116,6 +116,7 @@ class AppDb {
         await _migrateToV8(db);
         await _migrateToV9(db);
         await _migrateToV10(db);
+        await _migrateToV11(db);
         await _seed(db);
       },
       onUpgrade: (db, oldV, newV) async {
@@ -128,6 +129,7 @@ class AppDb {
         if (oldV < 8) await _migrateToV8(db);
         if (oldV < 9) await _migrateToV9(db);
         if (oldV < 10) await _migrateToV10(db);
+        if (oldV < 11) await _migrateToV11(db);
       },
     );
     return AppDb._(db);
@@ -324,6 +326,14 @@ class AppDb {
                       AND m.type IN ('expense', 'transfer')
                       AND m.payee <> 'InstaPay')
     ''');
+  }
+
+  static Future<void> _migrateToV11(Database db) async {
+    for (final col in const [
+      'asset_value REAL', 'asset_share REAL', 'asset_value_at INTEGER',
+    ]) {
+      await db.execute('ALTER TABLE accounts ADD COLUMN $col');
+    }
   }
 
   static Future<void> _seed(Database db) async {

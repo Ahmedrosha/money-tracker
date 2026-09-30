@@ -4,6 +4,7 @@ import '../data/models.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
 import '../util/currencies.dart';
+import 'asset_panel.dart';
 import 'gold_panel.dart';
 import 'invest_panel.dart';
 import 'loan_panel.dart';
@@ -159,6 +160,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                     if (account.loan != null) LoanPanel(account: account),
                     if (account.investMode != null)
                       InvestPanel(account: account),
+                    if (account.hasAssetValue) AssetPanel(account: account),
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),

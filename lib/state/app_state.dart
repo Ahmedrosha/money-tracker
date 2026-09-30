@@ -897,6 +897,8 @@ class AppState extends ChangeNotifier {
         if (a.investMode == 'holdings')
           a.withMarketValue(a.balance +
               holdings(a.id!).fold<double>(0, (s, h) => s + h.gain))
+        else if (a.hasAssetValue && a.assetValue != null)
+          a.withMarketValue(a.assetShareValue)
         else if (a.investMode == 'simple' && a.investValue != null)
           a.withMarketValue(
               a.investValue! + (a.balance - (a.investBase ?? a.balance)))
@@ -1058,6 +1060,18 @@ class AppState extends ChangeNotifier {
     }
     notifyListeners();
     return n;
+  }
+
+  /// Property / car / other asset: market value of the whole item and
+  /// your ownership share in %.
+  Future<void> setAssetValue(Account a, double? value, double share) async {
+    await db.updateAccount(Account.fromMap({
+      ...a.toMap(),
+      'asset_value': value,
+      'asset_share': share,
+      'asset_value_at': value == null ? null : DateTime.now().millisecondsSinceEpoch,
+    }));
+    await _reloadAll();
   }
 
   /// Simple mode: the portfolio total as shown by the broker.

@@ -75,6 +75,15 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
 
   bool get _isNew => widget.account == null;
 
+  // Property / car / other asset value.
+  final _assetValue = TextEditingController();
+  final _assetShare = TextEditingController(text: '100');
+
+  bool get _showAsset =>
+      _type == AccountType.property ||
+      _type == AccountType.car ||
+      _type == AccountType.otherAsset;
+
   // Investment tracking: null / 'holdings' / 'simple'.
   String? _investMode;
 
@@ -157,6 +166,8 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
     _exclude = a?.excludeTotal ?? false;
     _currency = a?.currency ?? 'EGP';
     _investMode = a?.investMode ?? (a == null ? 'holdings' : null);
+    if (a?.assetValue != null) _assetValue.text = _trimNum(a!.assetValue!);
+    if (a?.assetShare != null) _assetShare.text = _trimNum(a!.assetShare!);
     final n = DateTime.now();
     final l = a?.loan;
     _loanFirstDue = l?.firstDue ?? DateTime(n.year, n.month + 1, n.day);
@@ -190,7 +201,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
     _statementDay.dispose();
     _dueDay.dispose();
     _minPct.dispose();
-    for (final c in [_loanPayment, _loanMonths, _loanPrincipal, _loanRate, _loanReceived]) {
+    for (final c in [_loanPayment, _loanMonths, _loanPrincipal, _loanRate, _loanReceived, _assetValue, _assetShare]) {
       c.dispose();
     }
     super.dispose();
@@ -222,6 +233,15 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
     final a = Account(
       loan: _type == AccountType.loan ? (loan ?? widget.account?.loan) : null,
       investMode: _showInvest ? _investMode : null,
+      assetValue: _showAsset ? parseAmount(_assetValue.text)?.abs() : null,
+      assetShare: _showAsset
+          ? (parseAmount(_assetShare.text)?.abs() ?? 100).clamp(0, 100).toDouble()
+          : null,
+      assetValueAt: !_showAsset || parseAmount(_assetValue.text) == null
+          ? null
+          : (parseAmount(_assetValue.text)?.abs() == widget.account?.assetValue
+              ? widget.account?.assetValueAt
+              : DateTime.now()),
       investValue: widget.account?.investValue,
       investValueAt: widget.account?.investValueAt,
       investBase: widget.account?.investBase,
@@ -530,6 +550,54 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
               ),
             ),
             if (_showLoan) ..._loanSection(),
+            if (_showAsset) ...[
+              const SizedBox(height: 24),
+              Text('Current Value',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.primary)),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _assetValue,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  labelText: _type == AccountType.property
+                      ? 'Market Value of the Whole Unit'
+                      : 'Market Value',
+                  helperText: 'Leave empty to count what you paid',
+                  suffixText: currencyUnit(_currency),
+                  border: const OutlineInputBorder(),
+                ),
+                validator: (v) => v == null || v.trim().isEmpty || parseAmount(v) != null
+                    ? null
+                    : 'Invalid number',
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _assetShare,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  labelText: 'Your Ownership',
+                  helperText: 'Your share if you own it with others',
+                  suffixText: '%',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) {
+                  final n = parseAmount(v ?? '');
+                  return n == null || n <= 0 || n > 100 ? '1–100' : null;
+                },
+              ),
+              if (parseAmount(_assetValue.text) != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    'Your share: ${fmtMoneyRaw((parseAmount(_assetValue.text)!.abs()) * ((parseAmount(_assetShare.text) ?? 100).clamp(0, 100)) / 100, _currency)}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w600),
+                  ),
+                ),
+            ],
             if (_showInvest) ...[
               const SizedBox(height: 24),
               Text('Portfolio Tracking',

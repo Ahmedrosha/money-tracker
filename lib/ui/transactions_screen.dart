@@ -130,7 +130,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       ),
       body: _calendar
           ? CalendarView(key: ValueKey(_calAccountId), accountId: _calAccountId)
-          : FutureBuilder<List<Txn>>(
+          : GestureDetector(
+        // Swipe right = previous month, swipe left = next month.
+        onHorizontalDragEnd: (d) {
+          final v = d.primaryVelocity ?? 0;
+          if (v > 300) _shiftMonth(-1);
+          if (v < -300) _shiftMonth(1);
+        },
+        child: FutureBuilder<List<Txn>>(
         future: _future,
         builder: (context, snap) {
           final all = snap.data ?? const <Txn>[];
@@ -270,6 +277,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             ],
           );
         },
+      ),
       ),
     );
   }

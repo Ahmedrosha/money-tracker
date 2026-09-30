@@ -4,6 +4,7 @@ import '../data/models.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 /// Records one installment after a short confirmation.
 Future<void> payLoan(BuildContext context, Account loan, LoanRow row) async {
@@ -15,12 +16,12 @@ Future<void> payLoan(BuildContext context, Account loan, LoanRow row) async {
     context: context,
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setS) => AlertDialog(
-        title: Text('Installment ${row.index + 1} of ${t.months}'),
+        title: Text(tr('Installment ${row.index + 1} of ${t.months}')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${loan.fullName} · due ${shortDateFmt.format(row.date)}'),
+            Text(tr('${loan.fullName} · due ${shortDateFmt.format(row.date)}')),
             const SizedBox(height: 12),
             Text(fmtMoney(row.payment, cur),
                 style: Theme.of(ctx)
@@ -29,11 +30,11 @@ Future<void> payLoan(BuildContext context, Account loan, LoanRow row) async {
                     ?.copyWith(fontWeight: FontWeight.bold)),
             if (row.interest > 0)
               Text(
-                  'Principal ${fmtAmount(row.principal)} · interest ${fmtAmount(row.interest)}',
+                  tr('Principal ${fmtAmount(row.principal)} · interest ${fmtAmount(row.interest)}'),
                   style: Theme.of(ctx).textTheme.bodySmall),
             const SizedBox(height: 16),
             AccountField(
-              label: 'Pay From',
+              label: tr('Pay From'),
               value: from,
               onChanged: (v) => setS(() => from = v),
             ),
@@ -42,17 +43,17 @@ Future<void> payLoan(BuildContext context, Account loan, LoanRow row) async {
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+              child: Text(tr('Cancel'))),
           FilledButton(
               onPressed: from == null ? null : () => Navigator.pop(ctx, true),
-              child: const Text('Record Payment')),
+              child: Text(tr('Record Payment'))),
         ],
       ),
     ),
   );
   if (ok != true || from == null) return;
   await state.payLoanInstallment(loan, row, fromAccountId: from);
-  if (context.mounted) showSnack(context, 'Installment ${row.index + 1} recorded');
+  if (context.mounted) showSnack(context, tr('Installment ${row.index + 1} recorded'));
 }
 
 /// Progress, next installment and payoff date of a loan with a plan.
@@ -90,7 +91,7 @@ class LoanPanel extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text('$paidN of ${t.months} installments paid',
+                  child: Text(tr('$paidN of ${t.months} installments paid'),
                       style: Theme.of(context).textTheme.titleSmall),
                 ),
                 Text('${totalAmt > 0 ? (paidAmt / totalAmt * 100).toStringAsFixed(0) : 0}%',
@@ -107,22 +108,22 @@ class LoanPanel extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            _row('Paid so far', fmtMoney(paidAmt, cur)),
-            _row('Left to pay', fmtMoney(left, cur), bold: true),
+            _row(tr('Paid so far'), fmtMoney(paidAmt, cur)),
+            _row(tr('Left to pay'), fmtMoney(left, cur), bold: true),
             if (t.mode == LoanMode.interest)
-              _row('Interest still to pay', fmtMoney(interestLeft, cur)),
-            _row('Months left', '${t.months - paidN}'),
-            _row('Paid off', shortDateFmt.format(rows.last.date)),
+              _row(tr('Interest still to pay'), fmtMoney(interestLeft, cur)),
+            _row(tr('Months left'), '${t.months - paidN}'),
+            _row(tr('Paid off'), shortDateFmt.format(rows.last.date)),
             if (t.mode == LoanMode.interest)
               Text(
-                  'Borrowed ${fmtMoney(t.principal, cur)} at ${t.rate}% ${t.flat ? 'flat' : 'declining'}',
+                  tr('Borrowed ${fmtMoney(t.principal, cur)} at ${t.rate}% ${t.flat ? tr('flat') : tr('declining')}'),
                   style: small),
             const Divider(height: 24),
             if (next == null)
               Row(children: [
                 const Icon(Icons.celebration_outlined, color: kIncomeColor),
                 const SizedBox(width: 8),
-                Text('Fully paid', style: small),
+                Text(tr('Fully paid'), style: small),
               ])
             else
               Row(
@@ -132,20 +133,20 @@ class LoanPanel extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                            '${overdue ? 'Due' : 'Next'}: ${fmtMoney(next.payment, cur)}',
+                            '${overdue ? tr('Due') : tr('Next')}: ${fmtMoney(next.payment, cur)}',
                             style: TextStyle(
                                 fontWeight: FontWeight.w600,
                                 color: overdue ? kExpenseColor : null)),
                         Text(
                             '${dayFmt.format(next.date)}'
-                            '${payFrom == null ? '' : ' · from ${payFrom.name}'}',
+                            '${payFrom == null ? '' : tr(' · from ${payFrom.name}')}',
                             style: small),
                       ],
                     ),
                   ),
                   FilledButton.tonal(
                     onPressed: () => payLoan(context, account, next),
-                    child: const Text('Pay'),
+                    child: Text(tr('Pay')),
                   ),
                 ],
               ),
@@ -154,7 +155,7 @@ class LoanPanel extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
                 icon: const Icon(Icons.list_alt),
-                label: const Text('Full Schedule'),
+                label: Text(tr('Full Schedule')),
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -190,7 +191,7 @@ class LoanScheduleScreen extends StatelessWidget {
     final state = AppScope.of(context);
     final a = state.accountById(accountId);
     if (a == null || a.loan == null) {
-      return const Scaffold(body: Center(child: Text('Loan not found')));
+      return Scaffold(body: Center(child: Text(tr('Loan not found'))));
     }
     final t = a.loan!;
     final rows = t.schedule();
@@ -199,7 +200,7 @@ class LoanScheduleScreen extends StatelessWidget {
     final today = DateTime(now.year, now.month, now.day + 1);
     final interest = t.mode == LoanMode.interest;
     return Scaffold(
-      appBar: AppBar(title: Text('${a.name} Schedule')),
+      appBar: AppBar(title: Text(tr('${a.name} Schedule'))),
       body: ListView.separated(
         padding: const EdgeInsets.only(bottom: 32),
         itemCount: rows.length,
@@ -225,10 +226,10 @@ class LoanScheduleScreen extends StatelessWidget {
                 style: TextStyle(
                     fontWeight: isNext ? FontWeight.bold : FontWeight.normal)),
             subtitle: Text(
-                '${shortDateFmt.format(r.date)} · ${paid ? 'Paid' : due ? 'Due' : 'Upcoming'}'
-                '${interest ? '\nPrincipal ${fmtAmount(r.principal)} · interest ${fmtAmount(r.interest)}' : ''}'),
+                '${shortDateFmt.format(r.date)} · ${paid ? tr('Paid') : due ? tr('Due') : tr('Upcoming')}'
+                '${interest ? tr('\nPrincipal ${fmtAmount(r.principal)} · interest ${fmtAmount(r.interest)}') : ''}'),
             isThreeLine: interest,
-            trailing: Text('Left ${fmtAmount(r.balanceAfter)}',
+            trailing: Text(tr('Left ${fmtAmount(r.balanceAfter)}'),
                 style: Theme.of(context).textTheme.bodySmall),
             onTap: isNext ? () => payLoan(context, a, r) : null,
           );

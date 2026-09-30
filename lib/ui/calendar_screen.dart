@@ -7,6 +7,7 @@ import '../util/format.dart';
 import 'pay_card.dart';
 import 'transaction_edit.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 /// Calendar tab: all accounts, or one picked from the filter.
 class CalendarScreen extends StatefulWidget {
@@ -25,16 +26,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final account = state.accountById(_accountId);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Calendar'),
+        title: Text(tr('Calendar')),
         actions: [
           TextButton.icon(
             icon: const Icon(Icons.filter_list),
-            label: Text(account?.name ?? 'All Accounts',
+            label: Text(account?.name ?? tr('All Accounts'),
                 overflow: TextOverflow.ellipsis),
             onPressed: () async {
               final id = await pickAccount(context,
                   current: _accountId,
-                  title: 'Show Calendar for',
+                  title: tr('Show Calendar for'),
                   allowAll: true);
               if (id == null) return;
               setState(() => _accountId = id == -1 ? null : id);
@@ -176,29 +177,29 @@ class _CalendarViewState extends State<CalendarView> {
           final last = c.last;
           if (last != null) {
             add(last.closeDate,
-                _CardEvent(c, 'Statement Closed', last.amount));
+                _CardEvent(c, tr('Statement Closed'), last.amount));
             add(
                 last.dueDate,
                 _CardEvent(
                     c,
-                    last.settled ? 'Statement paid' : 'Payment due',
+                    last.settled ? tr('Statement paid') : tr('Payment due'),
                     last.settled ? last.amount : last.remaining,
                     payable: !last.settled));
           }
           if (c.nextClose != null) {
-            add(c.nextClose!, _CardEvent(c, 'Statement closes', null));
+            add(c.nextClose!, _CardEvent(c, tr('Statement closes'), null));
             add(dueDateAfter(c.nextClose!, a.dueDay!),
-                _CardEvent(c, 'Next payment due', null));
+                _CardEvent(c, tr('Next payment due'), null));
           }
           // Show the cycle days for months further away as well.
           final close = cycleCloseIn(_month.year, _month.month, a.statementDay!);
           if (c.nextClose != null && close.isAfter(c.nextClose!)) {
-            add(close, _CardEvent(c, 'Statement closes', null));
+            add(close, _CardEvent(c, tr('Statement closes'), null));
             final due = dueDateAfter(
                 cycleCloseIn(_month.year, _month.month - 1, a.statementDay!),
                 a.dueDay!);
             if (due.isAfter(dueDateAfter(c.nextClose!, a.dueDay!))) {
-              add(due, _CardEvent(c, 'Payment due', null));
+              add(due, _CardEvent(c, tr('Payment due'), null));
             }
           }
         }
@@ -271,7 +272,7 @@ class _CalendarViewState extends State<CalendarView> {
                           color: kIncomeColor, fontWeight: FontWeight.w600)),
                 ],
                 IconButton(
-                  tooltip: 'Add on This Day',
+                  tooltip: tr('Add on This Day'),
                   icon: const Icon(Icons.add_circle_outline),
                   onPressed: () {
                     final now = DateTime.now();
@@ -294,7 +295,7 @@ class _CalendarViewState extends State<CalendarView> {
           if (widget.accountId != null && currency.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-              child: Text('Amounts in $currency',
+              child: Text(tr('Amounts in $currency'),
                   style: Theme.of(context).textTheme.bodySmall),
             ),
           for (final e in sel?.cardEvents ?? const <_CardEvent>[])
@@ -309,15 +310,15 @@ class _CalendarViewState extends State<CalendarView> {
                 trailing: e.payable
                     ? FilledButton.tonal(
                         onPressed: () => showPayCard(context, e.card),
-                        child: const Text('Pay'),
+                        child: Text(tr('Pay')),
                       )
                     : null,
               ),
             ),
           if (selItems.isEmpty && (sel?.cardEvents.isEmpty ?? true))
-            const Padding(
+            Padding(
               padding: EdgeInsets.all(24),
-              child: Center(child: Text('Nothing on this day')),
+              child: Center(child: Text(tr('Nothing on this day'))),
             ),
           for (final (_, item) in selItems)
             if (item is Txn)
@@ -386,9 +387,12 @@ class _Grid extends StatelessWidget {
               for (final l in labels)
                 Expanded(
                   child: Center(
-                    child: Text(l,
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: scheme.onSurfaceVariant)),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(l,
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: scheme.onSurfaceVariant)),
+                    ),
                   ),
                 ),
             ],

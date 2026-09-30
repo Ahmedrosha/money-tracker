@@ -4,6 +4,7 @@ import '../data/models.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
 import 'transaction_edit.dart';
+import '../l10n/l10n.dart';
 
 /// Asks how much to pay, then opens a prefilled transfer into the card.
 Future<void> showPayCard(BuildContext context, CardSummary c) async {
@@ -11,13 +12,13 @@ Future<void> showPayCard(BuildContext context, CardSummary c) async {
   final last = c.last;
   final options = <(String, String, double)>[
     if (last != null && last.remaining > 0)
-      ('Statement balance', 'Pay the full statement, no interest',
+      (tr('Statement balance'), tr('Pay the full statement, no interest'),
           last.remaining),
     if (last != null && last.minimumDue > 0)
-      ('Minimum Due', '${fmtAmountRaw(last.minPct)}% of statement',
+      (tr('Minimum Due'), tr('${fmtAmountRaw(last.minPct)}% of statement'),
           last.minimumDue),
     if (c.owedNow > 0)
-      ('Current balance', 'Everything spent so far, incl. this cycle',
+      (tr('Current balance'), tr('Everything spent so far, incl. this cycle'),
           c.owedNow),
   ];
 
@@ -29,10 +30,10 @@ Future<void> showPayCard(BuildContext context, CardSummary c) async {
         mainAxisSize: MainAxisSize.min,
         children: [
           ListTile(
-            title: Text('Pay ${c.card.fullName}'),
+            title: Text(tr('Pay ${c.card.fullName}')),
             subtitle: last == null
                 ? null
-                : Text('Due ${shortDateFmt.format(last.dueDate)}'),
+                : Text(tr('Due ${shortDateFmt.format(last.dueDate)}')),
           ),
           for (final (title, sub, amount) in options)
             ListTile(
@@ -45,7 +46,7 @@ Future<void> showPayCard(BuildContext context, CardSummary c) async {
             ),
           ListTile(
             leading: const Icon(Icons.edit_outlined),
-            title: const Text('Other Amount'),
+            title: Text(tr('Other Amount')),
             onTap: () => Navigator.pop(ctx, 0.0),
           ),
         ],

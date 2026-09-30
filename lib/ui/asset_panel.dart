@@ -4,6 +4,7 @@ import '../data/models.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 /// Property / car / other asset: value of your share against what you paid.
 class AssetPanel extends StatelessWidget {
@@ -28,33 +29,33 @@ class AssetPanel extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Current Value', style: Theme.of(context).textTheme.titleSmall),
+            Text(tr('Current Value'), style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 8),
             if (whole == null)
               Text(
-                  'No market value yet, so net worth counts what you paid. '
-                  'Tap Update Value to enter what it is worth today.',
+                  tr('No market value yet, so net worth counts what you paid. '
+                  'Tap Update Value to enter what it is worth today.'),
                   style: small)
             else ...[
               _row(account.type == AccountType.property
-                  ? 'Whole unit' : 'Market value', fmtMoney(whole, cur)),
-              _row('Your ownership', '${_num(share)}%'),
-              _row('Your share', fmtMoney(mine!, cur), bold: true),
-              _row('Paid so far', fmtMoney(paid, cur)),
+                  ? tr('Whole unit') : tr('Market value'), fmtMoney(whole, cur)),
+              _row(tr('Your ownership'), '${_num(share)}%'),
+              _row(tr('Your share'), fmtMoney(mine!, cur), bold: true),
+              _row(tr('Paid so far'), fmtMoney(paid, cur)),
               if (gain != null)
-                _row('Gain / loss',
+                _row(tr('Gain / loss'),
                     '${gain >= 0 ? '+' : ''}${fmtMoney(gain, cur)}'
                     '${paid.abs() > 0.01 ? ' (${(gain / paid * 100).toStringAsFixed(1)}%)' : ''}',
                     bold: true,
                     color: amountColor(context, gain)),
               if (account.assetValueAt != null)
-                Text('Value set ${shortDateFmt.format(account.assetValueAt!)}',
+                Text(tr('Value set ${shortDateFmt.format(account.assetValueAt!)}'),
                     style: small),
             ],
             const SizedBox(height: 8),
             FilledButton.tonalIcon(
               icon: const Icon(Icons.edit_outlined),
-              label: const Text('Update Value'),
+              label: Text(tr('Update Value')),
               onPressed: () => _update(context, state),
             ),
           ],
@@ -73,7 +74,7 @@ class AssetPanel extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Update Value'),
+        title: Text(tr('Update Value')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -83,8 +84,8 @@ class AssetPanel extends StatelessWidget {
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: InputDecoration(
                 labelText: account.type == AccountType.property
-                    ? 'Market value of the whole unit'
-                    : 'Market value',
+                    ? tr('Market value of the whole unit')
+                    : tr('Market value'),
                 suffixText: account.currency,
                 border: const OutlineInputBorder(),
               ),
@@ -93,8 +94,8 @@ class AssetPanel extends StatelessWidget {
             TextField(
               controller: share,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                labelText: 'Your ownership',
+              decoration: InputDecoration(
+                labelText: tr('Your ownership'),
                 suffixText: '%',
                 border: OutlineInputBorder(),
               ),
@@ -102,8 +103,8 @@ class AssetPanel extends StatelessWidget {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('Save'))),
         ],
       ),
     );
@@ -111,7 +112,7 @@ class AssetPanel extends StatelessWidget {
     final v = parseAmount(value.text)?.abs();
     final s = (parseAmount(share.text)?.abs() ?? 100).clamp(0.01, 100).toDouble();
     await state.setAssetValue(account, v, s);
-    if (context.mounted) showSnack(context, 'Value updated');
+    if (context.mounted) showSnack(context, tr('Value updated'));
   }
 
   Widget _row(String l, String v, {bool bold = false, Color? color}) => Padding(

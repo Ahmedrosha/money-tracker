@@ -4,6 +4,7 @@ import '../data/models.dart';
 import '../state/app_state.dart';
 import '../util/icons.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 class CategoriesScreen extends StatelessWidget {
   const CategoriesScreen({super.key});
@@ -15,14 +16,14 @@ class CategoriesScreen extends StatelessWidget {
       child: Builder(builder: (context) {
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Categories'),
-            bottom: const TabBar(tabs: [
-              Tab(text: 'Expenses'),
-              Tab(text: 'Income'),
+            title: Text(tr('Categories')),
+            bottom: TabBar(tabs: [
+              Tab(text: tr('Expenses')),
+              Tab(text: tr('Income')),
             ]),
           ),
           floatingActionButton: FloatingActionButton(
-            tooltip: 'Add Category',
+            tooltip: tr('Add Category'),
             onPressed: () {
               final idx = DefaultTabController.of(context).index;
               editCategory(context,
@@ -61,7 +62,7 @@ class _CategoryList extends StatelessWidget {
                 state.toggleCollapsed('catopen:${kind.name}:${g.key}'),
             title: Text(g.key,
                 style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text('${g.value.length} categories'),
+            subtitle: Text(tr('${g.value.length} categories')),
             children: [
               for (final c in g.value)
                 ListTile(
@@ -137,9 +138,9 @@ class _CategoryFormState extends State<_CategoryForm> {
 
   Future<void> _delete() async {
     final ok = await confirmDialog(context,
-        title: 'Delete category?',
+        title: tr('Delete category?'),
         message:
-            'Transactions in this category will be kept, without a category.');
+            tr('Transactions in this category will be kept, without a category.'));
     if (!ok || !mounted) return;
     await AppScope.read(context).deleteCategory(widget.category!.id!);
     if (mounted) Navigator.pop(context);
@@ -163,8 +164,8 @@ class _CategoryFormState extends State<_CategoryForm> {
                   controller: _name,
                   autofocus: widget.category == null,
                   textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(
-                    labelText: 'Name',
+                  decoration: InputDecoration(
+                    labelText: tr('Name'),
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -192,16 +193,16 @@ class _CategoryFormState extends State<_CategoryForm> {
               controller: controller,
               focusNode: focus,
               textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(
-                labelText: 'Group',
-                hintText: 'e.g. Food & Dining',
+              decoration: InputDecoration(
+                labelText: tr('Group'),
+                hintText: tr('e.g. Food & Dining'),
                 border: OutlineInputBorder(),
               ),
               onChanged: (v) => _group = v,
             ),
           ),
           const SizedBox(height: 16),
-          const Text('Color'),
+          Text(tr('Color')),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -221,7 +222,7 @@ class _CategoryFormState extends State<_CategoryForm> {
             ],
           ),
           const SizedBox(height: 16),
-          const Text('Icon'),
+          Text(tr('Icon')),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -251,10 +252,10 @@ class _CategoryFormState extends State<_CategoryForm> {
                 TextButton.icon(
                   onPressed: _delete,
                   icon: const Icon(Icons.delete_outline),
-                  label: const Text('Delete'),
+                  label: Text(tr('Delete')),
                 ),
               const Spacer(),
-              FilledButton(onPressed: _save, child: const Text('Save')),
+              FilledButton(onPressed: _save, child: Text(tr('Save'))),
             ],
           ),
         ],

@@ -1,13 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:intl/intl.dart';
 
 import 'data/db.dart';
 import 'util/format.dart';
 import 'services/app_lock.dart';
 import 'state/app_state.dart';
 import 'ui/home.dart';
+import 'l10n/l10n.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('en');
+  await initializeDateFormatting('ar');
+  // Western digits (0-9) in Arabic dates too.
+  DateFormat.useNativeDigitsByDefaultFor('ar', false);
   final db = await AppDb.open();
   final state = AppState(db);
   await state.load();
@@ -57,8 +65,8 @@ class _MoneyAppState extends State<MoneyApp> with WidgetsBindingObserver {
     if (ctx == null) return;
     if (d.updatedFromDropbox != null && d.updatedFromDropbox != _shownUpdate) {
       _shownUpdate = d.updatedFromDropbox;
-      ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
-          content: Text('Updated with the newer data from Dropbox')));
+      ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+          content: Text(tr('Updated with the newer data from Dropbox'))));
     }
     if (d.conflict != null && !_askingConflict && !_locked) _askConflict();
   }
@@ -69,36 +77,36 @@ class _MoneyAppState extends State<MoneyApp> with WidgetsBindingObserver {
     final ctx = _navKey.currentContext;
     if (c == null || ctx == null) return;
     _askingConflict = true;
-    String remote = 'Dropbox copy';
+    String remote = tr('Dropbox copy');
     try {
       final info = await AppDb.inspect(c.path);
       remote = '${info.transactions} transactions'
-          '${info.last == null ? '' : ', latest ${shortDateFmt.format(info.last!)}'}'
-          '${c.modified == null ? '' : '\nUploaded ${dayFmt.format(c.modified!)} ${TimeOfDay.fromDateTime(c.modified!).format(ctx)}'}';
+          '${info.last == null ? '' : tr(', latest ${shortDateFmt.format(info.last!)}')}'
+          '${c.modified == null ? '' : tr('\nUploaded ${dayFmt.format(c.modified!)} ${TimeOfDay.fromDateTime(c.modified!).format(ctx)}')}';
     } catch (_) {}
     final (n, last) = await state.db.stats();
-    final local = '$n transactions'
-        '${last == null ? '' : ', latest ${shortDateFmt.format(last)}'}';
+    final local = tr('$n transactions'
+        '${last == null ? '' : tr(', latest ${shortDateFmt.format(last)}')}');
     if (!mounted) return;
     final choice = await showDialog<String>(
       context: _navKey.currentContext!,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         icon: const Icon(Icons.sync_problem),
-        title: const Text('Both Phones Have Changes'),
+        title: Text(tr('Both Phones Have Changes')),
         content: Text(
-          'Data changed on this phone and on your other phone since they '
+          tr('Data changed on this phone and on your other phone since they '
           'last synced. Choose which copy to keep. The other one is saved '
           'in the Dropbox history folder, so nothing is lost.\n\n'
-          'This phone:\n$local\n\nDropbox (other phone):\n$remote',
+          'This phone:\n$local\n\nDropbox (other phone):\n$remote'),
         ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, 'local'),
-              child: const Text('Keep This Phone')),
+              child: Text(tr('Keep This Phone'))),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, 'remote'),
-              child: const Text('Use Dropbox Copy')),
+              child: Text(tr('Use Dropbox Copy'))),
         ],
       ),
     );
@@ -140,6 +148,11 @@ class _MoneyAppState extends State<MoneyApp> with WidgetsBindingObserver {
   }
 
   @override
+  void didChangeLocales(List<Locale>? locales) {
+    state.onSystemLocaleChanged();
+  }
+
+  @override
   void didChangeAppLifecycleState(AppLifecycleState s) {
     final dbx = state.dropbox;
     // The Face ID / fingerprint prompt itself makes the app inactive;
@@ -176,8 +189,17 @@ class _MoneyAppState extends State<MoneyApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return AppScope(
       state: state,
-      child: MaterialApp(
+      child: ValueListenableBuilder<String>(
+        valueListenable: state.languageNotifier,
+        builder: (context, lang, _) => MaterialApp(
         title: 'Money Tracker',
+        locale: Locale(lang),
+        supportedLocales: const [Locale('en'), Locale('ar')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
         debugShowCheckedModeBanner: false,
         themeMode: ThemeMode.system,
         theme: ThemeData(
@@ -191,7 +213,8 @@ class _MoneyAppState extends State<MoneyApp> with WidgetsBindingObserver {
           brightness: Brightness.dark,
         ),
         navigatorKey: _navKey,
-        home: const HomeScreen(),
+        // A new key rebuilds every screen in the new language.
+        home: HomeScreen(key: ValueKey(lang)),
         builder: (context, child) => Stack(
           children: [
             // Keep every screen above Android's navigation buttons /
@@ -208,6 +231,7 @@ class _MoneyAppState extends State<MoneyApp> with WidgetsBindingObserver {
             if (_locked) _LockScreen(onUnlock: _unlock),
           ],
         ),
+      ),
       ),
     );
   }
@@ -232,12 +256,12 @@ class _LockScreen extends StatelessWidget {
               children: [
                 Icon(Icons.lock_outline, size: 56, color: scheme.primary),
                 const SizedBox(height: 16),
-                Text('Money Tracker is locked',
+                Text(tr('Money Tracker is locked'),
                     style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: 24),
                 FilledButton.icon(
                   icon: const Icon(Icons.fingerprint),
-                  label: const Text('Unlock'),
+                  label: Text(tr('Unlock')),
                   onPressed: onUnlock,
                 ),
               ],

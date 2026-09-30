@@ -1,3 +1,5 @@
+import '../l10n/l10n.dart';
+
 /// Common currencies offered in pickers. Any 3-letter code returned by the
 /// exchange-rate service can also be used.
 const Map<String, String> kCurrencyNames = {
@@ -42,9 +44,20 @@ bool isGold(String code) => kGoldCodes.contains(code);
 int goldKarat(String code) => int.parse(code.substring(3));
 
 /// Unit shown next to amounts: "g 21K" for gold, the code otherwise.
-String currencyUnit(String code) => isGold(code) ? 'g ${goldKarat(code)}K' : code;
+String currencyUnit(String code) {
+  if (isArabic) {
+    if (isGold(code)) return 'جم عيار ${goldKarat(code)}';
+    return arabicCurrencyUnit(code) ?? code;
+  }
+  return isGold(code) ? 'g ${goldKarat(code)}K' : code;
+}
 
 String currencyName(String code) {
-  if (isGold(code)) return 'Gold ${goldKarat(code)}K (grams)';
+  if (isGold(code)) {
+    return isArabic
+        ? 'ذهب عيار ${goldKarat(code)} (جرام)'
+        : 'Gold ${goldKarat(code)}K (grams)';
+  }
+  if (isArabic) return kArabicCurrencyNames[code] ?? kCurrencyNames[code] ?? code;
   return kCurrencyNames[code] ?? code;
 }

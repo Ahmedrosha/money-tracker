@@ -13,6 +13,7 @@ import 'due_screen.dart';
 import 'pay_card.dart';
 import 'statement_detail.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 class AccountsScreen extends StatelessWidget {
   const AccountsScreen({super.key});
@@ -42,11 +43,11 @@ class AccountsScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Accounts'),
+        title: Text(tr('Accounts')),
         actions: [
           const HideAmountsButton(),
           IconButton(
-            tooltip: 'Find Account',
+            tooltip: tr('Find Account'),
             icon: const Icon(Icons.search),
             onPressed: () => Navigator.push(
               context,
@@ -54,7 +55,7 @@ class AccountsScreen extends StatelessWidget {
             ),
           ),
           PopupMenuButton<String>(
-            tooltip: 'Group and Order',
+            tooltip: tr('Group and Order'),
             icon: const Icon(Icons.sort),
             onSelected: (v) {
               if (v.startsWith('group:')) {
@@ -81,25 +82,25 @@ class AccountsScreen extends StatelessWidget {
                     ]),
                   );
               return [
-                item('group:type', 'Group by Type', state.accountsGroupBy == 'type'),
-                item('group:bank', 'Group by Bank / Platform', state.accountsGroupBy == 'bank'),
+                item('group:type', tr('Group by Type'), state.accountsGroupBy == 'type'),
+                item('group:bank', tr('Group by Bank / Platform'), state.accountsGroupBy == 'bank'),
                 const PopupMenuDivider(),
-                item('order:manual', 'Manual Order', state.accountsOrder == 'manual'),
-                item('order:name', 'Name A–Z', state.accountsOrder == 'name'),
-                item('order:balance', 'Balance', state.accountsOrder == 'balance'),
+                item('order:manual', tr('Manual Order'), state.accountsOrder == 'manual'),
+                item('order:name', tr('Name A–Z'), state.accountsOrder == 'name'),
+                item('order:balance', tr('Balance'), state.accountsOrder == 'balance'),
                 const PopupMenuDivider(),
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'reorder',
                   child: Row(children: [
                     SizedBox(width: 28, child: Icon(Icons.drag_handle, size: 18)),
-                    Text('Reorder Accounts…'),
+                    Text(tr('Reorder Accounts…')),
                   ]),
                 ),
               ];
             },
           ),
           IconButton(
-            tooltip: 'Add Account',
+            tooltip: tr('Add Account'),
             icon: const Icon(Icons.add_card),
             onPressed: () => _openEdit(context, null),
           ),
@@ -117,7 +118,7 @@ class AccountsScreen extends StatelessWidget {
                 child: ListTile(
                   leading: const Icon(Icons.notifications_active_outlined),
                   title: Text(
-                      '${due.length} recurring item${due.length == 1 ? '' : 's'} to confirm'),
+                      tr('${due.length} recurring item${due.length == 1 ? '' : 's'} to confirm')),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => Navigator.push(
                     context,
@@ -145,19 +146,19 @@ class AccountsScreen extends StatelessWidget {
                   ),
                   leading: const Icon(Icons.credit_card),
                   title: Text(
-                      '${c.card.fullName}: ${fmtMoney(c.last!.remaining, c.card.currency)} due'),
+                      tr('${c.card.fullName}: ${fmtMoney(c.last!.remaining, c.card.currency)} due')),
                   subtitle: Text(
-                      '${c.last!.overdue ? 'Overdue since' : 'Due'} ${shortDateFmt.format(c.last!.dueDate)}'
+                      '${c.last!.overdue ? tr('Overdue since') : tr('Due')} ${shortDateFmt.format(c.last!.dueDate)}'
                       ' · minimum ${fmtAmount(c.last!.minimumDue)}'),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       FilledButton.tonal(
                         onPressed: () => showPayCard(context, c),
-                        child: const Text('Pay'),
+                        child: Text(tr('Pay')),
                       ),
                       IconButton(
-                        tooltip: 'Hide until the app is reopened',
+                        tooltip: tr('Hide until the app is reopened'),
                         icon: const Icon(Icons.close),
                         onPressed: () => state.dismissCard(c.card.id!),
                       ),
@@ -174,9 +175,9 @@ class AccountsScreen extends StatelessWidget {
                 child: ListTile(
                   leading: const Icon(Icons.request_quote_outlined),
                   title: Text(
-                      '${loan.fullName}: ${fmtMoney(row.payment, loan.currency)} due'),
+                      tr('${loan.fullName}: ${fmtMoney(row.payment, loan.currency)} due')),
                   subtitle: Text(
-                      'Installment ${row.index + 1} of ${loan.loan!.months} · ${shortDateFmt.format(row.date)}'),
+                      tr('Installment ${row.index + 1} of ${loan.loan!.months} · ${shortDateFmt.format(row.date)}')),
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -184,7 +185,7 @@ class AccountsScreen extends StatelessWidget {
                   ),
                   trailing: FilledButton.tonal(
                     onPressed: () => payLoan(context, loan, row),
-                    child: const Text('Pay'),
+                    child: Text(tr('Pay')),
                   ),
                 ),
               ),
@@ -196,9 +197,9 @@ class AccountsScreen extends StatelessWidget {
                 child: ListTile(
                   leading: const Icon(Icons.backup_outlined),
                   title: Text(state.lastBackup == null
-                      ? 'No backup yet'
-                      : 'Last backup ${state.lastBackup!.day}/${state.lastBackup!.month}'),
-                  subtitle: const Text('Your data is only on this phone'),
+                      ? tr('No backup yet')
+                      : tr('Last backup ${state.lastBackup!.day}/${state.lastBackup!.month}')),
+                  subtitle: Text(tr('Your data is only on this phone')),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => Navigator.push(
                     context,
@@ -214,9 +215,9 @@ class AccountsScreen extends StatelessWidget {
                 color: Theme.of(context).colorScheme.errorContainer,
                 child: ListTile(
                   leading: const Icon(Icons.warning_amber),
-                  title: Text('No exchange rate for ${missing.join(', ')}'),
-                  subtitle: const Text(
-                      'Totals skip these. Refresh or set rates in Settings → Currencies.'),
+                  title: Text(tr('No exchange rate for ${missing.join(', ')}')),
+                  subtitle: Text(
+                      tr('Totals skip these. Refresh or set rates in Settings → Currencies.')),
                 ),
               ),
             ),
@@ -227,18 +228,18 @@ class AccountsScreen extends StatelessWidget {
                 children: [
                   const Icon(Icons.account_balance_wallet_outlined, size: 56),
                   const SizedBox(height: 12),
-                  const Text('No accounts yet',
+                  Text(tr('No accounts yet'),
                       style: TextStyle(fontSize: 18)),
                   const SizedBox(height: 8),
-                  const Text(
-                    'Add your cash, bank accounts, cards and investments.',
+                  Text(
+                    tr('Add your cash, bank accounts, cards and investments.'),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
                   FilledButton.icon(
                     onPressed: () => _openEdit(context, null),
                     icon: const Icon(Icons.add),
-                    label: const Text('Add Account'),
+                    label: Text(tr('Add Account')),
                   ),
                 ],
               ),
@@ -261,7 +262,7 @@ class AccountsScreen extends StatelessWidget {
           ],
           if (archived.isNotEmpty)
             ExpansionTile(
-              title: Text('Archived (${archived.length})'),
+              title: Text(tr('Archived (${archived.length})')),
               children: [
                 for (final a in archived)
                   _AccountTile(account: a, showBank: true)
@@ -306,7 +307,7 @@ class _NetWorthCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Net Worth',
+            Text(tr('Net Worth'),
                 style: TextStyle(color: scheme.onPrimaryContainer)),
             const SizedBox(height: 4),
             Text(
@@ -320,19 +321,19 @@ class _NetWorthCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: _MiniStat(
-                      label: 'Assets',
+                      label: tr('Assets'),
                       value: fmtAmount(assets),
                       color: scheme.onPrimaryContainer),
                 ),
                 Expanded(
                   child: _MiniStat(
-                      label: 'Liabilities',
+                      label: tr('Liabilities'),
                       value: fmtAmount(debts),
                       color: scheme.onPrimaryContainer),
                 ),
                 Expanded(
                   child: _MiniStat(
-                      label: 'Expected End of Month',
+                      label: tr('Expected End of Month'),
                       value: fmtAmount(state.projectedEom),
                       color: scheme.onPrimaryContainer),
                 ),
@@ -428,8 +429,8 @@ class _AccountTile extends StatelessWidget {
         if (showBank && account.bank.isNotEmpty) account.bank,
         account.currency,
         if (card?.available != null)
-          'Available ${fmtAmount(card!.available!)}',
-        if (account.excludeTotal) 'not in net worth',
+          tr('Available ${fmtAmount(card!.available!)}'),
+        if (account.excludeTotal) tr('not in net worth'),
       ].join(' · ')),
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.center,

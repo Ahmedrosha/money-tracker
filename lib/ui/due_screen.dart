@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../state/app_state.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 /// Recurring items whose date has arrived and are waiting for confirmation.
 class DueScreen extends StatelessWidget {
@@ -14,28 +15,28 @@ class DueScreen extends StatelessWidget {
     final actionable = due.where(state.isNextOccurrence).toList();
     return Scaffold(
       appBar: AppBar(
-        title: const Text('To Confirm'),
+        title: Text(tr('To Confirm')),
         actions: [
           if (actionable.isNotEmpty)
             TextButton(
               onPressed: () async {
                 final ok = await confirmDialog(context,
-                    title: 'Confirm all?',
+                    title: tr('Confirm all?'),
                     message:
-                        'Record ${due.length} item(s) with their usual amounts.',
-                    ok: 'Confirm All');
+                        tr('Record ${due.length} item(s) with their usual amounts.'),
+                    ok: tr('Confirm All'));
                 if (!ok) return;
                 // Confirm in date order; each call advances its rule.
                 for (final o in due) {
                   await state.confirmOccurrence(o);
                 }
               },
-              child: const Text('Confirm All'),
+              child: Text(tr('Confirm All')),
             ),
         ],
       ),
       body: due.isEmpty
-          ? const Center(child: Text('Nothing to confirm'))
+          ? Center(child: Text(tr('Nothing to confirm')))
           : ListView(
               padding: const EdgeInsets.symmetric(vertical: 8),
               children: [

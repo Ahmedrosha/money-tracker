@@ -5,6 +5,7 @@ import '../state/app_state.dart';
 import '../util/currencies.dart';
 import '../util/format.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 class AccountEditScreen extends StatefulWidget {
   const AccountEditScreen({super.key, this.account});
@@ -212,7 +213,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
 
   static String? _dayValidator(String? v, {bool required = false}) {
     final t = (v ?? '').trim();
-    if (t.isEmpty) return required ? 'Required' : null;
+    if (t.isEmpty) return required ? tr('Required') : null;
     final n = int.tryParse(t);
     if (n == null || n < 1 || n > 31) return '1–31';
     return null;
@@ -227,7 +228,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
     final loan = _buildLoan();
     if (_showLoan && _loanPlan && loan == null) {
       setState(() => _saving = false);
-      showSnack(context, 'Fill in the loan amounts and number of months');
+      showSnack(context, tr('Fill in the loan amounts and number of months'));
       return;
     }
     final a = Account(
@@ -279,11 +280,11 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
     if (!mounted) return;
     final ok = await confirmDialog(
       context,
-      title: 'Delete account?',
+      title: tr('Delete account?'),
       message: count == 0
-          ? 'This account has no transactions.'
-          : 'This will also delete $count transaction(s) and any recurring items linked to this account. '
-              'Consider archiving it instead.',
+          ? tr('This account has no transactions.')
+          : tr('This will also delete $count transaction(s) and any recurring items linked to this account. '
+              'Consider archiving it instead.'),
     );
     if (!ok) return;
     await state.deleteAccount(id);
@@ -297,7 +298,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
     final preview = _buildLoan();
     return [
       const SizedBox(height: 24),
-      Text('Loan',
+      Text(tr('Loan'),
           style: Theme.of(context)
               .textTheme
               .titleSmall
@@ -305,17 +306,17 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
       if (_isNew)
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('Repayment Plan'),
-          subtitle: const Text('Monthly installments, schedule and reminders'),
+          title: Text(tr('Repayment Plan')),
+          subtitle: Text(tr('Monthly installments, schedule and reminders')),
           value: _loanPlan,
           onChanged: (v) => setState(() => _loanPlan = v),
         ),
       if (_loanPlan) ...[
         const SizedBox(height: 8),
         SegmentedButton<LoanMode>(
-          segments: const [
-            ButtonSegment(value: LoanMode.installments, label: Text('Installments')),
-            ButtonSegment(value: LoanMode.interest, label: Text('Principal + Interest')),
+          segments: [
+            ButtonSegment(value: LoanMode.installments, label: Text(tr('Installments'))),
+            ButtonSegment(value: LoanMode.interest, label: Text(tr('Principal + Interest'))),
           ],
           selected: {_loanMode},
           onSelectionChanged: (v) => setState(() => _loanMode = v.first),
@@ -323,8 +324,8 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
         const SizedBox(height: 4),
         Text(
             _loanMode == LoanMode.installments
-                ? 'You know the monthly installment. The loan balance is all installments still to pay.'
-                : 'You know the amount borrowed and the rate. Each installment is split: principal reduces the loan, interest is recorded as an expense.',
+                ? tr('You know the monthly installment. The loan balance is all installments still to pay.')
+                : tr('You know the amount borrowed and the rate. Each installment is split: principal reduces the loan, interest is recorded as an expense.'),
             style: small),
         const SizedBox(height: 12),
         if (_loanMode == LoanMode.interest) ...[
@@ -333,7 +334,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
-                labelText: 'Amount Borrowed',
+                labelText: tr('Amount Borrowed'),
                 suffixText: cur,
                 border: const OutlineInputBorder()),
           ),
@@ -344,18 +345,18 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
                 controller: _loanRate,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(
-                    labelText: 'Interest Rate',
-                    suffixText: '% / year',
+                decoration: InputDecoration(
+                    labelText: tr('Interest Rate'),
+                    suffixText: tr('% / year'),
                     border: OutlineInputBorder()),
               ),
             ),
             const SizedBox(width: 12),
             SegmentedButton<bool>(
               showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(value: true, label: Text('Flat')),
-                ButtonSegment(value: false, label: Text('Declining')),
+              segments: [
+                ButtonSegment(value: true, label: Text(tr('Flat'))),
+                ButtonSegment(value: false, label: Text(tr('Declining'))),
               ],
               selected: {_loanFlat},
               onSelectionChanged: (v) => setState(() => _loanFlat = v.first),
@@ -368,7 +369,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
-                labelText: 'Monthly Installment',
+                labelText: tr('Monthly Installment'),
                 suffixText: cur,
                 border: const OutlineInputBorder()),
           ),
@@ -378,17 +379,17 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
           controller: _loanMonths,
           keyboardType: TextInputType.number,
           onChanged: (_) => setState(() {}),
-          decoration: const InputDecoration(
-              labelText: 'Number of Months', border: OutlineInputBorder()),
+          decoration: InputDecoration(
+              labelText: tr('Number of Months'), border: OutlineInputBorder()),
         ),
         if (preview != null)
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: Text(
               _loanMode == LoanMode.interest
-                  ? 'Installment ${fmtMoneyRaw(preview.payment, _currency)} · total interest '
-                      '${fmtMoneyRaw(preview.schedule().fold<double>(0, (s, r) => s + r.interest), _currency)}'
-                  : 'Total to repay ${fmtMoneyRaw(preview.startOwed, _currency)}',
+                  ? tr('Installment ${fmtMoneyRaw(preview.payment, _currency)} · total interest '
+                      '${fmtMoneyRaw(preview.schedule().fold<double>(0, (s, r) => s + r.interest), _currency)}')
+                  : tr('Total to repay ${fmtMoneyRaw(preview.startOwed, _currency)}'),
               style: small?.copyWith(fontWeight: FontWeight.w600),
             ),
           ),
@@ -396,7 +397,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.event),
-          title: const Text('First Installment'),
+          title: Text(tr('First Installment')),
           subtitle: Text(dayFmt.format(_loanFirstDue)),
           onTap: () async {
             final d = await showDatePicker(
@@ -408,14 +409,14 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
           },
         ),
         AccountField(
-          label: 'Pay Installments From',
+          label: tr('Pay Installments From'),
           value: _loanPayFrom,
           onChanged: (v) => setState(() => _loanPayFrom = v),
         ),
         if (_isNew) ...[
           const SizedBox(height: 12),
           AccountField(
-            label: 'Money Received Into (optional)',
+            label: tr('Money Received Into (optional)'),
             value: _loanReceivedInto,
             onChanged: (v) => setState(() => _loanReceivedInto = v),
           ),
@@ -425,14 +426,14 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
               controller: _loanReceived,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: InputDecoration(
-                  labelText: 'Amount Received',
+                  labelText: tr('Amount Received'),
                   suffixText: cur,
                   border: const OutlineInputBorder()),
             ),
           ],
           const SizedBox(height: 4),
           Text(
-              'If you choose where the money went, that account gets it as a transfer from this loan.',
+              tr('If you choose where the money went, that account gets it as a transfer from this loan.'),
               style: small),
         ],
       ],
@@ -443,10 +444,10 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isNew ? 'New Account' : 'Edit Account'),
+        title: Text(_isNew ? tr('New Account') : tr('Edit Account')),
         actions: [
           IconButton(
-            tooltip: 'Save',
+            tooltip: tr('Save'),
             icon: const Icon(Icons.check),
             onPressed: _saving ? null : _save,
           ),
@@ -460,13 +461,13 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
             TextFormField(
               controller: _name,
               textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(
-                labelText: 'Account Name',
-                hintText: 'e.g. Current, Visa Gold, Wallet',
+              decoration: InputDecoration(
+                labelText: tr('Account Name'),
+                hintText: tr('e.g. Current, Visa Gold, Wallet'),
                 border: OutlineInputBorder(),
               ),
               validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Enter a name' : null,
+                  (v == null || v.trim().isEmpty) ? tr('Enter a name') : null,
             ),
             const SizedBox(height: 16),
             InkWell(
@@ -490,7 +491,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
               },
               child: InputDecorator(
                 decoration: InputDecoration(
-                  labelText: 'Account Type',
+                  labelText: tr('Account Type'),
                   border: const OutlineInputBorder(),
                   prefixIcon: Icon(accountTypeIcon(_type)),
                   suffixIcon: const Icon(Icons.arrow_drop_down),
@@ -511,7 +512,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
             ],
             const SizedBox(height: 16),
             if (_type == AccountType.gold && _isNew) ...[
-              Text('Measured In', style: Theme.of(context).textTheme.labelLarge),
+              Text(tr('Measured In'), style: Theme.of(context).textTheme.labelLarge),
               const SizedBox(height: 8),
               SegmentedButton<String>(
                 showSelectedIcon: false,
@@ -529,8 +530,8 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
               const SizedBox(height: 4),
               Text(
                 isGold(_currency)
-                    ? 'Grams of ${goldKarat(_currency)}K gold, valued at today\'s price per gram.'
-                    : 'Tracked as money (what you paid), not by weight.',
+                    ? tr('Grams of ${goldKarat(_currency)}K gold, valued at today\'s price per gram.')
+                    : tr('Tracked as money (what you paid), not by weight.'),
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ] else
@@ -541,8 +542,8 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
                 if (c != null) setState(() => _currency = c);
               },
               child: InputDecorator(
-                decoration: const InputDecoration(
-                  labelText: 'Currency',
+                decoration: InputDecoration(
+                  labelText: tr('Currency'),
                   border: OutlineInputBorder(),
                   suffixIcon: Icon(Icons.arrow_drop_down),
                 ),
@@ -552,7 +553,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
             if (_showLoan) ..._loanSection(),
             if (_showAsset) ...[
               const SizedBox(height: 24),
-              Text('Current Value',
+              Text(tr('Current Value'),
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       color: Theme.of(context).colorScheme.primary)),
               const SizedBox(height: 8),
@@ -562,24 +563,24 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
                 onChanged: (_) => setState(() {}),
                 decoration: InputDecoration(
                   labelText: _type == AccountType.property
-                      ? 'Market Value of the Whole Unit'
-                      : 'Market Value',
-                  helperText: 'Leave empty to count what you paid',
+                      ? tr('Market Value of the Whole Unit')
+                      : tr('Market Value'),
+                  helperText: tr('Leave empty to count what you paid'),
                   suffixText: currencyUnit(_currency),
                   border: const OutlineInputBorder(),
                 ),
                 validator: (v) => v == null || v.trim().isEmpty || parseAmount(v) != null
                     ? null
-                    : 'Invalid number',
+                    : tr('Invalid number'),
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _assetShare,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(
-                  labelText: 'Your Ownership',
-                  helperText: 'Your share if you own it with others',
+                decoration: InputDecoration(
+                  labelText: tr('Your Ownership'),
+                  helperText: tr('Your share if you own it with others'),
                   suffixText: '%',
                   border: OutlineInputBorder(),
                 ),
@@ -592,7 +593,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(
-                    'Your share: ${fmtMoneyRaw((parseAmount(_assetValue.text)!.abs()) * ((parseAmount(_assetShare.text) ?? 100).clamp(0, 100)) / 100, _currency)}',
+                    tr('Your share: ${fmtMoneyRaw((parseAmount(_assetValue.text)!.abs()) * ((parseAmount(_assetShare.text) ?? 100).clamp(0, 100)) / 100, _currency)}'),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         fontWeight: FontWeight.w600),
                   ),
@@ -600,7 +601,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
             ],
             if (_showInvest) ...[
               const SizedBox(height: 24),
-              Text('Portfolio Tracking',
+              Text(tr('Portfolio Tracking'),
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       color: Theme.of(context).colorScheme.primary)),
               const SizedBox(height: 8),
@@ -609,9 +610,9 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
                 segments: [
                   ButtonSegment(
                       value: 'holdings',
-                      label: Text(_type == AccountType.crypto ? 'Coins' : 'Stocks')),
-                  const ButtonSegment(value: 'simple', label: Text('Total Value')),
-                  const ButtonSegment(value: null, label: Text('Balance Only')),
+                      label: Text(_type == AccountType.crypto ? tr('Coins') : tr('Stocks'))),
+                  ButtonSegment(value: 'simple', label: Text(tr('Total Value'))),
+                  ButtonSegment(value: null, label: Text(tr('Balance Only'))),
                 ],
                 selected: {_investMode},
                 onSelectionChanged: (v) => setState(() => _investMode = v.first),
@@ -620,11 +621,11 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
               Text(
                 _investMode == 'holdings'
                     ? (_type == AccountType.crypto
-                        ? 'Record buys and sells of each coin; valued at live prices from Binance (or your own).'
-                        : 'Record buys and sells of each stock; valued at live EGX prices (or your own).')
+                        ? tr('Record buys and sells of each coin; valued at live prices from Binance (or your own).')
+                        : tr('Record buys and sells of each stock; valued at live EGX prices (or your own).'))
                     : _investMode == 'simple'
-                        ? 'Now and then type the portfolio total shown by your broker.'
-                        : 'Just the money in the account, no market value.',
+                        ? tr('Now and then type the portfolio total shown by your broker.')
+                        : tr('Just the money in the account, no market value.'),
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
@@ -636,23 +637,23 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
                   decimal: true, signed: true),
               decoration: InputDecoration(
                 labelText: _type.isLiability
-                    ? 'Amount owed at start'
-                    : (isGold(_currency) ? 'Grams You Hold Now' : 'Opening balance'),
+                    ? tr('Amount owed at start')
+                    : (isGold(_currency) ? tr('Grams You Hold Now') : tr('Opening balance')),
                 helperText: _type.isLiability
-                    ? 'What you owed before your first recorded transaction'
-                    : 'Balance before your first recorded transaction',
+                    ? tr('What you owed before your first recorded transaction')
+                    : tr('Balance before your first recorded transaction'),
                 suffixText: currencyUnit(_currency),
                 border: const OutlineInputBorder(),
               ),
               validator: (v) {
                 if (v == null || v.trim().isEmpty) return null;
-                return parseAmount(v) == null ? 'Invalid number' : null;
+                return parseAmount(v) == null ? tr('Invalid number') : null;
               },
             ),
             ],
             if (_type == AccountType.creditCard) ...[
               const SizedBox(height: 24),
-              Text('Credit Card',
+              Text(tr('Credit Card'),
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       color: Theme.of(context).colorScheme.primary)),
               const SizedBox(height: 12),
@@ -661,13 +662,13 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 decoration: InputDecoration(
-                  labelText: 'Credit Limit',
+                  labelText: tr('Credit Limit'),
                   suffixText: currencyUnit(_currency),
                   border: const OutlineInputBorder(),
                 ),
                 validator: (v) {
                   if (v == null || v.trim().isEmpty) return null;
-                  return parseAmount(v) == null ? 'Invalid number' : null;
+                  return parseAmount(v) == null ? tr('Invalid number') : null;
                 },
               ),
               const SizedBox(height: 16),
@@ -678,9 +679,9 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
                     child: TextFormField(
                       controller: _statementDay,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Statement Closing Day',
-                        helperText: 'Cycle end, e.g. 25',
+                      decoration: InputDecoration(
+                        labelText: tr('Statement Closing Day'),
+                        helperText: tr('Cycle end, e.g. 25'),
                         border: OutlineInputBorder(),
                       ),
                       validator: (v) => _dayValidator(v,
@@ -692,9 +693,9 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
                     child: TextFormField(
                       controller: _dueDay,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Payment Due Day',
-                        helperText: 'Of the next month, e.g. 15',
+                      decoration: InputDecoration(
+                        labelText: tr('Payment Due Day'),
+                        helperText: tr('Of the next month, e.g. 15'),
                         border: OutlineInputBorder(),
                       ),
                       validator: (v) => _dayValidator(v,
@@ -708,9 +709,9 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
                 controller: _minPct,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                  labelText: 'Minimum Payment',
-                  suffixText: '% of statement',
+                decoration: InputDecoration(
+                  labelText: tr('Minimum Payment'),
+                  suffixText: tr('% of statement'),
                   border: OutlineInputBorder(),
                 ),
                 validator: (v) {
@@ -723,16 +724,16 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
             const SizedBox(height: 8),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Exclude from Net Worth'),
-              subtitle: const Text('Track it, but leave it out of totals'),
+              title: Text(tr('Exclude from Net Worth')),
+              subtitle: Text(tr('Track it, but leave it out of totals')),
               value: _exclude,
               onChanged: (v) => setState(() => _exclude = v),
             ),
             if (!_isNew) ...[
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Archived'),
-                subtitle: const Text('Hide from lists and net worth'),
+                title: Text(tr('Archived')),
+                subtitle: Text(tr('Hide from lists and net worth')),
                 value: _archived,
                 onChanged: (v) => setState(() => _archived = v),
               ),
@@ -740,9 +741,9 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
             const SizedBox(height: 24),
             FilledButton(
               onPressed: _saving ? null : _save,
-              child: const Padding(
+              child: Padding(
                 padding: EdgeInsets.all(12),
-                child: Text('Save'),
+                child: Text(tr('Save')),
               ),
             ),
             if (!_isNew) ...[
@@ -756,7 +757,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
                   padding: const EdgeInsets.all(12),
                 ),
                 icon: const Icon(Icons.delete_outline),
-                label: const Text('Delete Account'),
+                label: Text(tr('Delete Account')),
                 onPressed: _delete,
               ),
               const SizedBox(height: 16),

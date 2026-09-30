@@ -1,3 +1,4 @@
+import '../l10n/l10n.dart';
 /// Account types. Stored by name, so existing keys (cash, bank, savings,
 /// creditCard, investment, other) must never be renamed.
 enum AccountType {
@@ -26,19 +27,19 @@ extension AccountFamilyX on AccountFamily {
   String get label {
     switch (this) {
       case AccountFamily.cash:
-        return 'Cash & Wallets';
+        return tr('Cash & Wallets');
       case AccountFamily.bank:
-        return 'Bank';
+        return tr('Bank');
       case AccountFamily.credit:
-        return 'Credit & Loans';
+        return tr('Credit & Loans');
       case AccountFamily.investments:
-        return 'Investments';
+        return tr('Investments');
       case AccountFamily.assets:
-        return 'Assets';
+        return tr('Assets');
       case AccountFamily.receivables:
-        return 'Receivables';
+        return tr('Receivables');
       case AccountFamily.other:
-        return 'Other';
+        return tr('Other');
     }
   }
 }
@@ -49,39 +50,39 @@ extension AccountTypeX on AccountType {
   String get label {
     switch (this) {
       case AccountType.cash:
-        return 'Cash';
+        return tr('Cash');
       case AccountType.ewallet:
-        return 'E-wallet';
+        return tr('E-wallet');
       case AccountType.bank:
-        return 'Current Account';
+        return tr('Current Account');
       case AccountType.savings:
-        return 'Savings Account';
+        return tr('Savings Account');
       case AccountType.certificate:
-        return 'Certificate / Deposit';
+        return tr('Certificate / Deposit');
       case AccountType.debitCard:
-        return 'Debit / Prepaid Card';
+        return tr('Debit / Prepaid Card');
       case AccountType.creditCard:
-        return 'Credit Card';
+        return tr('Credit Card');
       case AccountType.loan:
-        return 'Loan';
+        return tr('Loan');
       case AccountType.investment:
-        return 'Stocks / Brokerage';
+        return tr('Stocks / Brokerage');
       case AccountType.funds:
-        return 'Funds';
+        return tr('Funds');
       case AccountType.crypto:
-        return 'Crypto';
+        return tr('Crypto');
       case AccountType.gold:
-        return 'Gold';
+        return tr('Gold');
       case AccountType.property:
-        return 'Property';
+        return tr('Property');
       case AccountType.car:
-        return 'Car';
+        return tr('Car');
       case AccountType.otherAsset:
-        return 'Other Asset';
+        return tr('Other Asset');
       case AccountType.receivable:
-        return 'Money Lent';
+        return tr('Money Lent');
       case AccountType.other:
-        return 'Other';
+        return tr('Other');
     }
   }
 
@@ -123,11 +124,11 @@ extension AccountTypeX on AccountType {
     switch (this) {
       case AccountType.investment:
       case AccountType.funds:
-        return 'Broker / Platform';
+        return tr('Broker / Platform');
       case AccountType.crypto:
-        return 'Exchange / Wallet';
+        return tr('Exchange / Wallet');
       default:
-        return 'Bank';
+        return tr('Bank');
     }
   }
 
@@ -135,11 +136,11 @@ extension AccountTypeX on AccountType {
     switch (this) {
       case AccountType.investment:
       case AccountType.funds:
-        return 'e.g. Thndr, EFG Hermes, CI Capital';
+        return tr('e.g. Thndr, EFG Hermes, CI Capital');
       case AccountType.crypto:
-        return 'e.g. Binance, Bybit, Trust Wallet';
+        return tr('e.g. Binance, Bybit, Trust Wallet');
       default:
-        return 'e.g. CIB, NBE, Banque Misr';
+        return tr('e.g. CIB, NBE, Banque Misr');
     }
   }
 
@@ -426,11 +427,11 @@ extension TxTypeX on TxType {
   String get label {
     switch (this) {
       case TxType.expense:
-        return 'Expense';
+        return tr('Expense');
       case TxType.income:
-        return 'Income';
+        return tr('Income');
       case TxType.transfer:
-        return 'Transfer';
+        return tr('Transfer');
     }
   }
 
@@ -645,22 +646,22 @@ extension FreqX on Freq {
   String get label {
     switch (this) {
       case Freq.weekly:
-        return 'Weekly';
+        return tr('Weekly');
       case Freq.monthly:
-        return 'Monthly';
+        return tr('Monthly');
       case Freq.yearly:
-        return 'Yearly';
+        return tr('Yearly');
     }
   }
 
   String unit(int n) {
     switch (this) {
       case Freq.weekly:
-        return n == 1 ? 'week' : 'weeks';
+        return n == 1 ? tr('week') : tr('weeks');
       case Freq.monthly:
-        return n == 1 ? 'month' : 'months';
+        return n == 1 ? tr('month') : tr('months');
       case Freq.yearly:
-        return n == 1 ? 'year' : 'years';
+        return n == 1 ? tr('year') : tr('years');
     }
   }
 
@@ -785,15 +786,15 @@ class RecurringRule {
   String get scheduleLabel {
     final every = interval == 1
         ? freq.label
-        : 'Every $interval ${freq.unit(interval)}';
+        : tr('Every $interval ${freq.unit(interval)}');
     switch (endType) {
       case EndType.never:
         return every;
       case EndType.count:
-        return '$every · ${endCount ?? 0} times';
+        return tr('$every · ${endCount ?? 0} times');
       case EndType.date:
         final e = endDate!;
-        return '$every · until ${e.day}/${e.month}/${e.year}';
+        return tr('$every · until ${e.day}/${e.month}/${e.year}');
     }
   }
 

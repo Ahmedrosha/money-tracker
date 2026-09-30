@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/models.dart';
 import '../state/app_state.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 /// Drag accounts into the order you want inside each group.
 class ReorderAccountsScreen extends StatefulWidget {
@@ -56,11 +57,11 @@ class _ReorderAccountsScreenState extends State<ReorderAccountsScreen> {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Reorder Accounts'),
+        title: Text(tr('Reorder Accounts')),
         actions: [
           TextButton(
             onPressed: _saving ? null : () => _done(state),
-            child: const Text('Done'),
+            child: Text(tr('Done')),
           ),
         ],
       ),
@@ -70,8 +71,8 @@ class _ReorderAccountsScreenState extends State<ReorderAccountsScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: Text(
-              'Drag the handle on the right to move an account within its group. '
-              'Saving switches the Accounts screen to Manual Order.',
+              tr('Drag the handle on the right to move an account within its group. '
+              'Saving switches the Accounts screen to Manual Order.'),
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),

@@ -9,6 +9,7 @@ import 'account_detail.dart';
 import 'reports_more.dart';
 import 'search_screen.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 Widget _heading(BuildContext context, String t, {String? sub}) => Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
@@ -175,7 +176,7 @@ class _OutlookTabState extends State<OutlookTab> {
 
     String nameOf(TxType type, int? toId, String payee, int? catId) {
       if (type == TxType.transfer) {
-        return 'Transfer to ${state.accountById(toId)?.name ?? '?'}';
+        return tr('Transfer to ${state.accountById(toId)?.name ?? '?'}');
       }
       if (payee.isNotEmpty) return payee;
       return state.categoryById(catId)?.name ?? type.label;
@@ -205,7 +206,7 @@ class _OutlookTabState extends State<OutlookTab> {
       if (a.archived || a.excludeTotal || !a.hasCycle) continue;
       final last = c.last;
       if (last != null && !last.settled && last.remaining > 0.004) {
-        events.add(_Event(notBefore(last.dueDate), '${a.fullName} statement',
+        events.add(_Event(notBefore(last.dueDate), tr('${a.fullName} statement'),
             -state.toBase(last.remaining, a.currency), Icons.credit_card));
       }
       var close = c.nextClose;
@@ -219,7 +220,7 @@ class _OutlookTabState extends State<OutlookTab> {
             ? c.cycleSpent
             : await state.db.debitsBetween(a.id!, prevClose, close);
         if (amt > 0.004) {
-          events.add(_Event(due, '${a.fullName} (estimate)',
+          events.add(_Event(due, tr('${a.fullName} (estimate)'),
               -state.toBase(amt, a.currency), Icons.credit_card,
               estimate: true));
         }
@@ -237,7 +238,7 @@ class _OutlookTabState extends State<OutlookTab> {
       for (final r in t.schedule().skip(t.nextIndex)) {
         if (!r.date.isBefore(end)) break;
         events.add(_Event(notBefore(r.date),
-            '${a.name} installment ${r.index + 1}/${t.months}',
+            tr('${a.name} installment ${r.index + 1}/${t.months}'),
             -state.toBase(r.payment, a.currency), Icons.request_quote_outlined));
       }
     }
@@ -279,10 +280,10 @@ class _OutlookTabState extends State<OutlookTab> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: SegmentedButton<int>(
-                segments: const [
-                  ButtonSegment(value: 30, label: Text('30 days')),
-                  ButtonSegment(value: 60, label: Text('60 days')),
-                  ButtonSegment(value: 90, label: Text('90 days')),
+                segments: [
+                  ButtonSegment(value: 30, label: Text(tr('30 days'))),
+                  ButtonSegment(value: 60, label: Text(tr('60 days'))),
+                  ButtonSegment(value: 90, label: Text(tr('90 days'))),
                 ],
                 selected: {_days},
                 onSelectionChanged: (s) => setState(() => _days = s.first),
@@ -320,13 +321,13 @@ class _OutlookTabState extends State<OutlookTab> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(sel == 0 ? 'Today' : 'On ${dayFmt.format(o.days[sel].$1)}',
+            Text(sel == 0 ? tr('Today') : tr('On ${dayFmt.format(o.days[sel].$1)}'),
                 style: small),
             Text(fmtMoney(o.days[sel].$2, cur),
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: o.days[sel].$2 < 0 ? kExpenseColor : null)),
-            Text('Cash, wallets and bank accounts · drag across the chart',
+            Text(tr('Cash, wallets and bank accounts · drag across the chart'),
                 style: small),
           ],
         ),
@@ -345,13 +346,13 @@ class _OutlookTabState extends State<OutlookTab> {
           spacing: 8,
           runSpacing: 8,
           children: [
-            _chip(context, 'Now', fmtMoney(o.start, cur)),
-            _chip(context, 'In $_days days', fmtMoney(endV, cur)),
-            _chip(context, 'Lowest',
+            _chip(context, tr('Now'), fmtMoney(o.start, cur)),
+            _chip(context, tr('In $_days days'), fmtMoney(endV, cur)),
+            _chip(context, tr('Lowest'),
                 '${fmtMoney(low.$2, cur)} · ${dayFmt2.format(low.$1)}',
                 warn: low.$2 < 0),
-            _chip(context, 'Coming in', fmtMoney(inflow, cur)),
-            _chip(context, 'Going Out', fmtMoney(outflow, cur)),
+            _chip(context, tr('Coming in'), fmtMoney(inflow, cur)),
+            _chip(context, tr('Going Out'), fmtMoney(outflow, cur)),
           ],
         ),
       ),
@@ -362,13 +363,13 @@ class _OutlookTabState extends State<OutlookTab> {
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Text(
-                'Your cash and bank money goes below zero on ${dayFmt.format(o.days.firstWhere((d) => d.$2 < 0).$1)}. Move money in or plan a smaller card payment before then.'),
+                tr('Your cash and bank money goes below zero on ${dayFmt.format(o.days.firstWhere((d) => d.$2 < 0).$1)}. Move money in or plan a smaller card payment before then.')),
           ),
         ),
-      _heading(context, 'What\'s coming',
+      _heading(context, tr('What\'s coming'),
           sub: o.events.isEmpty
-              ? 'Nothing scheduled'
-              : 'Recurring items, future-dated entries and card payments'),
+              ? tr('Nothing scheduled')
+              : tr('Recurring items, future-dated entries and card payments')),
       for (final e in o.events)
         () {
           running += e.amount;
@@ -377,7 +378,7 @@ class _OutlookTabState extends State<OutlookTab> {
             leading: Icon(e.icon),
             title: Text(e.name, maxLines: 1, overflow: TextOverflow.ellipsis),
             subtitle: Text(
-                '${dayFmt.format(e.date)} · balance ${fmtAmount(running)}'),
+                tr('${dayFmt.format(e.date)} · balance ${fmtAmount(running)}')),
             trailing: Text(
               '${e.amount > 0 ? '+' : ''}${fmtAmount(e.amount)}',
               style: TextStyle(
@@ -387,12 +388,12 @@ class _OutlookTabState extends State<OutlookTab> {
             ),
           );
         }(),
-      const Padding(
+      Padding(
         padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
         child: Text(
-          'Card amounts for cycles still open are estimates: what has posted so '
+          tr('Card amounts for cycles still open are estimates: what has posted so '
           'far plus installments already scheduled. Foreign currencies use '
-          'today\'s rates.',
+          'today\'s rates.'),
         ),
       ),
     ];
@@ -453,7 +454,7 @@ class _AllocationTabState extends State<AllocationTab> {
         return a.type.family.label;
       case _Split.bank:
         if (a.bank.isNotEmpty) return a.bank;
-        return a.type.family == AccountFamily.cash ? 'Cash' : 'No bank';
+        return a.type.family == AccountFamily.cash ? tr('Cash') : tr('No bank');
       case _Split.currency:
         return a.currency;
     }
@@ -503,7 +504,7 @@ class _AllocationTabState extends State<AllocationTab> {
             max: whole,
             color: color,
             caption:
-                '${share.toStringAsFixed(1)}% · ${g.accounts.length} account${g.accounts.length == 1 ? '' : 's'}$native',
+                tr('${share.toStringAsFixed(1)}% · ${g.accounts.length} account${g.accounts.length == 1 ? '' : 's'}$native'),
           ),
           children: [
             for (final (a, v) in g.accounts)
@@ -527,10 +528,10 @@ class _AllocationTabState extends State<AllocationTab> {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
           child: SegmentedButton<_Split>(
-            segments: const [
-              ButtonSegment(value: _Split.type, label: Text('Type')),
-              ButtonSegment(value: _Split.bank, label: Text('Bank')),
-              ButtonSegment(value: _Split.currency, label: Text('Currency')),
+            segments: [
+              ButtonSegment(value: _Split.type, label: Text(tr('Type'))),
+              ButtonSegment(value: _Split.bank, label: Text(tr('Bank'))),
+              ButtonSegment(value: _Split.currency, label: Text(tr('Currency'))),
             ],
             selected: {_split},
             onSelectionChanged: (s) => setState(() => _split = s.first),
@@ -541,28 +542,28 @@ class _AllocationTabState extends State<AllocationTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Net Worth', style: small),
+              Text(tr('Net Worth'), style: small),
               Text(fmtMoney(totalA - totalD, cur),
                   style: Theme.of(context)
                       .textTheme
                       .headlineSmall
                       ?.copyWith(fontWeight: FontWeight.bold)),
-              Text('Own ${fmtAmount(totalA)} · owe ${fmtAmount(totalD)}',
+              Text(tr('Own ${fmtAmount(totalA)} · owe ${fmtAmount(totalD)}'),
                   style: small),
             ],
           ),
         ),
-        _heading(context, 'What You Own', sub: '$cur · tap to see accounts'),
+        _heading(context, tr('What You Own'), sub: tr('$cur · tap to see accounts')),
         for (final g in assets) group(g, totalA, null),
         if (debts.isNotEmpty) ...[
-          _heading(context, 'What You Owe', sub: cur),
+          _heading(context, tr('What You Owe'), sub: cur),
           for (final g in debts) group(g, totalD, kExpenseColor),
         ],
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
           child: Text(
-            'Current balances of accounts counted in net worth, in $cur at '
-            'today\'s rates. Archived and excluded accounts are left out.',
+            tr('Current balances of accounts counted in net worth, in $cur at '
+            'today\'s rates. Archived and excluded accounts are left out.'),
             style: small,
           ),
         ),
@@ -620,8 +621,8 @@ class _CompareTabState extends State<CompareTab> {
   }
 
   String _groupName(Category? c) {
-    if (c == null) return 'Uncategorized';
-    return c.group.isEmpty ? 'Other' : c.group;
+    if (c == null) return tr('Uncategorized');
+    return c.group.isEmpty ? tr('Other') : c.group;
   }
 
   Future<_CmpData> _loadCmp(AppState state) async {
@@ -642,7 +643,7 @@ class _CompareTabState extends State<CompareTab> {
       final gr = groups.putIfAbsent(g, () => _Cmp(g, g, null));
       final cr = cats
           .putIfAbsent(g, () => {})
-          .putIfAbsent('$id', () => _Cmp('$id', c?.name ?? 'No category', c));
+          .putIfAbsent('$id', () => _Cmp('$id', c?.name ?? tr('No category'), c));
       final k = r['ym'] as String;
       for (final x in [gr, cr]) {
         if (k == nowKey) {
@@ -697,9 +698,9 @@ class _CompareTabState extends State<CompareTab> {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
           child: SegmentedButton<bool>(
-            segments: const [
-              ButtonSegment(value: false, label: Text('Compare Months')),
-              ButtonSegment(value: true, label: Text('Payees')),
+            segments: [
+              ButtonSegment(value: false, label: Text(tr('Compare Months'))),
+              ButtonSegment(value: true, label: Text(tr('Payees'))),
             ],
             selected: {_payees},
             onSelectionChanged: (s) => setState(() => _payees = s.first),
@@ -751,7 +752,7 @@ class _CompareTabState extends State<CompareTab> {
                 child: Center(child: CircularProgressIndicator()));
           }
           final rows = d.groups.values.toList();
-          final total = _Cmp('', 'All Spending', null);
+          final total = _Cmp('', tr('All Spending'), null);
           for (final r in rows) {
             total.now += r.now;
             total.prev += r.prev;
@@ -765,7 +766,7 @@ class _CompareTabState extends State<CompareTab> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Text(
-                    'This month is still running (day ${now.day} of ${DateTime(now.year, now.month + 1, 0).day}).',
+                    tr('This month is still running (day ${now.day} of ${DateTime(now.year, now.month + 1, 0).day}).'),
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),
@@ -806,12 +807,12 @@ class _CompareTabState extends State<CompareTab> {
       _pay = _loadPayees(state);
     }
     final cur = state.baseCurrency;
-    const labels = {
-      _PPeriod.thisMonth: 'This Month',
-      _PPeriod.lastMonth: 'Last Month',
-      _PPeriod.thisYear: 'This Year',
-      _PPeriod.last12: 'Last 12 Months',
-      _PPeriod.all: 'All Time',
+    final labels = {
+      _PPeriod.thisMonth: tr('This Month'),
+      _PPeriod.lastMonth: tr('Last Month'),
+      _PPeriod.thisYear: tr('This Year'),
+      _PPeriod.last12: tr('Last 12 Months'),
+      _PPeriod.all: tr('All Time'),
     };
     return [
       Padding(
@@ -821,9 +822,9 @@ class _CompareTabState extends State<CompareTab> {
           runSpacing: 8,
           children: [
             SegmentedButton<TxType>(
-              segments: const [
-                ButtonSegment(value: TxType.expense, label: Text('Paid to')),
-                ButtonSegment(value: TxType.income, label: Text('Received from')),
+              segments: [
+                ButtonSegment(value: TxType.expense, label: Text(tr('Paid to'))),
+                ButtonSegment(value: TxType.income, label: Text(tr('Received from'))),
               ],
               selected: {_type},
               onSelectionChanged: (s) => setState(() => _type = s.first),
@@ -853,10 +854,10 @@ class _CompareTabState extends State<CompareTab> {
                 child: Center(child: CircularProgressIndicator()));
           }
           if (list.isEmpty) {
-            return const Padding(
+            return Padding(
               padding: EdgeInsets.all(40),
               child: Center(
-                  child: Text('No transactions with a payee in this period')),
+                  child: Text(tr('No transactions with a payee in this period'))),
             );
           }
           final top = list.take(40).toList();
@@ -864,8 +865,8 @@ class _CompareTabState extends State<CompareTab> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _heading(context, '${list.length} payees · ${fmtMoney(total, cur)}',
-                  sub: list.length > 40 ? 'Top 40 shown · tap for transactions' : 'Tap for transactions'),
+              _heading(context, tr('${list.length} payees · ${fmtMoney(total, cur)}'),
+                  sub: list.length > 40 ? tr('Top 40 shown · tap for transactions') : tr('Tap for transactions')),
               for (final p in top)
                 _ShareRow(
                   label: p.$1,
@@ -873,8 +874,8 @@ class _CompareTabState extends State<CompareTab> {
                   max: top.first.$2,
                   color: _type == TxType.income ? kIncomeColor : null,
                   caption:
-                      '${p.$3} transaction${p.$3 == 1 ? '' : 's'} · average ${fmtAmount(p.$2 / p.$3)}'
-                      '${total > 0 ? ' · ${(p.$2 / total * 100).toStringAsFixed(1)}%' : ''}',
+                      tr('${p.$3} transaction${p.$3 == 1 ? '' : 's'} · average ${fmtAmount(p.$2 / p.$3)}'
+                      '${total > 0 ? ' · ${(p.$2 / total * 100).toStringAsFixed(1)}%' : ''}'),
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -892,7 +893,7 @@ class _CompareTabState extends State<CompareTab> {
 }
 
 String _change(double now, double base) {
-  if (base.abs() < 0.01) return now.abs() < 0.01 ? '—' : 'new';
+  if (base.abs() < 0.01) return now.abs() < 0.01 ? '—' : tr('new');
   final p = (now - base) / base.abs() * 100;
   return '${p >= 0 ? '▲' : '▼'} ${p.abs().toStringAsFixed(0)}%';
 }
@@ -963,8 +964,8 @@ class _CmpTile extends StatelessWidget {
                 ],
               ),
             ),
-            cell('Last Month', row.prev),
-            cell('12-Mo Avg', row.avg),
+            cell(tr('Last Month'), row.prev),
+            cell(tr('12-Mo Avg'), row.avg),
             if (onTap != null) const Icon(Icons.chevron_right),
           ],
         ),
@@ -987,16 +988,16 @@ class _CmpList extends StatelessWidget {
         .toList()
       ..sort((a, b) => (b.now - b.avg).compareTo(a.now - a.avg));
     if (list.isEmpty) {
-      return const Padding(
+      return Padding(
           padding: EdgeInsets.all(32),
-          child: Center(child: Text('No spending to compare')));
+          child: Center(child: Text(tr('No spending to compare'))));
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-          child: Text('Biggest increase over the average first',
+          child: Text(tr('Biggest increase over the average first'),
               style: Theme.of(context).textTheme.bodySmall),
         ),
         for (final r in list)
@@ -1022,7 +1023,7 @@ class LoansTab extends StatelessWidget {
         .toList()
       ..sort((a, b) => a.balance.compareTo(b.balance));
     if (loans.isEmpty) {
-      return const Center(child: Text('No loans'));
+      return Center(child: Text(tr('No loans')));
     }
     var owed = 0.0, monthly = 0.0, interestLeft = 0.0;
     final now = DateTime.now();
@@ -1045,14 +1046,14 @@ class LoansTab extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _stat(context, 'Total Owed', fmtMoney(owed, base)),
-              _stat(context, 'Monthly Installments', fmtMoney(monthly, base)),
+              _stat(context, tr('Total Owed'), fmtMoney(owed, base)),
+              _stat(context, tr('Monthly Installments'), fmtMoney(monthly, base)),
               if (interestLeft > 0)
-                _stat(context, 'Interest Still to Pay', fmtMoney(interestLeft, base)),
+                _stat(context, tr('Interest Still to Pay'), fmtMoney(interestLeft, base)),
             ],
           ),
         ),
-        _heading(context, 'Your Loans', sub: 'Tap a loan for its schedule'),
+        _heading(context, tr('Your Loans'), sub: tr('Tap a loan for its schedule')),
         for (final a in loans)
           () {
             final t = a.loan;
@@ -1093,14 +1094,14 @@ class LoansTab extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '$paid of ${t!.months} paid · ends ${shortDateFmt.format(rows!.last.date)}'
-                        '${next == null ? '' : ' · ${overdue ? 'due' : 'next'} ${fmtAmount(next.payment)} on ${shortDateFmt.format(next.date)}'}'
-                        '${a.excludeTotal ? ' · not in net worth' : ''}',
+                        tr('$paid of ${t!.months} paid · ends ${shortDateFmt.format(rows!.last.date)}'
+                        '${next == null ? '' : tr(' · ${overdue ? 'due' : 'next'} ${fmtAmount(next.payment)} on ${shortDateFmt.format(next.date)}')}'
+                        '${a.excludeTotal ? tr(' · not in net worth') : ''}'),
                         style: small?.copyWith(color: overdue ? kExpenseColor : null),
                       ),
                     ] else
                       Text(
-                          'No repayment plan (balance only)${a.excludeTotal ? ' · not in net worth' : ''}',
+                          tr('No repayment plan (balance only)${a.excludeTotal ? tr(' · not in net worth') : ''}'),
                           style: small),
                   ],
                 ),

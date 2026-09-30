@@ -5,6 +5,7 @@ import '../state/app_state.dart';
 import '../util/format.dart';
 import 'transaction_edit.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 /// A card's statements, one cycle at a time; arrows (or a swipe) move to
 /// the previous or next statement.
@@ -97,15 +98,15 @@ class _StatementPage extends StatelessWidget {
     final cur = card.currency;
     return Scaffold(
       appBar: AppBar(
-        title: Text(open ? 'Current Cycle' : 'Statement ${shortDateFmt.format(close)}'),
+        title: Text(open ? tr('Current Cycle') : tr('Statement ${shortDateFmt.format(close)}')),
         actions: [
           IconButton(
-            tooltip: 'Previous Statement',
+            tooltip: tr('Previous Statement'),
             icon: const Icon(Icons.chevron_left),
             onPressed: onPrev,
           ),
           IconButton(
-            tooltip: 'Next Statement',
+            tooltip: tr('Next Statement'),
             icon: const Icon(Icons.chevron_right),
             onPressed: onNext,
           ),
@@ -135,20 +136,20 @@ class _StatementPage extends StatelessWidget {
                           style: Theme.of(context).textTheme.titleSmall),
                       Text(
                           open
-                              ? 'Closes ${dayFmt.format(close)} · due ${shortDateFmt.format(dueDateAfter(close, card.dueDay!))}'
-                              : 'Due ${dayFmt.format(dueDateAfter(close, card.dueDay!))}',
+                              ? tr('Closes ${dayFmt.format(close)} · due ${shortDateFmt.format(dueDateAfter(close, card.dueDay!))}')
+                              : tr('Due ${dayFmt.format(dueDateAfter(close, card.dueDay!))}'),
                           style: small),
                       const SizedBox(height: 12),
-                      _row('Previous Balance', fmtMoney(d.previous, cur)),
-                      _row('New Charges', '+ ${fmtMoney(d.charges, cur)}'),
-                      _row('Payments & Credits', '− ${fmtMoney(d.credits, cur)}'),
+                      _row(tr('Previous Balance'), fmtMoney(d.previous, cur)),
+                      _row(tr('New Charges'), '+ ${fmtMoney(d.charges, cur)}'),
+                      _row(tr('Payments & Credits'), '− ${fmtMoney(d.credits, cur)}'),
                       const Divider(),
-                      _row(open ? 'Owed So Far' : 'Statement Amount',
+                      _row(open ? tr('Owed So Far') : tr('Statement Amount'),
                           fmtMoney(d.closing, cur),
                           bold: true),
                       if (!open) ...[
-                        _row('Paid After Closing', fmtMoney(d.paidAfter, cur)),
-                        _row('Remaining',
+                        _row(tr('Paid After Closing'), fmtMoney(d.paidAfter, cur)),
+                        _row(tr('Remaining'),
                             fmtMoney((d.closing - d.paidAfter).clamp(0, double.infinity), cur)),
                       ],
                     ],
@@ -158,13 +159,13 @@ class _StatementPage extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
                 child: Text(
-                    'Tap a transaction to move it to the previous or next statement if the bank counted it there.',
+                    tr('Tap a transaction to move it to the previous or next statement if the bank counted it there.'),
                     style: small),
               ),
-              _header(context, state, 'Charges', charges.length, d.charges, cur),
+              _header(context, state, tr('Charges'), charges.length, d.charges, cur),
               if (!state.isCollapsed('stmt:Charges'))
                 for (final t in charges) _tile(context, state, t),
-              _header(context, state, 'Payments & Credits', credits.length, d.credits, cur),
+              _header(context, state, tr('Payments & Credits'), credits.length, d.credits, cur),
               if (!state.isCollapsed('stmt:Payments & Credits'))
                 for (final t in credits) _tile(context, state, t),
             ],
@@ -241,8 +242,8 @@ class _StatementPage extends StatelessWidget {
     final cat = state.categoryById(t.categoryId);
     final title = t.type == TxType.transfer
         ? (t.toAccountId == card.id
-            ? 'Payment from ${other?.name ?? '?'}'
-            : 'Transfer to ${other?.name ?? '?'}')
+            ? tr('Payment from ${other?.name ?? '?'}')
+            : tr('Transfer to ${other?.name ?? '?'}'))
         : (t.payee.isNotEmpty ? t.payee : (cat?.name ?? t.type.label));
     final on = _countsOn(t);
     final moved = on.year != t.date.year || on.month != t.date.month || on.day != t.date.day;
@@ -258,8 +259,8 @@ class _StatementPage extends StatelessWidget {
       title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(
         '${shortDateFmt.format(t.date)}'
-        '${moved ? ' · counts on ${shortDateFmt.format(on)}' : ''}'
-        '${t.planIndex != null ? ' · installment ${t.planIndex}' : ''}',
+        '${moved ? tr(' · counts on ${shortDateFmt.format(on)}') : ''}'
+        '${t.planIndex != null ? tr(' · installment ${t.planIndex}') : ''}',
       ),
       trailing: Text(
         '${e >= 0 ? '+' : '−'}${fmtAmount(e.abs())}',
@@ -286,27 +287,27 @@ class _StatementPage extends StatelessWidget {
             ),
             ListTile(
               leading: const Icon(Icons.arrow_back),
-              title: const Text('Move to Previous Statement'),
-              subtitle: Text('Counts on ${shortDateFmt.format(prevClose)}'),
+              title: Text(tr('Move to Previous Statement')),
+              subtitle: Text(tr('Counts on ${shortDateFmt.format(prevClose)}')),
               onTap: () => Navigator.pop(ctx, 'prev'),
             ),
             ListTile(
               leading: const Icon(Icons.arrow_forward),
-              title: Text(open ? 'Move to Next Cycle' : 'Move to Next Statement'),
+              title: Text(open ? tr('Move to Next Cycle') : tr('Move to Next Statement')),
               subtitle: Text(
-                  'Counts on ${shortDateFmt.format(close.add(const Duration(days: 1)))}'),
+                  tr('Counts on ${shortDateFmt.format(close.add(const Duration(days: 1)))}')),
               onTap: () => Navigator.pop(ctx, 'next'),
             ),
             if (_movedAway(t))
               ListTile(
                 leading: const Icon(Icons.undo),
-                title: const Text('Back to Its Own Date'),
+                title: Text(tr('Back to Its Own Date')),
                 subtitle: Text(shortDateFmt.format(t.date)),
                 onTap: () => Navigator.pop(ctx, 'reset'),
               ),
             ListTile(
               leading: const Icon(Icons.edit_outlined),
-              title: const Text('Edit Transaction'),
+              title: Text(tr('Edit Transaction')),
               onTap: () => Navigator.pop(ctx, 'edit'),
             ),
           ],
@@ -317,12 +318,12 @@ class _StatementPage extends StatelessWidget {
     switch (choice) {
       case 'prev':
         await state.moveToStatement(t, card, _noon(prevClose));
-        if (context.mounted) showSnack(context, 'Moved to the statement of ${shortDateFmt.format(prevClose)}');
+        if (context.mounted) showSnack(context, tr('Moved to the statement of ${shortDateFmt.format(prevClose)}'));
       case 'next':
         await state.moveToStatement(t, card, _noon(close.add(const Duration(days: 1))));
         if (context.mounted) {
           showSnack(context,
-              'Moved to the statement of ${shortDateFmt.format(nextClose)}');
+              tr('Moved to the statement of ${shortDateFmt.format(nextClose)}'));
         }
       case 'reset':
         await state.moveToStatement(t, card, t.date);

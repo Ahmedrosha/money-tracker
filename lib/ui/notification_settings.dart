@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/notifications.dart';
 import '../state/app_state.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 class NotificationSettingsScreen extends StatefulWidget {
   const NotificationSettingsScreen({super.key});
@@ -46,23 +47,23 @@ class _NotificationSettingsScreenState
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     final on = _s.enabled;
-    const dayOptions = [(7, '7 days before'), (3, '3 days before'),
-      (1, '1 day before'), (0, 'On the due day')];
+    final dayOptions = [(7, tr('7 days before')), (3, tr('3 days before')),
+      (1, tr('1 day before')), (0, tr('On the due day'))];
     return Scaffold(
-      appBar: AppBar(title: const Text('Notifications')),
+      appBar: AppBar(title: Text(tr('Notifications'))),
       body: ListView(
         children: [
           SwitchListTile(
             secondary: const Icon(Icons.notifications_active_outlined),
-            title: const Text('Reminders'),
-            subtitle: const Text('Scheduled on this phone; work even when the app is closed'),
+            title: Text(tr('Reminders')),
+            subtitle: Text(tr('Scheduled on this phone; work even when the app is closed')),
             value: on,
             onChanged: (v) async {
               if (v) {
                 final ok = await state.notifier.requestPermission();
                 if (!ok && context.mounted) {
                   showSnack(context,
-                      'Allow notifications for Money Tracker in Android settings');
+                      tr('Allow notifications for Money Tracker in Android settings'));
                 }
               }
               _update(() => _s.enabled = v);
@@ -72,7 +73,7 @@ class _NotificationSettingsScreenState
           ListTile(
             enabled: on,
             leading: const Icon(Icons.schedule),
-            title: const Text('Time of Day'),
+            title: Text(tr('Time of Day')),
             subtitle: Text(TimeOfDay(hour: _s.hour, minute: _s.minute).format(context)),
             onTap: () async {
               final t = await showTimePicker(
@@ -88,7 +89,7 @@ class _NotificationSettingsScreenState
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-            child: Text('Credit Card Payments',
+            child: Text(tr('Credit Card Payments'),
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     color: Theme.of(context).colorScheme.primary)),
           ),
@@ -109,43 +110,43 @@ class _NotificationSettingsScreenState
               ],
             ),
           ),
-          const Padding(
+          Padding(
             padding: EdgeInsets.fromLTRB(16, 6, 16, 8),
             child: Text(
-                'Only while the statement still has something to pay. Needs the card\'s statement and due days set.'),
+                tr('Only while the statement still has something to pay. Needs the card\'s statement and due days set.')),
           ),
           SwitchListTile(
             secondary: const Icon(Icons.receipt_long_outlined),
-            title: const Text('Statement Closed'),
-            subtitle: const Text('The day after a card statement closes'),
+            title: Text(tr('Statement Closed')),
+            subtitle: Text(tr('The day after a card statement closes')),
             value: _s.statementClosed,
             onChanged: on ? (v) => _update(() => _s.statementClosed = v) : null,
           ),
           SwitchListTile(
             secondary: const Icon(Icons.repeat),
-            title: const Text('Recurring Items'),
-            subtitle: const Text('On the day a subscription, salary… is due'),
+            title: Text(tr('Recurring Items')),
+            subtitle: Text(tr('On the day a subscription, salary… is due')),
             value: _s.recurring,
             onChanged: on ? (v) => _update(() => _s.recurring = v) : null,
           ),
           SwitchListTile(
             secondary: const Icon(Icons.backup_outlined),
-            title: const Text('Backup Reminder'),
-            subtitle: const Text('Every 7 days, only when Dropbox is not connected'),
+            title: Text(tr('Backup Reminder')),
+            subtitle: Text(tr('Every 7 days, only when Dropbox is not connected')),
             value: _s.backup,
             onChanged: on ? (v) => _update(() => _s.backup = v) : null,
           ),
           SwitchListTile(
             secondary: const Icon(Icons.savings_outlined),
-            title: const Text('Budget Alerts'),
-            subtitle: const Text('When a budget reaches 80% and when it is exceeded'),
+            title: Text(tr('Budget Alerts')),
+            subtitle: Text(tr('When a budget reaches 80% and when it is exceeded')),
             value: _s.budgets,
             onChanged: on ? (v) => _update(() => _s.budgets = v) : null,
           ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.send_outlined),
-            title: const Text('Send a Test Notification'),
+            title: Text(tr('Send a Test Notification')),
             onTap: () async {
               await state.notifier.requestPermission();
               await state.notifier.showTest();

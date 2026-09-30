@@ -1,3 +1,4 @@
+import '../l10n/l10n.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -106,7 +107,7 @@ class DropboxSync extends ChangeNotifier {
   }
 
   Future<void> finishConnect(String code) async {
-    if (_verifier == null) throw Exception('Start the connection again');
+    if (_verifier == null) throw Exception(tr('Start the connection again'));
     final res = await http.post(
       Uri.parse('https://api.dropboxapi.com/oauth2/token'),
       body: {
@@ -477,7 +478,7 @@ class DropboxSync extends ChangeNotifier {
 
   Future<String> _download(String token, String name) async {
     final r = await _get(token);
-    if (r == null) throw Exception('The Dropbox copy disappeared');
+    if (r == null) throw Exception(tr('The Dropbox copy disappeared'));
     final dir = await getTemporaryDirectory();
     final path = '${dir.path}/$name';
     await File(path).writeAsBytes(r.bytes);

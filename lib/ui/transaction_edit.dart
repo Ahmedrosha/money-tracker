@@ -8,6 +8,7 @@ import '../util/currencies.dart';
 import 'account_edit.dart';
 import 'calc_pad.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 enum _Mode { newTxn, editTxn, editPlan, editRule, confirm }
 
@@ -122,8 +123,8 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       CheckboxListTile(
         contentPadding: EdgeInsets.zero,
         controlAffinity: ListTileControlAffinity.leading,
-        title: const Text('InstaPay Fee'),
-        subtitle: const Text('0.1% · min 0.50 · max 20 — saved as a separate expense'),
+        title: Text(tr('InstaPay Fee')),
+        subtitle: Text(tr('0.1% · min 0.50 · max 20 — saved as a separate expense')),
         value: _instaPay,
         onChanged: (v) {
           setState(() {
@@ -139,12 +140,12 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           onChanged: (_) => _feeEdited = true,
           decoration: InputDecoration(
-            labelText: 'Fee',
+            labelText: tr('Fee'),
             border: const OutlineInputBorder(),
-            helperText: _feeEdited ? 'Edited' : 'Worked out from the amount; you can change it',
+            helperText: _feeEdited ? tr('Edited') : tr('Worked out from the amount; you can change it'),
             suffixIcon: _feeEdited
                 ? IconButton(
-                    tooltip: 'Recalculate',
+                    tooltip: tr('Recalculate'),
                     icon: const Icon(Icons.refresh),
                     onPressed: () {
                       _feeEdited = false;
@@ -156,7 +157,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
           validator: (v) {
             if (!_instaPay) return null;
             final f = parseAmount(v ?? '');
-            return f == null || f < 0 ? 'Enter the fee' : null;
+            return f == null || f < 0 ? tr('Enter the fee') : null;
           },
         ),
     ];
@@ -407,7 +408,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       initialDate: current,
       firstDate: DateTime(_date.year, _date.month, _date.day),
       lastDate: DateTime(2100),
-      helpText: 'Date the bank posted it',
+      helpText: tr('Date the bank posted it'),
     );
     if (d == null) return;
     setState(() {
@@ -441,12 +442,12 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     if (_type == TxType.transfer && _currenciesDiffer(state)) {
       toAmount = parseAmount(_toAmount.text)?.abs();
       if (toAmount == null) {
-        showSnack(context, 'Enter the amount received');
+        showSnack(context, tr('Enter the amount received'));
         return;
       }
     }
     if (_repeat && _endType == EndType.date && _endDate == null) {
-      showSnack(context, 'Pick an end date');
+      showSnack(context, tr('Pick an end date'));
       return;
     }
     setState(() => _saving = true);
@@ -559,16 +560,16 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     switch (_mode) {
       case _Mode.editRule:
         final ok = await confirmDialog(context,
-            title: 'Delete recurring item?',
+            title: tr('Delete recurring item?'),
             message:
-                'Future occurrences stop. Entries already recorded are kept.');
+                tr('Future occurrences stop. Entries already recorded are kept.'));
         if (!ok) return;
         await state.deleteRule(widget.rule!.id!);
         break;
       case _Mode.editPlan:
         final ok = await confirmDialog(context,
-            title: 'Delete whole plan?',
-            message: 'All ${_plan?.months ?? ''} installments will be deleted.');
+            title: tr('Delete whole plan?'),
+            message: tr('All ${_plan?.months ?? ''} installments will be deleted.'));
         if (!ok) return;
         await state.deletePlan(_plan!.id!);
         break;
@@ -578,19 +579,19 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
           final choice = await showDialog<String>(
             context: context,
             builder: (ctx) => AlertDialog(
-              title: const Text('Delete Installment'),
-              content: const Text(
-                  'Delete only this installment, or the whole plan?'),
+              title: Text(tr('Delete Installment')),
+              content: Text(
+                  tr('Delete only this installment, or the whole plan?')),
               actions: [
                 TextButton(
                     onPressed: () => Navigator.pop(ctx),
-                    child: const Text('Cancel')),
+                    child: Text(tr('Cancel'))),
                 TextButton(
                     onPressed: () => Navigator.pop(ctx, 'one'),
-                    child: const Text('This One')),
+                    child: Text(tr('This One'))),
                 FilledButton(
                     onPressed: () => Navigator.pop(ctx, 'all'),
-                    child: const Text('Whole Plan')),
+                    child: Text(tr('Whole Plan'))),
               ],
             ),
           );
@@ -602,7 +603,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
           }
         } else {
           final ok = await confirmDialog(context,
-              title: 'Delete transaction?', message: 'This cannot be undone.');
+              title: tr('Delete transaction?'), message: tr('This cannot be undone.'));
           if (!ok) return;
           await state.deleteTxn(t.id!);
         }
@@ -619,15 +620,15 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
   String get _title {
     switch (_mode) {
       case _Mode.newTxn:
-        return 'New Transaction';
+        return tr('New Transaction');
       case _Mode.editTxn:
-        return 'Edit Transaction';
+        return tr('Edit Transaction');
       case _Mode.editPlan:
-        return 'Edit installment plan';
+        return tr('Edit installment plan');
       case _Mode.editRule:
-        return 'Edit recurring item';
+        return tr('Edit recurring item');
       case _Mode.confirm:
-        return 'Confirm recurring item';
+        return tr('Confirm recurring item');
     }
   }
 
@@ -642,14 +643,14 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
 
     if (state.activeAccounts.isEmpty && _mode == _Mode.newTxn) {
       return Scaffold(
-        appBar: AppBar(title: const Text('New Transaction')),
+        appBar: AppBar(title: Text(tr('New Transaction'))),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(32),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Add an account first.'),
+                Text(tr('Add an account first.')),
                 const SizedBox(height: 16),
                 FilledButton(
                   onPressed: () => Navigator.pushReplacement(
@@ -657,7 +658,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                     MaterialPageRoute(
                         builder: (_) => const AccountEditScreen()),
                   ),
-                  child: const Text('Add Account'),
+                  child: Text(tr('Add Account')),
                 ),
               ],
             ),
@@ -678,7 +679,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
         title: Text(_title),
         actions: [
           IconButton(
-            tooltip: _mode == _Mode.confirm ? 'Confirm' : 'Save',
+            tooltip: _mode == _Mode.confirm ? tr('Confirm') : tr('Save'),
             icon: const Icon(Icons.check),
             onPressed: _saving || _accountId == null ? null : _save,
           ),
@@ -692,18 +693,18 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
             ..._banners(state),
             if (!typeLocked)
               SegmentedButton<TxType>(
-                segments: const [
+                segments: [
                   ButtonSegment(
                       value: TxType.expense,
-                      label: Text('Expense'),
+                      label: Text(tr('Expense')),
                       icon: Icon(Icons.remove)),
                   ButtonSegment(
                       value: TxType.income,
-                      label: Text('Income'),
+                      label: Text(tr('Income')),
                       icon: Icon(Icons.add)),
                   ButtonSegment(
                       value: TxType.transfer,
-                      label: Text('Transfer'),
+                      label: Text(tr('Transfer')),
                       icon: Icon(Icons.swap_horiz)),
                 ],
                 selected: {_type},
@@ -729,7 +730,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               onTapOutside: (_) => _settleExpression(_amount),
               style: Theme.of(context).textTheme.headlineSmall,
               decoration: InputDecoration(
-                labelText: _installments ? 'Total amount' : 'Amount',
+                labelText: _installments ? tr('Total amount') : tr('Amount'),
                 helperText: _amountHelper(state, account),
                 helperStyle: TextStyle(
                     color: Theme.of(context).colorScheme.primary,
@@ -737,7 +738,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                 suffixText: account == null ? null : currencyUnit(account.currency),
                 suffixIcon: IconButton(
                   tooltip:
-                      _sysKeyboard ? 'Use calculator' : 'Use phone keyboard',
+                      _sysKeyboard ? tr('Use calculator') : tr('Use phone keyboard'),
                   icon: Icon(_sysKeyboard
                       ? Icons.calculate_outlined
                       : Icons.keyboard_outlined),
@@ -753,15 +754,15 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               ),
               validator: (v) {
                 final a = parseAmount(v ?? '');
-                if (a == null) return 'Enter an amount';
-                if (a == 0) return 'Amount cannot be zero';
+                if (a == null) return tr('Enter an amount');
+                if (a == 0) return tr('Amount cannot be zero');
                 return null;
               },
               onChanged: (_) => setState(_recalcToAmount),
             ),
             const SizedBox(height: 16),
             AccountField(
-              label: _type == TxType.transfer ? 'From account' : 'Account',
+              label: _type == TxType.transfer ? tr('From account') : tr('Account'),
               value: _accountId,
               onChanged: (v) => setState(() {
                 _accountId = v;
@@ -772,14 +773,14 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               const SizedBox(height: 16),
               FormField<int>(
                 validator: (_) {
-                  if (_toAccountId == null) return 'Choose destination';
+                  if (_toAccountId == null) return tr('Choose destination');
                   if (_toAccountId == _accountId) {
-                    return 'Choose a different account';
+                    return tr('Choose a different account');
                   }
                   return null;
                 },
                 builder: (field) => AccountField(
-                  label: 'To Account',
+                  label: tr('To Account'),
                   value: _toAccountId,
                   errorText: field.errorText,
                   onChanged: (v) => setState(() {
@@ -802,19 +803,19 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                   onFieldSubmitted: (_) => _settleExpression(_toAmount),
                   onTapOutside: (_) => _settleExpression(_toAmount),
                   decoration: InputDecoration(
-                    labelText: 'Amount Received',
+                    labelText: tr('Amount Received'),
                     suffixText: currencyUnit(toAccount!.currency),
                     helperText: rate == null
-                        ? 'No rate available — enter manually'
+                        ? tr('No rate available — enter manually')
                         : (isGold(toAccount.currency) && rate > 0
                             // Buying gold: price per gram reads better.
                             ? '1 ${currencyUnit(toAccount.currency)} = ${fmtRate(1 / rate)} ${account!.currency}'
                             : '1 ${currencyUnit(account!.currency)} = ${fmtRate(rate)} ${currencyUnit(toAccount.currency)}') +
-                            (_toAmountEdited ? ' (edited)' : ''),
+                            (_toAmountEdited ? tr(' (edited)') : ''),
                     border: const OutlineInputBorder(),
                     suffixIcon: _toAmountEdited
                         ? IconButton(
-                            tooltip: 'Recalculate from Rate',
+                            tooltip: tr('Recalculate from Rate'),
                             icon: const Icon(Icons.refresh),
                             onPressed: () => setState(() {
                               _toAmountEdited = false;
@@ -840,7 +841,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                 textCapitalization: TextCapitalization.words,
                 decoration: InputDecoration(
                   labelText:
-                      _type == TxType.income ? 'From (payer)' : 'Payee / store',
+                      _type == TxType.income ? tr('From (payer)') : tr('Payee / store'),
                   border: const OutlineInputBorder(),
                 ),
               ),
@@ -866,15 +867,15 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                 onTap: _pickPostDate,
                 child: InputDecorator(
                   decoration: InputDecoration(
-                    labelText: 'Post Date',
+                    labelText: tr('Post Date'),
                     helperText: _postDate == null
-                        ? 'Same as transaction date — change it if the bank posted it later'
-                        : 'Decides which statement it falls in',
+                        ? tr('Same as transaction date — change it if the bank posted it later')
+                        : tr('Decides which statement it falls in'),
                     border: const OutlineInputBorder(),
                     suffixIcon: _postDate == null
                         ? const Icon(Icons.event_available)
                         : IconButton(
-                            tooltip: 'Same as transaction date',
+                            tooltip: tr('Same as transaction date'),
                             icon: const Icon(Icons.restart_alt),
                             onPressed: () => setState(() => _postDate = null),
                           ),
@@ -893,8 +894,8 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               controller: _note,
               maxLines: 2,
               textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(
-                labelText: 'Note',
+              decoration: InputDecoration(
+                labelText: tr('Note'),
                 border: OutlineInputBorder(),
               ),
             ),
@@ -906,7 +907,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               onPressed: _saving || _accountId == null ? null : _save,
               child: Padding(
                 padding: const EdgeInsets.all(12),
-                child: Text(_mode == _Mode.confirm ? 'Confirm' : 'Save'),
+                child: Text(_mode == _Mode.confirm ? tr('Confirm') : tr('Save')),
               ),
             ),
             if (_canDelete) ...[
@@ -921,10 +922,10 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                 ),
                 icon: const Icon(Icons.delete_outline),
                 label: Text(_mode == _Mode.editRule
-                    ? 'Delete Recurring Item'
+                    ? tr('Delete Recurring Item')
                     : _mode == _Mode.editPlan
-                        ? 'Delete Whole Plan'
-                        : 'Delete Transaction'),
+                        ? tr('Delete Whole Plan')
+                        : tr('Delete Transaction')),
                 onPressed: _delete,
               ),
               const SizedBox(height: 16),
@@ -941,7 +942,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     final parts = <String>[];
     final amt = parseAmount(_amount.text);
     if (hasOperator(_amount.text)) {
-      parts.add(amt == null ? 'Incomplete calculation' : '= ${fmtAmountRaw(amt)}');
+      parts.add(amt == null ? tr('Incomplete calculation') : '= ${fmtAmountRaw(amt)}');
     }
     final base = state.baseCurrency;
     if (account != null &&
@@ -951,18 +952,18 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
         amt != 0) {
       final v = state.convert(amt, account.currency, base);
       parts.add(v == null
-          ? 'No $base rate for ${account.currency} yet'
+          ? tr('No $base rate for ${account.currency} yet')
           : '≈ ${fmtMoneyRaw(v, base)}');
     }
-    if (_type == TxType.expense && (amt ?? 0) < 0) parts.add('negative = refund');
+    if (_type == TxType.expense && (amt ?? 0) < 0) parts.add(tr('negative = refund'));
     return parts.isEmpty ? null : parts.join(' · ');
   }
 
   String get _dateLabel {
-    if (_installments) return 'Purchase date';
-    if (_mode == _Mode.editRule) return 'Next date';
-    if (_repeat) return 'First date';
-    return 'Date';
+    if (_installments) return tr('Purchase date');
+    if (_mode == _Mode.editRule) return tr('Next date');
+    if (_repeat) return tr('First date');
+    return tr('Date');
   }
 
   List<Widget> _banners(AppState state) {
@@ -973,10 +974,10 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       out.add(Card(
         child: ListTile(
           leading: const Icon(Icons.view_week_outlined),
-          title: Text('Installment ${t.planIndex}/${plan?.months ?? '?'}'),
+          title: Text(tr('Installment ${t.planIndex}/${plan?.months ?? '?'}')),
           subtitle: Text(plan == null
-              ? 'Changes here apply to this installment only'
-              : 'Total ${fmtAmountRaw(plan.total)} · changes here apply to this installment only'),
+              ? tr('Changes here apply to this installment only')
+              : tr('Total ${fmtAmountRaw(plan.total)} · changes here apply to this installment only')),
           trailing: plan == null
               ? null
               : TextButton(
@@ -985,7 +986,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                     MaterialPageRoute(
                         builder: (_) => TransactionEditScreen(planTxn: t)),
                   ),
-                  child: const Text('Edit Plan'),
+                  child: Text(tr('Edit Plan')),
                 ),
         ),
       ));
@@ -995,10 +996,10 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       out.add(Card(
         child: ListTile(
           leading: const Icon(Icons.repeat),
-          title: const Text('From a Recurring Item'),
+          title: Text(tr('From a Recurring Item')),
           subtitle: Text(rule == null
-              ? 'The recurring item was deleted'
-              : '${rule.scheduleLabel} · changes here apply to this entry only'),
+              ? tr('The recurring item was deleted')
+              : tr('${rule.scheduleLabel} · changes here apply to this entry only')),
           trailing: rule == null
               ? null
               : TextButton(
@@ -1007,25 +1008,25 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                     MaterialPageRoute(
                         builder: (_) => TransactionEditScreen(rule: rule)),
                   ),
-                  child: const Text('Edit All'),
+                  child: Text(tr('Edit All')),
                 ),
         ),
       ));
     }
     if (_mode == _Mode.editRule) {
-      out.add(const Card(
+      out.add(Card(
         child: ListTile(
           leading: Icon(Icons.info_outline),
-          title: Text('Changes apply from the next date on'),
-          subtitle: Text('Entries already recorded are not changed.'),
+          title: Text(tr('Changes apply from the next date on')),
+          subtitle: Text(tr('Entries already recorded are not changed.')),
         ),
       ));
     }
     if (_mode == _Mode.editPlan) {
-      out.add(const Card(
+      out.add(Card(
         child: ListTile(
           leading: Icon(Icons.info_outline),
-          title: Text('Saving rebuilds all installments of this plan'),
+          title: Text(tr('Saving rebuilds all installments of this plan')),
         ),
       ));
     }
@@ -1053,8 +1054,8 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       SwitchListTile(
         contentPadding: EdgeInsets.zero,
         secondary: const Icon(Icons.view_week_outlined),
-        title: const Text('Split Into Monthly Installments'),
-        subtitle: const Text('e.g. credit card installments'),
+        title: Text(tr('Split Into Monthly Installments')),
+        subtitle: Text(tr('e.g. credit card installments')),
         value: _installments,
         onChanged: (v) => setState(() {
           _installments = v;
@@ -1066,7 +1067,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
           children: [
             Expanded(
               child: LabeledDropdown<int>(
-                label: 'Months',
+                label: tr('Months'),
                 value: _months,
                 items: [
                   for (var m = 2; m <= 24; m++)
@@ -1079,7 +1080,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
             Expanded(
               flex: 2,
               child: LabeledDropdown<DateTime>(
-                label: 'First Installment',
+                label: tr('First Installment'),
                 value: _startMonth,
                 items: [
                   for (final m in monthOptions)
@@ -1094,7 +1095,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
         if (parts != null)
           Text(
             '$_months × ${fmtAmountRaw(parts.first)} ${account?.currency ?? ''}'
-            '${parts.last != parts.first ? ' (last ${fmtAmountRaw(parts.last)})' : ''}'
+            '${parts.last != parts.first ? tr(' (last ${fmtAmountRaw(parts.last)})') : ''}'
             '\n${monthFmt.format(_startMonth)} → ${monthFmt.format(lastMonth)}, on day ${_date.day}',
             style: Theme.of(context).textTheme.bodySmall,
           ),
@@ -1110,8 +1111,8 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           secondary: const Icon(Icons.repeat),
-          title: const Text('Repeat'),
-          subtitle: const Text('Subscriptions, salary, rent…'),
+          title: Text(tr('Repeat')),
+          subtitle: Text(tr('Subscriptions, salary, rent…')),
           value: _repeat,
           onChanged: (v) => setState(() {
             _repeat = v;
@@ -1127,8 +1128,8 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               child: TextFormField(
                 controller: _interval,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Every',
+                decoration: InputDecoration(
+                  labelText: tr('Every'),
                   border: OutlineInputBorder(),
                 ),
                 onChanged: (_) => setState(() {}),
@@ -1137,7 +1138,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: LabeledDropdown<Freq>(
-                label: 'Period',
+                label: tr('Period'),
                 value: _freq,
                 items: [
                   for (final f in Freq.values)
@@ -1151,13 +1152,13 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
           ],
         ),
         const SizedBox(height: 12),
-        const Text('Ends'),
+        Text(tr('Ends')),
         const SizedBox(height: 6),
         SegmentedButton<EndType>(
-          segments: const [
-            ButtonSegment(value: EndType.never, label: Text('Never')),
-            ButtonSegment(value: EndType.count, label: Text('After')),
-            ButtonSegment(value: EndType.date, label: Text('On Date')),
+          segments: [
+            ButtonSegment(value: EndType.never, label: Text(tr('Never'))),
+            ButtonSegment(value: EndType.count, label: Text(tr('After'))),
+            ButtonSegment(value: EndType.date, label: Text(tr('On Date'))),
           ],
           selected: {_endType},
           onSelectionChanged: (s) => setState(() => _endType = s.first),
@@ -1169,13 +1170,13 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
             keyboardType: TextInputType.number,
             decoration: InputDecoration(
               labelText: _mode == _Mode.editRule
-                  ? 'Remaining times'
-                  : 'Number of times',
+                  ? tr('Remaining times')
+                  : tr('Number of times'),
               border: const OutlineInputBorder(),
             ),
             validator: (v) {
               final n = int.tryParse((v ?? '').trim());
-              return n == null || n < 1 ? 'Enter 1 or more' : null;
+              return n == null || n < 1 ? tr('Enter 1 or more') : null;
             },
           ),
         ],
@@ -1185,20 +1186,20 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
             borderRadius: BorderRadius.circular(4),
             onTap: _pickEndDate,
             child: InputDecorator(
-              decoration: const InputDecoration(
-                labelText: 'End Date',
+              decoration: InputDecoration(
+                labelText: tr('End Date'),
                 border: OutlineInputBorder(),
                 suffixIcon: Icon(Icons.event),
               ),
               child: Text(
-                  _endDate == null ? 'Select' : shortDateFmt.format(_endDate!)),
+                  _endDate == null ? tr('Select') : shortDateFmt.format(_endDate!)),
             ),
           ),
         ],
         const SizedBox(height: 8),
         Text(
-          'When each date arrives it appears under "To confirm" so you can '
-          'record it (and adjust the amount if needed).',
+          tr('When each date arrives it appears under "To confirm" so you can '
+          'record it (and adjust the amount if needed).'),
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],

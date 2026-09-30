@@ -6,6 +6,7 @@ import '../util/currencies.dart';
 import '../util/format.dart';
 import 'currencies_screen.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 /// Gold held by weight: today's price, value, what was paid and the gain.
 class GoldPanel extends StatelessWidget {
@@ -47,7 +48,7 @@ class GoldPanel extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text('Gold ${goldKarat(code)}K',
+                  child: Text(tr('Gold ${goldKarat(code)}K'),
                       style: Theme.of(context).textTheme.titleSmall),
                 ),
                 TextButton(
@@ -55,23 +56,23 @@ class GoldPanel extends StatelessWidget {
                     context,
                     MaterialPageRoute(builder: (_) => const CurrenciesScreen()),
                   ),
-                  child: const Text('Set Price'),
+                  child: Text(tr('Set Price')),
                 ),
               ],
             ),
-            _row('Price per gram',
-                price == null ? 'Not available yet' : fmtMoney(price, base),
-                note: state.isManual(code) ? 'your price' : 'from world price'),
-            _row('Value now', worth == null ? '—' : fmtMoney(worth, base),
+            _row(tr('Price per gram'),
+                price == null ? tr('Not available yet') : fmtMoney(price, base),
+                note: state.isManual(code) ? tr('your price') : tr('from world price')),
+            _row(tr('Value now'), worth == null ? '—' : fmtMoney(worth, base),
                 bold: true),
             if (gramsBought > 0 || paid.abs() > 0.004) ...[
-              _row('Paid (minus sales)', fmtMoney(paid, base)),
+              _row(tr('Paid (minus sales)'), fmtMoney(paid, base)),
               if (gain != null)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 2),
                   child: Row(
                     children: [
-                      const Expanded(child: Text('Gain / loss')),
+                      Expanded(child: Text(tr('Gain / loss'))),
                       Text(
                         '${gain >= 0 ? '+' : ''}${fmtMoney(gain, base)}'
                         '${paid > 0 ? '  (${(gain / paid * 100).toStringAsFixed(1)}%)' : ''}',
@@ -84,11 +85,11 @@ class GoldPanel extends StatelessWidget {
                 ),
               if (gramsBought > 0 && paid > 0)
                 Text(
-                    'Average paid ${fmtMoney(paid / gramsBought, base)} per gram',
+                    tr('Average paid ${fmtMoney(paid / gramsBought, base)} per gram'),
                     style: small),
             ] else
               Text(
-                  'Record purchases as a transfer into this account (money out, grams in) to see what you paid and your gain.',
+                  tr('Record purchases as a transfer into this account (money out, grams in) to see what you paid and your gain.'),
                   style: small),
           ],
         ),
@@ -121,14 +122,14 @@ Future<void> switchGoldToWeight(
     context: context,
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setS) => AlertDialog(
-        title: const Text('Switch to Grams'),
+        title: Text(tr('Switch to Grams')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-                'This account holds ${fmtMoney(old.balance, old.currency)} (what you paid). '
-                'Enter the gold you actually have:'),
+                tr('This account holds ${fmtMoney(old.balance, old.currency)} (what you paid). '
+                'Enter the gold you actually have:')),
             const SizedBox(height: 12),
             SegmentedButton<String>(
               showSelectedIcon: false,
@@ -145,17 +146,17 @@ Future<void> switchGoldToWeight(
               controller: grams,
               autofocus: true,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                labelText: 'Grams',
+              decoration: InputDecoration(
+                labelText: tr('Grams'),
                 suffixText: 'g',
                 border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              'A new account "${old.name} (grams)" is created, the amount you '
+              tr('A new account "${old.name} (grams)" is created, the amount you '
               'paid moves into it as the purchase cost, and this account is '
-              'archived with its history.',
+              'archived with its history.'),
               style: Theme.of(ctx).textTheme.bodySmall,
             ),
           ],
@@ -163,10 +164,10 @@ Future<void> switchGoldToWeight(
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+              child: Text(tr('Cancel'))),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Switch')),
+              child: Text(tr('Switch'))),
         ],
       ),
     ),
@@ -174,12 +175,12 @@ Future<void> switchGoldToWeight(
   if (ok != true) return;
   final g = parseAmount(grams.text);
   if (g == null || g <= 0) {
-    if (context.mounted) showSnack(context, 'Enter the grams you hold');
+    if (context.mounted) showSnack(context, tr('Enter the grams you hold'));
     return;
   }
   await state.switchGoldToWeight(old, code, g);
   if (context.mounted) {
     Navigator.pop(context);
-    showSnack(context, 'Gold now tracked by weight: ${fmtMoney(g, code)}');
+    showSnack(context, tr('Gold now tracked by weight: ${fmtMoney(g, code)}'));
   }
 }

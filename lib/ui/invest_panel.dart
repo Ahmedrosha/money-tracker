@@ -5,6 +5,7 @@ import '../state/app_state.dart';
 import '../util/format.dart';
 import 'transaction_edit.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 String _qty(double q) =>
     q == q.roundToDouble() ? q.toStringAsFixed(0) : q.toStringAsFixed(8).replaceFirst(RegExp(r'0+$'), '');
@@ -56,7 +57,7 @@ class InvestPanel extends StatelessWidget {
   Widget _gainRow(BuildContext context, double worth, double? invested) {
     if (invested == null) return const SizedBox.shrink();
     final g = worth - invested;
-    return _row('Profit / Loss',
+    return _row(tr('Profit / Loss'),
         '${g >= 0 ? '+' : ''}${fmtMoney(g, account.currency)}${_pct(g, invested)}',
         bold: true, color: amountColor(context, g));
   }
@@ -67,27 +68,27 @@ class InvestPanel extends StatelessWidget {
     final cur = account.currency;
     final small = Theme.of(context).textTheme.bodySmall;
     return _card(context, [
-      Text('Portfolio', style: Theme.of(context).textTheme.titleSmall),
+      Text(tr('Portfolio'), style: Theme.of(context).textTheme.titleSmall),
       const SizedBox(height: 8),
       if (account.investValue == null)
-        Text('Tap Update Value and type the total your broker shows.', style: small)
+        Text(tr('Tap Update Value and type the total your broker shows.'), style: small)
       else ...[
-        _row('Portfolio value', fmtMoney(account.worth, cur), bold: true),
-        if (invested != null) _row('Money invested', fmtMoney(invested, cur)),
+        _row(tr('Portfolio value'), fmtMoney(account.worth, cur), bold: true),
+        if (invested != null) _row(tr('Money invested'), fmtMoney(invested, cur)),
         _gainRow(context, account.worth, invested),
         const SizedBox(height: 4),
         Text(
-            'Value entered ${shortDateFmt.format(account.investValueAt!)}'
-            '${(account.balance - (account.investBase ?? account.balance)).abs() > 0.004 ? ', plus deposits/withdrawals since' : ''}',
+            tr('Value entered ${shortDateFmt.format(account.investValueAt!)}'
+            '${(account.balance - (account.investBase ?? account.balance)).abs() > 0.004 ? tr(', plus deposits/withdrawals since') : ''}'),
             style: small),
       ],
       const SizedBox(height: 8),
       FilledButton.tonalIcon(
         icon: const Icon(Icons.edit_outlined),
-        label: const Text('Update Value'),
+        label: Text(tr('Update Value')),
         onPressed: () async {
-          final v = await _askAmount(context, 'Portfolio Value',
-              'Total shown by your broker today', cur,
+          final v = await _askAmount(context, tr('Portfolio Value'),
+              tr('Total shown by your broker today'), cur,
               initial: account.investValue == null ? null : account.worth);
           if (v != null) await state.setInvestValue(account, v);
         },
@@ -114,57 +115,57 @@ class InvestPanel extends StatelessWidget {
         _card(context, [
           Row(children: [
             Expanded(
-                child: Text('Portfolio', style: Theme.of(context).textTheme.titleSmall)),
+                child: Text(tr('Portfolio'), style: Theme.of(context).textTheme.titleSmall)),
             state.refreshingStocks
                 ? const SizedBox(
                     width: 18, height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2))
                 : IconButton(
-                    tooltip: 'Refresh Prices',
+                    tooltip: tr('Refresh Prices'),
                     icon: const Icon(Icons.refresh),
                     onPressed: () async {
                       final n = await state.refreshStockPrices();
                       if (context.mounted) {
                         showSnack(context, n > 0
-                            ? 'Updated $n price${n == 1 ? '' : 's'}'
-                            : 'No new prices (offline, or set them by hand)');
+                            ? tr('Updated $n price${n == 1 ? '' : 's'}')
+                            : tr('No new prices (offline, or set them by hand)'));
                       }
                     },
                   ),
           ]),
-          _row('Portfolio value', fmtMoney(account.worth, cur), bold: true),
-          _row(crypto ? 'Coins' : 'Stocks', fmtMoney(holdValue, cur)),
-          _row('Cash', fmtMoney(cash, cur)),
-          if (invested != null) _row('Money invested', fmtMoney(invested, cur)),
+          _row(tr('Portfolio value'), fmtMoney(account.worth, cur), bold: true),
+          _row(crypto ? tr('Coins') : tr('Stocks'), fmtMoney(holdValue, cur)),
+          _row(tr('Cash'), fmtMoney(cash, cur)),
+          if (invested != null) _row(tr('Money invested'), fmtMoney(invested, cur)),
           _gainRow(context, account.worth, invested),
           if (latest != null)
-            Text('Prices from ${crypto ? 'Binance' : 'Yahoo Finance'}, ${shortDateFmt.format(latest)} '
-                '${TimeOfDay.fromDateTime(latest).format(context)}',
+            Text(tr('Prices from ${crypto ? 'Binance' : tr('Yahoo Finance')}, ${shortDateFmt.format(latest)} '
+                '${TimeOfDay.fromDateTime(latest).format(context)}'),
                 style: small),
           const SizedBox(height: 8),
           Wrap(spacing: 8, runSpacing: 8, children: [
             FilledButton.tonalIcon(
               icon: const Icon(Icons.add),
-              label: const Text('Buy'),
+              label: Text(tr('Buy')),
               onPressed: () => showTradeSheet(context, account, buy: true),
             ),
             FilledButton.tonalIcon(
               icon: const Icon(Icons.remove),
-              label: const Text('Sell'),
+              label: Text(tr('Sell')),
               onPressed: hs.isEmpty
                   ? null
                   : () => showTradeSheet(context, account, buy: false),
             ),
             OutlinedButton.icon(
               icon: const Icon(Icons.payments_outlined),
-              label: Text(crypto ? 'Reward' : 'Dividend'),
+              label: Text(crypto ? tr('Reward') : tr('Dividend')),
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (_) => TransactionEditScreen(
                     initialAccountId: account.id,
                     initialType: TxType.income,
-                    initialNote: crypto ? 'Staking / earn reward' : 'Dividend',
+                    initialNote: crypto ? tr('Staking / earn reward') : tr('Dividend'),
                   ),
                 ),
               ),
@@ -174,7 +175,7 @@ class InvestPanel extends StatelessWidget {
                 context,
                 MaterialPageRoute(builder: (_) => TradesScreen(accountId: account.id!)),
               ),
-              child: const Text('Trades'),
+              child: Text(tr('Trades')),
             ),
           ]),
         ]),
@@ -195,8 +196,8 @@ class InvestPanel extends StatelessWidget {
                     subtitle: Row(children: [
                       Expanded(
                         child: Text(
-                          '${_qty(h.qty)} × ${h.price == null ? '—' : fmtAmount(h.price!)}'
-                          '${h.manualPrice ? ' (your price)' : ''} · avg ${fmtAmount(h.avgCost)}',
+                          tr('${_qty(h.qty)} × ${h.price == null ? '—' : fmtAmount(h.price!)}'
+                          '${h.manualPrice ? tr(' (your price)') : ''} · avg ${fmtAmount(h.avgCost)}'),
                         ),
                       ),
                       Text(
@@ -222,25 +223,25 @@ class InvestPanel extends StatelessWidget {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(
             title: Text(h.symbol, style: Theme.of(ctx).textTheme.titleMedium),
-            subtitle: Text('${_qty(h.qty)} ${account.type == AccountType.crypto ? h.symbol : 'shares'} · cost ${fmtMoney(h.cost, account.currency)}'),
+            subtitle: Text(tr('${_qty(h.qty)} ${account.type == AccountType.crypto ? h.symbol : 'shares'} · cost ${fmtMoney(h.cost, account.currency)}')),
           ),
           ListTile(
               leading: const Icon(Icons.add),
-              title: const Text('Buy More'),
+              title: Text(tr('Buy More')),
               onTap: () => Navigator.pop(ctx, 'buy')),
           ListTile(
               leading: const Icon(Icons.remove),
-              title: const Text('Sell'),
+              title: Text(tr('Sell')),
               onTap: () => Navigator.pop(ctx, 'sell')),
           ListTile(
               leading: const Icon(Icons.price_change_outlined),
-              title: const Text('Set Price'),
-              subtitle: const Text('Kept until you choose the live price again'),
+              title: Text(tr('Set Price')),
+              subtitle: Text(tr('Kept until you choose the live price again')),
               onTap: () => Navigator.pop(ctx, 'price')),
           if (h.manualPrice)
             ListTile(
                 leading: const Icon(Icons.cloud_sync_outlined),
-                title: const Text('Use Live Price'),
+                title: Text(tr('Use Live Price')),
                 onTap: () => Navigator.pop(ctx, 'live')),
         ]),
       ),
@@ -252,8 +253,8 @@ class InvestPanel extends StatelessWidget {
       case 'sell':
         await showTradeSheet(context, account, buy: false, symbol: h.symbol);
       case 'price':
-        final v = await _askAmount(context, '${h.symbol} Price',
-            account.type == AccountType.crypto ? 'Price per coin' : 'Price per share',
+        final v = await _askAmount(context, tr('${h.symbol} Price'),
+            account.type == AccountType.crypto ? tr('Price per coin') : tr('Price per share'),
             account.currency, initial: h.price);
         if (v != null) await state.setStockPrice(account, h.symbol, v);
       case 'live':
@@ -278,9 +279,9 @@ Future<double?> _askAmount(BuildContext context, String title, String label,
             labelText: label, suffixText: cur, border: const OutlineInputBorder()),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('Cancel'))),
         FilledButton(
-            onPressed: () => Navigator.pop(ctx, ctrl.text), child: const Text('Save')),
+            onPressed: () => Navigator.pop(ctx, ctrl.text), child: Text(tr('Save'))),
       ],
     ),
   );
@@ -349,9 +350,9 @@ class _TradeFormState extends State<_TradeForm> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: true, label: Text('Buy')),
-                ButtonSegment(value: false, label: Text('Sell')),
+              segments: [
+                ButtonSegment(value: true, label: Text(tr('Buy'))),
+                ButtonSegment(value: false, label: Text(tr('Sell'))),
               ],
               selected: {_buy},
               onSelectionChanged: (v) => setState(() => _buy = v.first),
@@ -362,8 +363,8 @@ class _TradeFormState extends State<_TradeForm> {
               textCapitalization: TextCapitalization.characters,
               onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
-                labelText: crypto ? 'Coin' : 'Stock Symbol',
-                hintText: crypto ? 'e.g. BTC, ETH, SOL' : 'e.g. COMI, TMGH, FWRY',
+                labelText: crypto ? tr('Coin') : tr('Stock Symbol'),
+                hintText: crypto ? tr('e.g. BTC, ETH, SOL') : tr('e.g. COMI, TMGH, FWRY'),
                 border: const OutlineInputBorder(),
               ),
             ),
@@ -380,7 +381,7 @@ class _TradeFormState extends State<_TradeForm> {
             if (!_buy && h != null)
               Padding(
                 padding: const EdgeInsets.only(top: 6),
-                child: Text('You hold ${_qty(h.qty)} · average ${fmtAmount(h.avgCost)}',
+                child: Text(tr('You hold ${_qty(h.qty)} · average ${fmtAmount(h.avgCost)}'),
                     style: Theme.of(context).textTheme.bodySmall),
               ),
             const SizedBox(height: 12),
@@ -391,7 +392,7 @@ class _TradeFormState extends State<_TradeForm> {
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
-                      labelText: crypto ? 'Amount' : 'Shares',
+                      labelText: crypto ? tr('Amount') : tr('Shares'),
                       border: const OutlineInputBorder()),
                 ),
               ),
@@ -402,7 +403,7 @@ class _TradeFormState extends State<_TradeForm> {
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
-                      labelText: crypto ? 'Price per Coin' : 'Price per Share',
+                      labelText: crypto ? tr('Price per Coin') : tr('Price per Share'),
                       suffixText: cur,
                       border: const OutlineInputBorder()),
                 ),
@@ -414,14 +415,14 @@ class _TradeFormState extends State<_TradeForm> {
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
-                  labelText: 'Fees (commission)',
+                  labelText: tr('Fees (commission)'),
                   suffixText: cur,
                   border: const OutlineInputBorder()),
             ),
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.event),
-              title: const Text('Date'),
+              title: Text(tr('Date')),
               subtitle: Text(dayFmt.format(_date)),
               onTap: () async {
                 final d = await showDatePicker(
@@ -434,8 +435,8 @@ class _TradeFormState extends State<_TradeForm> {
             ),
             if (qty > 0 && price > 0)
               Text(
-                  '${_buy ? 'Total paid' : 'You receive'} ${fmtMoneyRaw(total, cur)}'
-                  '${!_buy && h != null ? ' · profit ${fmtAmountRaw((price - h.avgCost) * qty)}' : ''}',
+                  '${_buy ? tr('Total paid') : tr('You receive')} ${fmtMoneyRaw(total, cur)}'
+                  '${!_buy && h != null ? tr(' · profit ${fmtAmountRaw((price - h.avgCost) * qty)}') : ''}',
                   style: const TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 12),
             FilledButton(
@@ -445,7 +446,7 @@ class _TradeFormState extends State<_TradeForm> {
                       final sym = _symbol.text.trim().toUpperCase();
                       if (sym.isEmpty || qty <= 0 || price <= 0) {
                         showSnack(context,
-                            crypto ? 'Enter the coin, amount and price' : 'Enter the symbol, shares and price');
+                            crypto ? tr('Enter the coin, amount and price') : tr('Enter the symbol, shares and price'));
                         return;
                       }
                       setState(() => _saving = true);
@@ -462,7 +463,7 @@ class _TradeFormState extends State<_TradeForm> {
                     },
               child: Padding(
                 padding: const EdgeInsets.all(12),
-                child: Text(_buy ? 'Record Buy' : 'Record Sell'),
+                child: Text(_buy ? tr('Record Buy') : tr('Record Sell')),
               ),
             ),
           ],
@@ -484,9 +485,9 @@ class TradesScreen extends StatelessWidget {
     final a = state.accountById(accountId);
     final list = state.trades.where((t) => t.accountId == accountId).toList().reversed.toList();
     return Scaffold(
-      appBar: AppBar(title: Text('${a?.name ?? ''} Trades')),
+      appBar: AppBar(title: Text(tr('${a?.name ?? ''} Trades'))),
       body: list.isEmpty
-          ? const Center(child: Text('No trades yet'))
+          ? Center(child: Text(tr('No trades yet')))
           : ListView.separated(
               itemCount: list.length,
               separatorBuilder: (_, __) => const Divider(height: 1),
@@ -498,15 +499,15 @@ class TradesScreen extends StatelessWidget {
                     child: Text(t.buy ? 'B' : 'S',
                         style: TextStyle(color: t.buy ? kExpenseColor : kIncomeColor)),
                   ),
-                  title: Text('${t.buy ? 'Buy' : 'Sell'} ${_qty(t.qty)} ${t.symbol} @ ${fmtAmount(t.price)}'),
+                  title: Text('${t.buy ? tr('Buy') : tr('Sell')} ${_qty(t.qty)} ${t.symbol} @ ${fmtAmount(t.price)}'),
                   subtitle: Text('${shortDateFmt.format(t.date)}'
-                      '${t.fees > 0 ? ' · fees ${fmtAmount(t.fees)}' : ''}'
-                      '${!t.buy ? ' · profit ${fmtAmount(t.realized)}' : ''}'),
+                      '${t.fees > 0 ? tr(' · fees ${fmtAmount(t.fees)}') : ''}'
+                      '${!t.buy ? tr(' · profit ${fmtAmount(t.realized)}') : ''}'),
                   trailing: Text(fmtAmount(t.qty * t.price)),
                   onLongPress: () async {
                     final ok = await confirmDialog(context,
-                        title: 'Delete this trade?',
-                        message: 'Its fee and profit entries are removed too.');
+                        title: tr('Delete this trade?'),
+                        message: tr('Its fee and profit entries are removed too.'));
                     if (ok) await state.deleteTrade(t);
                   },
                 );

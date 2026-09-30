@@ -8,6 +8,7 @@ import '../state/app_state.dart';
 import '../util/format.dart';
 import 'transaction_edit.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 enum _Range { any, thisMonth, thisYear, last12, custom }
 
@@ -105,13 +106,13 @@ class _SearchScreenState extends State<SearchScreen> {
   String get _rangeLabel {
     switch (_range) {
       case _Range.any:
-        return 'Any time';
+        return tr('Any time');
       case _Range.thisMonth:
-        return 'This Month';
+        return tr('This Month');
       case _Range.thisYear:
-        return 'This Year';
+        return tr('This Year');
       case _Range.last12:
-        return 'Last 12 Months';
+        return tr('Last 12 Months');
       case _Range.custom:
         return '${shortDateFmt.format(_custom!.start)} – ${shortDateFmt.format(_custom!.end)}';
     }
@@ -125,12 +126,12 @@ class _SearchScreenState extends State<SearchScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            for (final (r, label) in const [
-              (_Range.any, 'Any time'),
-              (_Range.thisMonth, 'This Month'),
-              (_Range.thisYear, 'This Year'),
-              (_Range.last12, 'Last 12 Months'),
-              (_Range.custom, 'Choose Dates…'),
+            for (final (r, label) in [
+              (_Range.any, tr('Any time')),
+              (_Range.thisMonth, tr('This Month')),
+              (_Range.thisYear, tr('This Year')),
+              (_Range.last12, tr('Last 12 Months')),
+              (_Range.custom, tr('Choose Dates…')),
             ])
               ListTile(
                 title: Text(label),
@@ -168,7 +169,7 @@ class _SearchScreenState extends State<SearchScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-                title: const Text('All Types'),
+                title: Text(tr('All Types')),
                 onTap: () => Navigator.pop(ctx, -1)),
             for (final t in TxType.values)
               ListTile(
@@ -217,7 +218,7 @@ class _SearchScreenState extends State<SearchScreen> {
           autofocus: widget.initialQuery == null,
           textInputAction: TextInputAction.search,
           decoration: InputDecoration(
-            hintText: 'Search payee, note, category, account, amount',
+            hintText: tr('Search payee, note, category, account, amount'),
             border: InputBorder.none,
             suffixIcon: _ctrl.text.isEmpty
                 ? null
@@ -241,22 +242,22 @@ class _SearchScreenState extends State<SearchScreen> {
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
             child: Row(
               children: [
-                _chip(_type?.label ?? 'Type', _type != null, _pickType,
+                _chip(_type?.label ?? tr('Type'), _type != null, _pickType,
                     onClear: () => setState(() => _type = null)),
                 _chip(_rangeLabel, _range != _Range.any, _pickRange,
                     onClear: () => setState(() => _range = _Range.any)),
-                _chip(account?.fullName ?? 'Account', account != null,
+                _chip(account?.fullName ?? tr('Account'), account != null,
                     () async {
                   final id = await pickAccount(context,
                       current: _accountId,
-                      title: 'Filter by Account',
+                      title: tr('Filter by Account'),
                       allowAll: true,
                       includeArchived: true);
                   if (id != null) {
                     setState(() => _accountId = id == -1 ? null : id);
                   }
                 }, onClear: () => setState(() => _accountId = null)),
-                _chip(category?.name ?? 'Category', category != null,
+                _chip(category?.name ?? tr('Category'), category != null,
                     () async {
                   final id = await pickCategory(context,
                       kind: _type == TxType.income
@@ -279,13 +280,13 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Widget _results(AppState state) {
     if (_future == null) {
-      return const Center(
+      return Center(
         child: Padding(
           padding: EdgeInsets.all(32),
           child: Text(
-            'Search all your transactions since the first one, '
+            tr('Search all your transactions since the first one, '
             'including archived accounts.\n\n'
-            'Several words narrow it down, e.g. "fuel platinum".',
+            'Several words narrow it down, e.g. "fuel platinum".'),
             textAlign: TextAlign.center,
           ),
         ),
@@ -295,14 +296,14 @@ class _SearchScreenState extends State<SearchScreen> {
       future: _future,
       builder: (context, snap) {
         if (snap.hasError) {
-          return Center(child: Text('Search failed: ${snap.error}'));
+          return Center(child: Text(tr('Search failed: ${snap.error}')));
         }
         if (!snap.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
         final res = snap.data!;
         if (res.count == 0) {
-          return const Center(child: Text('No matching transactions'));
+          return Center(child: Text(tr('No matching transactions')));
         }
 
         double sum(String type) {
@@ -322,9 +323,9 @@ class _SearchScreenState extends State<SearchScreen> {
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
             child: Text(
               [
-                '${res.count} result${res.count == 1 ? '' : 's'}',
-                if (spent != 0) 'spent ${fmtMoney(spent, base)}',
-                if (received != 0) 'received ${fmtMoney(received, base)}',
+                tr('${res.count} result${res.count == 1 ? '' : 's'}'),
+                if (spent != 0) tr('spent ${fmtMoney(spent, base)}'),
+                if (received != 0) tr('received ${fmtMoney(received, base)}'),
               ].join(' · '),
               style: Theme.of(context)
                   .textTheme
@@ -363,8 +364,8 @@ class _SearchScreenState extends State<SearchScreen> {
           rows.add(Padding(
             padding: const EdgeInsets.all(16),
             child: Text(
-              'Showing the newest ${res.txns.length} of ${res.count}. '
-              'Add a word or a filter to narrow it down.',
+              tr('Showing the newest ${res.txns.length} of ${res.count}. '
+              'Add a word or a filter to narrow it down.'),
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall,
             ),

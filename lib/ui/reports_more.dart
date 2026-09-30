@@ -5,6 +5,7 @@ import '../data/models.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 String _short(double v) {
   if (amountsHidden) return '•';
@@ -153,9 +154,9 @@ class _TrendTabState extends State<TrendTab> {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
           child: SegmentedButton<bool>(
-            segments: const [
-              ButtonSegment(value: false, label: Text('Last 12 Months')),
-              ButtonSegment(value: true, label: Text('By Year')),
+            segments: [
+              ButtonSegment(value: false, label: Text(tr('Last 12 Months'))),
+              ButtonSegment(value: true, label: Text(tr('By Year'))),
             ],
             selected: {_years},
             onSelectionChanged: (s) => setState(() => _years = s.first),
@@ -164,9 +165,9 @@ class _TrendTabState extends State<TrendTab> {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
           child: SegmentedButton<bool>(
-            segments: const [
-              ButtonSegment(value: false, label: Text('Trend')),
-              ButtonSegment(value: true, label: Text('Cumulative')),
+            segments: [
+              ButtonSegment(value: false, label: Text(tr('Trend'))),
+              ButtonSegment(value: true, label: Text(tr('Cumulative'))),
             ],
             selected: {_cumulative},
             onSelectionChanged: (s) => setState(() => _cumulative = s.first),
@@ -174,10 +175,10 @@ class _TrendTabState extends State<TrendTab> {
         ),
         _title(
             context,
-            _cumulative ? 'Saved Over Time' : 'Income vs Spending',
+            _cumulative ? tr('Saved Over Time') : tr('Income vs Spending'),
             sub: _cumulative
-                ? '$cur · running total of income minus spending'
-                : '$cur · tap a bar for details'),
+                ? tr('$cur · running total of income minus spending')
+                : tr('$cur · tap a bar for details')),
         FutureBuilder<List<_Bucket>>(
           future: _future,
           builder: (context, snap) {
@@ -199,8 +200,8 @@ class _TrendTabState extends State<TrendTab> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
                   child: Wrap(spacing: 16, children: [
-                    _legendDot(context, kIncomeColor, 'Income'),
-                    _legendDot(context, kExpenseColor, 'Spending'),
+                    _legendDot(context, kIncomeColor, tr('Income')),
+                    _legendDot(context, kExpenseColor, tr('Spending')),
                   ]),
                 ),
                 _PairBars(
@@ -218,15 +219,15 @@ class _TrendTabState extends State<TrendTab> {
                         Text(s.longLabel,
                             style: const TextStyle(fontWeight: FontWeight.bold)),
                         const SizedBox(height: 4),
-                        Text('Income ${fmtMoney(s.income, cur)}'),
-                        Text('Spending ${fmtMoney(s.spent, cur)}'),
-                        Text('Net ${fmtMoney(s.income - s.spent, cur)}',
+                        Text(tr('Income ${fmtMoney(s.income, cur)}')),
+                        Text(tr('Spending ${fmtMoney(s.spent, cur)}')),
+                        Text(tr('Net ${fmtMoney(s.income - s.spent, cur)}'),
                             style: TextStyle(
                                 color: amountColor(context, s.income - s.spent),
                                 fontWeight: FontWeight.w600)),
                         const SizedBox(height: 4),
                         Text(
-                            'Average spending per ${_years ? 'year' : 'month'}: ${fmtMoney(avgSpent, cur)}',
+                            tr('Average spending per ${_years ? tr('year') : tr('month')}: ${fmtMoney(avgSpent, cur)}'),
                             style: Theme.of(context).textTheme.bodySmall),
                       ],
                     ),
@@ -236,13 +237,13 @@ class _TrendTabState extends State<TrendTab> {
             );
           },
         ),
-        _title(context, 'One Category Over Time'),
+        _title(context, tr('One Category Over Time')),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: OutlinedButton.icon(
             icon: const Icon(Icons.category_outlined),
             label: Text(cat == null
-                ? 'Choose a Category'
+                ? tr('Choose a Category')
                 : (cat.group.isEmpty ? cat.name : '${cat.group} › ${cat.name}')),
             onPressed: () async {
               final id = await pickCategory(context,
@@ -271,7 +272,7 @@ class _TrendTabState extends State<TrendTab> {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
                     child: Text(
-                      'Total ${fmtMoney(total, cur)} · average ${fmtMoney(total / b.length, cur)} per ${_years ? 'year' : 'month'}',
+                      tr('Total ${fmtMoney(total, cur)} · average ${fmtMoney(total / b.length, cur)} per ${_years ? tr('year') : tr('month')}'),
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ),
@@ -306,13 +307,13 @@ class _TrendTabState extends State<TrendTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('By the end of ${b[sel].longLabel}', style: small),
+              Text(tr('By the end of ${b[sel].longLabel}'), style: small),
               Text(fmtMoney(pts[sel].$2, cur),
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: amountColor(context, pts[sel].$2))),
               Text(
-                  '${b[sel].longLabel} alone: ${b[sel].net >= 0 ? '+' : ''}${fmtMoney(b[sel].net, cur)}',
+                  tr('${b[sel].longLabel} alone: ${b[sel].net >= 0 ? '+' : ''}${fmtMoney(b[sel].net, cur)}'),
                   style: small),
             ],
           ),
@@ -331,20 +332,20 @@ class _TrendTabState extends State<TrendTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(_years ? 'All Years' : 'Last 12 Months',
+                Text(_years ? tr('All Years') : tr('Last 12 Months'),
                     style: const TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
-                Text('Income ${fmtMoney(income, cur)}'),
-                Text('Spending ${fmtMoney(spent, cur)}'),
+                Text(tr('Income ${fmtMoney(income, cur)}')),
+                Text(tr('Spending ${fmtMoney(spent, cur)}')),
                 Text(
-                    'Saved ${fmtMoney(saved, cur)}'
-                    '${income > 0 ? ' · ${(saved / income * 100).toStringAsFixed(0)}% of income' : ''}',
+                    tr('Saved ${fmtMoney(saved, cur)}'
+                    '${income > 0 ? tr(' · ${(saved / income * 100).toStringAsFixed(0)}% of income') : ''}'),
                     style: TextStyle(
                         color: amountColor(context, saved),
                         fontWeight: FontWeight.w600)),
                 const SizedBox(height: 4),
                 Text(
-                    '${b.where((x) => x.net >= 0).length} of ${b.length} ${_years ? 'years' : 'months'} saved money',
+                    tr('${b.where((x) => x.net >= 0).length} of ${b.length} ${_years ? tr('years') : tr('months')} saved money'),
                     style: small),
               ],
             ),
@@ -565,7 +566,7 @@ class _NetWorthTabState extends State<NetWorthTab> {
           return const Center(child: CircularProgressIndicator());
         }
         var pts = snap.data!;
-        if (pts.isEmpty) return const Center(child: Text('No data yet'));
+        if (pts.isEmpty) return Center(child: Text(tr('No data yet')));
         if (_years > 0 && pts.length > _years * 12) {
           pts = pts.sublist(pts.length - _years * 12);
         }
@@ -579,11 +580,11 @@ class _NetWorthTabState extends State<NetWorthTab> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: SegmentedButton<int>(
-                segments: const [
+                segments: [
                   ButtonSegment(value: 1, label: Text('1Y')),
                   ButtonSegment(value: 3, label: Text('3Y')),
                   ButtonSegment(value: 5, label: Text('5Y')),
-                  ButtonSegment(value: 0, label: Text('All')),
+                  ButtonSegment(value: 0, label: Text(tr('All'))),
                 ],
                 selected: {_years},
                 onSelectionChanged: (s) => setState(() {
@@ -604,7 +605,7 @@ class _NetWorthTabState extends State<NetWorthTab> {
                           .textTheme
                           .headlineSmall
                           ?.copyWith(fontWeight: FontWeight.bold)),
-                  Text('Drag across the chart to see any month',
+                  Text(tr('Drag across the chart to see any month'),
                       style: Theme.of(context).textTheme.bodySmall),
                 ],
               ),
@@ -621,20 +622,20 @@ class _NetWorthTabState extends State<NetWorthTab> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  _chip(context, 'Now', fmtMoney(nowV, cur)),
-                  _chip(context, 'Change Over 12 Months',
+                  _chip(context, tr('Now'), fmtMoney(nowV, cur)),
+                  _chip(context, tr('Change Over 12 Months'),
                       '${nowV - yearAgo >= 0 ? '+' : ''}${fmtMoney(nowV - yearAgo, cur)}'),
-                  _chip(context, 'Highest',
+                  _chip(context, tr('Highest'),
                       '${fmtMoney(peak.$2, cur)} · ${DateFormat('MMM yyyy').format(peak.$1)}'),
                 ],
               ),
             ),
-            const Padding(
+            Padding(
               padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: Text(
-                'Month-end totals of all accounts counted in net worth (archived '
+                tr('Month-end totals of all accounts counted in net worth (archived '
                 'ones included for the months they held money). Foreign-currency '
-                'balances use today\'s exchange rates.',
+                'balances use today\'s exchange rates.'),
               ),
             ),
           ],
@@ -847,7 +848,7 @@ class CardsTab extends StatelessWidget {
     final cards = state.cards.values.where((c) => !c.card.archived).toList()
       ..sort((a, b) => b.used.compareTo(a.used));
     if (cards.isEmpty) {
-      return const Center(child: Text('No credit cards'));
+      return Center(child: Text(tr('No credit cards')));
     }
     return ListView(
       padding: const EdgeInsets.only(bottom: 32),
@@ -886,8 +887,8 @@ class _CardReport extends StatelessWidget {
                 children: [
                   Expanded(
                       child: Text(
-                          'Using ${(summary.used / limit * 100).toStringAsFixed(0)}% of ${fmtMoney(limit, cur)}')),
-                  Text('Available ${fmtAmount(summary.available!)}',
+                          tr('Using ${(summary.used / limit * 100).toStringAsFixed(0)}% of ${fmtMoney(limit, cur)}'))),
+                  Text(tr('Available ${fmtAmount(summary.available!)}'),
                       style: const TextStyle(fontWeight: FontWeight.w600)),
                 ],
               ),
@@ -903,11 +904,11 @@ class _CardReport extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                  'Owed ${fmtAmount(summary.owedNow)}'
-                  '${summary.futureInstallments > 0 ? ' · future installments ${fmtAmount(summary.futureInstallments)}' : ''}',
+                  tr('Owed ${fmtAmount(summary.owedNow)}'
+                  '${summary.futureInstallments > 0 ? tr(' · future installments ${fmtAmount(summary.futureInstallments)}') : ''}'),
                   style: Theme.of(context).textTheme.bodySmall),
             ] else
-              Text('Owed ${fmtMoney(summary.owedNow, cur)} · no limit set',
+              Text(tr('Owed ${fmtMoney(summary.owedNow, cur)} · no limit set'),
                   style: Theme.of(context).textTheme.bodySmall),
             if (a.hasCycle)
               FutureBuilder<List<CardStatement>>(
@@ -930,7 +931,7 @@ class _CardReport extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 12),
-                      Text('Statements, last 12 cycles',
+                      Text(tr('Statements, last 12 cycles'),
                           style: Theme.of(context).textTheme.labelLarge),
                       _SingleBars(
                         values: amounts,
@@ -940,8 +941,8 @@ class _CardReport extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Average ${fmtMoney(avg, cur)} · highest ${fmtMoney(amounts.fold(0.0, (m, v) => v > m ? v : m), cur)}'
-                        '${unpaid > 0 ? ' · $unpaid not fully paid' : ''}',
+                        tr('Average ${fmtMoney(avg, cur)} · highest ${fmtMoney(amounts.fold(0.0, (m, v) => v > m ? v : m), cur)}'
+                        '${unpaid > 0 ? tr(' · $unpaid not fully paid') : ''}'),
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
@@ -952,7 +953,7 @@ class _CardReport extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
-                    'Set the statement closing and due days on this card to see its statements.',
+                    tr('Set the statement closing and due days on this card to see its statements.'),
                     style: Theme.of(context).textTheme.bodySmall),
               ),
           ],

@@ -4,6 +4,7 @@ import '../state/app_state.dart';
 import '../util/currencies.dart';
 import '../util/format.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 class CurrenciesScreen extends StatelessWidget {
   const CurrenciesScreen({super.key});
@@ -20,7 +21,7 @@ class CurrenciesScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Exchange Rates'),
+        title: Text(tr('Exchange Rates')),
         actions: [
           state.refreshingRates
               ? const Padding(
@@ -31,15 +32,15 @@ class CurrenciesScreen extends StatelessWidget {
                       child: CircularProgressIndicator(strokeWidth: 2)),
                 )
               : IconButton(
-                  tooltip: 'Refresh Online Rates',
+                  tooltip: tr('Refresh Online Rates'),
                   icon: const Icon(Icons.refresh),
                   onPressed: () async {
                     try {
                       await state.refreshRates();
-                      if (context.mounted) showSnack(context, 'Rates updated');
+                      if (context.mounted) showSnack(context, tr('Rates updated'));
                     } catch (e) {
                       if (context.mounted) {
-                        showSnack(context, 'Could not update rates. Check internet.');
+                        showSnack(context, tr('Could not update rates. Check internet.'));
                       }
                     }
                   },
@@ -52,18 +53,18 @@ class CurrenciesScreen extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             child: Text(
               last == null
-                  ? 'Online rates have not been downloaded yet. Tap refresh.'
-                  : 'Online rates updated ${shortDateFmt.format(last)} '
+                  ? tr('Online rates have not been downloaded yet. Tap refresh.')
+                  : tr('Online rates updated ${shortDateFmt.format(last)} '
                       '${TimeOfDay.fromDateTime(last).format(context)}. '
-                      'Tap a currency to set your own rate; manual rates are kept when refreshing.',
+                      'Tap a currency to set your own rate; manual rates are kept when refreshing.'),
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
           if (codes.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.all(24),
               child: Text(
-                  'Add an account in another currency and it will appear here.'),
+                  tr('Add an account in another currency and it will appear here.')),
             ),
           for (final c in codes)
             _RateTile(code: c, base: base),
@@ -87,16 +88,16 @@ class _RateTile extends StatelessWidget {
     return ListTile(
       title: Text(isGold(code) ? currencyName(code) : '$code — ${currencyName(code)}'),
       subtitle: Text(r == null
-          ? 'No rate yet'
+          ? tr('No rate yet')
           : '1 ${currencyUnit(code)} = ${fmtRate(r)} $base'),
       trailing: manual
           ? Chip(
-              label: const Text('Manual'),
+              label: Text(tr('Manual')),
               visualDensity: VisualDensity.compact,
               backgroundColor:
                   Theme.of(context).colorScheme.tertiaryContainer,
             )
-          : const Text('Auto'),
+          : Text(tr('Auto')),
       onTap: () => _edit(context, state, r, manual),
     );
   }
@@ -108,7 +109,7 @@ class _RateTile extends StatelessWidget {
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(isGold(code) ? 'Price per Gram, ${goldKarat(code)}K' : 'Rate for $code'),
+        title: Text(isGold(code) ? tr('Price per Gram, ${goldKarat(code)}K') : tr('Rate for $code')),
         content: TextField(
           controller: ctrl,
           autofocus: true,
@@ -123,14 +124,14 @@ class _RateTile extends StatelessWidget {
           if (manual)
             TextButton(
               onPressed: () => Navigator.pop(ctx, '__auto__'),
-              child: const Text('Use Online Rate'),
+              child: Text(tr('Use Online Rate')),
             ),
           TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
+              child: Text(tr('Cancel'))),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, ctrl.text),
-              child: const Text('Save')),
+              child: Text(tr('Save'))),
         ],
       ),
     );
@@ -141,7 +142,7 @@ class _RateTile extends StatelessWidget {
       } else {
         final v = parseAmount(result);
         if (v == null || v <= 0) {
-          if (context.mounted) showSnack(context, 'Invalid rate');
+          if (context.mounted) showSnack(context, tr('Invalid rate'));
           return;
         }
         await state.setManualRate(code, v);

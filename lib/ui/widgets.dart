@@ -7,6 +7,7 @@ import '../util/currencies.dart';
 import '../util/format.dart';
 import '../util/icons.dart';
 import 'transaction_edit.dart';
+import '../l10n/l10n.dart';
 
 const Color kIncomeColor = Color(0xFF2E7D32);
 const Color kExpenseColor = Color(0xFFC62828);
@@ -112,7 +113,7 @@ class TxnTile extends StatelessWidget {
       case TxType.expense:
         title = txn.payee.isNotEmpty
             ? txn.payee
-            : (category?.name ?? 'Expense');
+            : (category?.name ?? tr('Expense'));
         subtitle = [
           if (txn.payee.isNotEmpty && category != null) category.name,
           account?.fullName ?? '?',
@@ -122,7 +123,7 @@ class TxnTile extends StatelessWidget {
       case TxType.income:
         title = txn.payee.isNotEmpty
             ? txn.payee
-            : (category?.name ?? 'Income');
+            : (category?.name ?? tr('Income'));
         subtitle = [
           if (txn.payee.isNotEmpty && category != null) category.name,
           account?.fullName ?? '?',
@@ -130,7 +131,7 @@ class TxnTile extends StatelessWidget {
         signed = txn.amount;
         break;
       case TxType.transfer:
-        title = 'Transfer';
+        title = tr('Transfer');
         subtitle = '${account?.fullName ?? '?'} → ${toAccount?.fullName ?? '?'}';
         if (perspectiveAccountId != null &&
             perspectiveAccountId == txn.toAccountId) {
@@ -144,7 +145,7 @@ class TxnTile extends StatelessWidget {
         break;
     }
     if (txn.postedLater) {
-      subtitle = '$subtitle · Posted ${DateFormat('d MMM').format(txn.postDate!)}';
+      subtitle = tr('$subtitle · Posted ${DateFormat('d MMM').format(txn.postDate!)}');
     }
     if (txn.note.isNotEmpty) subtitle = '$subtitle · ${txn.note}';
 
@@ -171,10 +172,10 @@ class TxnTile extends StatelessWidget {
               child: Icon(Icons.repeat, size: 14),
             ),
           if (future)
-            TagChip('Upcoming',
+            TagChip(tr('Upcoming'),
                 color: Theme.of(context).colorScheme.tertiary)
           else if (txn.isPending)
-            TagChip('Pending', color: Theme.of(context).colorScheme.secondary),
+            TagChip(tr('Pending'), color: Theme.of(context).colorScheme.secondary),
         ],
       ),
       subtitle: Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -210,7 +211,7 @@ class OccurrenceTile extends StatelessWidget {
     final canAct = state.isNextOccurrence(occurrence);
 
     final title = r.type == TxType.transfer
-        ? 'Transfer'
+        ? tr('Transfer')
         : (r.payee.isNotEmpty ? r.payee : (category?.name ?? r.type.label));
     final sub = r.type == TxType.transfer
         ? '${account?.fullName ?? '?'} → ${toAccount?.fullName ?? '?'}'
@@ -232,7 +233,7 @@ class OccurrenceTile extends StatelessWidget {
             Flexible(
                 child:
                     Text(title, maxLines: 1, overflow: TextOverflow.ellipsis)),
-            TagChip(due ? 'Due' : 'Upcoming',
+            TagChip(due ? tr('Due') : tr('Upcoming'),
                 color: due ? scheme.error : scheme.tertiary),
           ],
         ),
@@ -258,7 +259,7 @@ class OccurrenceTile extends StatelessWidget {
               ),
             ),
             if (canAct)
-              Text('Tap to confirm',
+              Text(tr('Tap to confirm'),
                   style: Theme.of(context).textTheme.bodySmall),
           ],
         ),
@@ -283,30 +284,30 @@ Future<void> openOccurrence(BuildContext context, Occurrence o) async {
             subtitle: Text(o.rule.scheduleLabel),
           ),
           if (!canAct)
-            const ListTile(
+            ListTile(
               leading: Icon(Icons.info_outline),
-              title: Text('Confirm or skip the earlier ones of this item first'),
+              title: Text(tr('Confirm or skip the earlier ones of this item first')),
             ),
           if (canAct) ...[
             ListTile(
               leading: const Icon(Icons.check_circle_outline),
-              title: const Text('Confirm as is'),
+              title: Text(tr('Confirm as is')),
               onTap: () => Navigator.pop(ctx, 'confirm'),
             ),
             ListTile(
               leading: const Icon(Icons.edit_outlined),
-              title: const Text('Edit amount / details, then confirm'),
+              title: Text(tr('Edit amount / details, then confirm')),
               onTap: () => Navigator.pop(ctx, 'edit'),
             ),
             ListTile(
               leading: const Icon(Icons.skip_next_outlined),
-              title: const Text('Skip This Time'),
+              title: Text(tr('Skip This Time')),
               onTap: () => Navigator.pop(ctx, 'skip'),
             ),
           ],
           ListTile(
             leading: const Icon(Icons.repeat),
-            title: const Text('Edit Recurring Item (All Future)'),
+            title: Text(tr('Edit Recurring Item (All Future)')),
             onTap: () => Navigator.pop(ctx, 'rule'),
           ),
         ],
@@ -317,7 +318,7 @@ Future<void> openOccurrence(BuildContext context, Occurrence o) async {
   switch (choice) {
     case 'confirm':
       await state.confirmOccurrence(o);
-      if (context.mounted) showSnack(context, 'Recorded');
+      if (context.mounted) showSnack(context, tr('Recorded'));
       break;
     case 'skip':
       await state.skipOccurrence(o);
@@ -378,9 +379,9 @@ class _CurrencySheetState extends State<_CurrencySheet> {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: TextField(
               autofocus: false,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 prefixIcon: Icon(Icons.search),
-                hintText: 'Search currency',
+                hintText: tr('Search currency'),
                 border: OutlineInputBorder(),
               ),
               onChanged: (v) => setState(() => _query = v),
@@ -392,7 +393,7 @@ class _CurrencySheetState extends State<_CurrencySheet> {
               itemBuilder: (ctx, i) {
                 final c = list[i];
                 return ListTile(
-                  title: Text(isGold(c) ? 'Gold ${goldKarat(c)}K' : c),
+                  title: Text(isGold(c) ? tr('Gold ${goldKarat(c)}K') : c),
                   subtitle: Text(currencyName(c)),
                   trailing: c == widget.current
                       ? const Icon(Icons.check)
@@ -457,7 +458,7 @@ List<MapEntry<String, List<Account>>> groupByBank(List<Account> list) {
     ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
   return [
     for (final k in keys) MapEntry(k, map[k]!),
-    if (map.containsKey('')) MapEntry('Other', map['']!),
+    if (map.containsKey('')) MapEntry(tr('Other'), map['']!),
   ];
 }
 
@@ -500,7 +501,7 @@ class AccountField extends StatelessWidget {
           prefixIcon: a == null ? null : Icon(accountTypeIcon(a.type)),
         ),
         child: a == null
-            ? Text('Select',
+            ? Text(tr('Select'),
                 style: TextStyle(
                     color: Theme.of(context).colorScheme.onSurfaceVariant))
             : Column(
@@ -539,7 +540,7 @@ Future<int?> pickAccount(BuildContext context,
     builder: (ctx) => _AccountSheet(
       accounts: list,
       current: current,
-      title: title,
+      title: tr(title),
       allowAll: allowAll,
     ),
   );
@@ -607,7 +608,7 @@ class _AccountSheetState extends State<_AccountSheet> {
               child: TextField(
                 decoration: InputDecoration(
                   prefixIcon: const Icon(Icons.search),
-                  hintText: 'Search account, bank, type',
+                  hintText: tr('Search account, bank, type'),
                   border: const OutlineInputBorder(),
                   isDense: true,
                   suffixIcon: _q.isEmpty
@@ -630,14 +631,14 @@ class _AccountSheetState extends State<_AccountSheet> {
                   if (widget.allowAll && words.isEmpty)
                     ListTile(
                       leading: const Icon(Icons.select_all),
-                      title: const Text('All Accounts'),
+                      title: Text(tr('All Accounts')),
                       selected: widget.current == null,
                       onTap: () => Navigator.pop(context, -1),
                     ),
                   if (filtered.isEmpty)
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.all(24),
-                      child: Center(child: Text('No matching accounts')),
+                      child: Center(child: Text(tr('No matching accounts'))),
                     ),
                   for (final g in groups) ...[
                     Padding(
@@ -653,7 +654,7 @@ class _AccountSheetState extends State<_AccountSheet> {
                         leading: Icon(accountTypeIcon(a.type)),
                         title: Text(a.name),
                         subtitle: Text(
-                            a.archived ? '${a.type.label} · archived' : a.type.label),
+                            a.archived ? tr('${a.type.label} · archived') : a.type.label),
                         selected: a.id == widget.current,
                         trailing: Text(fmtMoney(a.balance, a.currency),
                             style:
@@ -699,14 +700,14 @@ Future<bool> confirmDialog(BuildContext context,
   final res = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: Text(title),
-      content: Text(message),
+      title: Text(tr(title)),
+      content: Text(tr(message)),
       actions: [
         TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel')),
+            child: Text(tr('Cancel'))),
         FilledButton(
-            onPressed: () => Navigator.pop(ctx, true), child: Text(ok)),
+            onPressed: () => Navigator.pop(ctx, true), child: Text(tr(ok))),
       ],
     ),
   );
@@ -716,7 +717,7 @@ Future<bool> confirmDialog(BuildContext context,
 void showSnack(BuildContext context, String msg) {
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(msg)));
+    ..showSnackBar(SnackBar(content: Text(tr(msg))));
 }
 
 /// Categories of [kind] grouped by their group name ("" last as "Other").
@@ -729,7 +730,7 @@ List<MapEntry<String, List<Category>>> groupCategories(List<Category> cats) {
     ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
   return [
     for (final k in keys) MapEntry(k, map[k]!),
-    if (map.containsKey('')) MapEntry(keys.isEmpty ? 'Categories' : 'Other', map['']!),
+    if (map.containsKey('')) MapEntry(keys.isEmpty ? tr('Categories') : tr('Other'), map['']!),
   ];
 }
 
@@ -763,7 +764,7 @@ class CategoryField extends StatelessWidget {
       },
       child: InputDecorator(
         decoration: InputDecoration(
-          labelText: 'Category',
+          labelText: tr('Category'),
           border: const OutlineInputBorder(),
           suffixIcon: const Icon(Icons.arrow_drop_down),
           prefixIcon: c == null
@@ -777,7 +778,7 @@ class CategoryField extends StatelessWidget {
                 ),
         ),
         child: c == null
-            ? Text('Select Category',
+            ? Text(tr('Select Category'),
                 style: TextStyle(
                     color: Theme.of(context).colorScheme.onSurfaceVariant))
             : Column(
@@ -835,9 +836,9 @@ class _CategorySheetState extends State<_CategorySheet> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: TextField(
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 prefixIcon: Icon(Icons.search),
-                hintText: 'Search categories',
+                hintText: tr('Search categories'),
                 border: OutlineInputBorder(),
                 isDense: true,
               ),
@@ -850,7 +851,7 @@ class _CategorySheetState extends State<_CategorySheet> {
                 ListTile(
                   dense: true,
                   leading: const Icon(Icons.block),
-                  title: const Text('No category'),
+                  title: Text(tr('No category')),
                   onTap: () => Navigator.pop(context, -1),
                 ),
                 for (final g in groups) ...[
@@ -912,7 +913,7 @@ class HideAmountsButton extends StatelessWidget {
     final state = AppScope.of(context);
     final hidden = state.hideAmounts;
     return IconButton(
-      tooltip: hidden ? 'Show Amounts' : 'Hide Amounts',
+      tooltip: hidden ? tr('Show Amounts') : tr('Hide Amounts'),
       icon: Icon(hidden ? Icons.visibility_off_outlined : Icons.visibility_outlined),
       onPressed: () => state.setHideAmounts(!hidden),
     );

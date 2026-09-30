@@ -12,6 +12,7 @@ import 'reports_extra.dart';
 import 'reports_more.dart';
 import 'transaction_edit.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 /// Totals per category in the main currency.
 class CatTotal {
@@ -21,10 +22,10 @@ class CatTotal {
   double total = 0;
   int count = 0;
   CatTotal(this.id, this.category, this.kind);
-  String get name => category?.name ?? 'No category';
+  String get name => category?.name ?? tr('No category');
   String get group {
-    if (category == null) return 'Uncategorized';
-    return category!.group.isEmpty ? 'Other' : category!.group;
+    if (category == null) return tr('Uncategorized');
+    return category!.group.isEmpty ? tr('Other') : category!.group;
   }
 }
 
@@ -52,21 +53,21 @@ class ReportsScreen extends StatelessWidget {
       length: 9,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Reports'),
+          title: Text(tr('Reports')),
           actions: const [HideAmountsButton()],
-          bottom: const TabBar(
+          bottom: TabBar(
             isScrollable: true,
             tabAlignment: TabAlignment.start,
             tabs: [
-              Tab(text: 'Dashboard'),
-              Tab(text: 'By Category'),
-              Tab(text: 'Trend'),
-              Tab(text: 'Outlook'),
-              Tab(text: 'Compare'),
-              Tab(text: 'Net Worth'),
-              Tab(text: 'Allocation'),
-              Tab(text: 'Cards'),
-              Tab(text: 'Loans'),
+              Tab(text: tr('Dashboard')),
+              Tab(text: tr('By Category')),
+              Tab(text: tr('Trend')),
+              Tab(text: tr('Outlook')),
+              Tab(text: tr('Compare')),
+              Tab(text: tr('Net Worth')),
+              Tab(text: tr('Allocation')),
+              Tab(text: tr('Cards')),
+              Tab(text: tr('Loans')),
             ],
           ),
         ),
@@ -226,7 +227,7 @@ Widget _sectionTitle(BuildContext context, String t, {String? sub}) => Padding(
 String _pct(double now, double before) {
   if (before.abs() < 0.01) return '';
   final p = (now - before) / before.abs() * 100;
-  return '${p >= 0 ? '▲' : '▼'} ${p.abs().toStringAsFixed(0)}% vs last month';
+  return tr('${p >= 0 ? '▲' : '▼'} ${p.abs().toStringAsFixed(0)}% vs last month');
 }
 
 // ---------------------------------------------------------------------------
@@ -369,27 +370,27 @@ class _DashboardState extends State<_Dashboard> {
                   childAspectRatio: 1.9,
                   children: [
                     _Tile(
-                      label: 'Spent',
+                      label: tr('Spent'),
                       value: fmtMoney(d.spent, cur),
                       color: kExpenseColor,
                       note: isCurrent
                           ? _pct(d.spent, d.prevToDate).replaceFirst(
-                              'vs last month', 'vs same day last month')
+                              tr('vs last month'), tr('vs same day last month'))
                           : _pct(d.spent, d.prevSpent),
                     ),
                     _Tile(
-                      label: 'Income',
+                      label: tr('Income'),
                       value: fmtMoney(d.income, cur),
                       color: kIncomeColor,
                       note: _pct(d.income, d.prevIncome),
                     ),
                     _Tile(
-                      label: 'Net',
+                      label: tr('Net'),
                       value: fmtMoney(d.income - d.spent, cur),
                       color: amountColor(context, d.income - d.spent),
                     ),
                     _Tile(
-                      label: 'Saved of Income',
+                      label: tr('Saved of Income'),
                       value: d.income > 0
                           ? '${((d.income - d.spent) / d.income * 100).toStringAsFixed(0)}%'
                           : '—',
@@ -399,16 +400,16 @@ class _DashboardState extends State<_Dashboard> {
                 ),
               ),
               if (d.budgets.isEmpty) ...[
-                _sectionTitle(context, 'Budgets'),
+                _sectionTitle(context, tr('Budgets')),
                 ListTile(
                   leading: const Icon(Icons.savings_outlined),
-                  title: const Text('No budgets yet'),
-                  subtitle: const Text(
-                      'This part shows your budgets once you set one: a monthly limit for all spending, a category group or a category.'),
+                  title: Text(tr('No budgets yet')),
+                  subtitle: Text(
+                      tr('This part shows your budgets once you set one: a monthly limit for all spending, a category group or a category.')),
                   isThreeLine: true,
                   trailing: TextButton(
                     onPressed: () => editBudget(context, null),
-                    child: const Text('Add'),
+                    child: Text(tr('Add')),
                   ),
                 ),
               ] else ...[
@@ -417,15 +418,15 @@ class _DashboardState extends State<_Dashboard> {
                   child: Row(
                     children: [
                       Expanded(
-                        child: Text('Budgets',
+                        child: Text(tr('Budgets'),
                             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.bold)),
                       ),
                       TextButton(
                         onPressed: () => homeTab.value = HomeTabs.budgets,
                         child: Text(d.budgets.length > 4
-                            ? 'All ${d.budgets.length}'
-                            : 'Open'),
+                            ? tr('All ${d.budgets.length}')
+                            : tr('Open')),
                       ),
                     ],
                   ),
@@ -436,10 +437,10 @@ class _DashboardState extends State<_Dashboard> {
                       month: _month,
                       onTap: () => editBudget(context, b.budget)),
               ],
-              _sectionTitle(context, 'Spending, Last 6 Months', sub: cur),
+              _sectionTitle(context, tr('Spending, Last 6 Months'), sub: cur),
               _MonthBars(months: d.months, currency: cur),
-              _sectionTitle(context, 'Top Categories',
-                  sub: d.top.isEmpty ? 'No spending this month' : null),
+              _sectionTitle(context, tr('Top Categories'),
+                  sub: d.top.isEmpty ? tr('No spending this month') : null),
               for (final c in d.top)
                 _BarRow(
                   label: c.name,
@@ -453,12 +454,12 @@ class _DashboardState extends State<_Dashboard> {
                   caption: () {
                     final p = d.prevByCat['${c.id}'] ?? 0;
                     final t = _pct(c.total, p);
-                    return '${c.count} transactions${t.isEmpty ? '' : ' · $t'}';
+                    return tr('${c.count} transactions${t.isEmpty ? '' : ' · $t'}');
                   }(),
                   onTap: () => _openCategory(context, c, _month,
                       DateTime(_month.year, _month.month + 1)),
                 ),
-              _sectionTitle(context, 'Coming Up (Next 14 Days)'),
+              _sectionTitle(context, tr('Coming Up (Next 14 Days)')),
               ..._upcoming(context, state),
             ],
           ],
@@ -480,7 +481,7 @@ class _DashboardState extends State<_Dashboard> {
           leading: const Icon(Icons.credit_card),
           title: Text(c.card.fullName),
           subtitle: Text(
-              '${c.last!.overdue ? 'Overdue since' : 'Due'} ${shortDateFmt.format(due)}'),
+              '${c.last!.overdue ? tr('Overdue since') : tr('Due')} ${shortDateFmt.format(due)}'),
           trailing: Text(fmtMoney(c.last!.remaining, c.card.currency),
               style: const TextStyle(fontWeight: FontWeight.w600)),
           onTap: () => showPayCard(context, c),
@@ -492,10 +493,10 @@ class _DashboardState extends State<_Dashboard> {
     }
     items.sort((a, b) => a.$1.compareTo(b.$1));
     if (items.isEmpty) {
-      return const [
+      return [
         Padding(
           padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
-          child: Text('Nothing due in the next two weeks'),
+          child: Text(tr('Nothing due in the next two weeks')),
         )
       ];
     }
@@ -605,13 +606,13 @@ class _ByCategoryState extends State<_ByCategory> {
   String get _label {
     switch (_period) {
       case _Period.thisMonth:
-        return 'This Month';
+        return tr('This Month');
       case _Period.lastMonth:
-        return 'Last Month';
+        return tr('Last Month');
       case _Period.thisYear:
-        return 'This Year';
+        return tr('This Year');
       case _Period.last12:
-        return 'Last 12 Months';
+        return tr('Last 12 Months');
       case _Period.custom:
         return '${shortDateFmt.format(_custom!.start)} – ${shortDateFmt.format(_custom!.end)}';
     }
@@ -625,12 +626,12 @@ class _ByCategoryState extends State<_ByCategory> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            for (final (v, l) in const [
-              (_Period.thisMonth, 'This Month'),
-              (_Period.lastMonth, 'Last Month'),
-              (_Period.thisYear, 'This Year'),
-              (_Period.last12, 'Last 12 Months'),
-              (_Period.custom, 'Choose Dates…'),
+            for (final (v, l) in [
+              (_Period.thisMonth, tr('This Month')),
+              (_Period.lastMonth, tr('Last Month')),
+              (_Period.thisYear, tr('This Year')),
+              (_Period.last12, tr('Last 12 Months')),
+              (_Period.custom, tr('Choose Dates…')),
             ])
               ListTile(
                 title: Text(l),
@@ -694,9 +695,9 @@ class _ByCategoryState extends State<_ByCategory> {
                 runSpacing: 8,
                 children: [
                   SegmentedButton<TxType>(
-                    segments: const [
-                      ButtonSegment(value: TxType.expense, label: Text('Spending')),
-                      ButtonSegment(value: TxType.income, label: Text('Income')),
+                    segments: [
+                      ButtonSegment(value: TxType.expense, label: Text(tr('Spending'))),
+                      ButtonSegment(value: TxType.income, label: Text(tr('Income'))),
                     ],
                     selected: {_type},
                     onSelectionChanged: (s) => setState(() => _type = s.first),
@@ -714,7 +715,7 @@ class _ByCategoryState extends State<_ByCategory> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(_type == TxType.expense ? 'Total Spent' : 'Total Income',
+                  Text(_type == TxType.expense ? tr('Total Spent') : tr('Total Income'),
                       style: Theme.of(context).textTheme.bodySmall),
                   Text(fmtMoney(total, cur),
                       style: Theme.of(context)
@@ -730,9 +731,9 @@ class _ByCategoryState extends State<_ByCategory> {
                 child: Center(child: CircularProgressIndicator()),
               )
             else if (cats.isEmpty)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.all(40),
-                child: Center(child: Text('Nothing in this period')),
+                child: Center(child: Text(tr('Nothing in this period'))),
               ),
             for (final g in ranked)
               _BarRow(
@@ -801,7 +802,7 @@ class _GroupScreen extends StatelessWidget {
                   height: 32,
                   child: FittedBox(child: CategoryAvatar(category: c.category))),
               caption:
-                  '${total > 0 ? (c.total / total * 100).toStringAsFixed(1) : '0'}% · ${c.count} transactions',
+                  tr('${total > 0 ? (c.total / total * 100).toStringAsFixed(1) : '0'}% · ${c.count} transactions'),
               onTap: () => _openCategory(context, c, from, to),
             ),
         ],

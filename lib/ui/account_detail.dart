@@ -14,6 +14,7 @@ import 'calendar_screen.dart';
 import 'card_panel.dart';
 import 'transaction_edit.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 class AccountDetailScreen extends StatefulWidget {
   const AccountDetailScreen({super.key, required this.accountId});
@@ -37,7 +38,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     final state = AppScope.of(context);
     final account = state.accountById(widget.accountId);
     if (account == null) {
-      return const Scaffold(body: Center(child: Text('Account not found')));
+      return Scaffold(body: Center(child: Text(tr('Account not found'))));
     }
     if (_loadedVersion != state.version) {
       _loadedVersion = state.version;
@@ -49,7 +50,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
         title: Text(account.fullName),
         actions: [
           IconButton(
-            tooltip: 'Search This Account',
+            tooltip: tr('Search This Account'),
             icon: const Icon(Icons.search),
             onPressed: () => Navigator.push(
               context,
@@ -58,12 +59,12 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
             ),
           ),
           IconButton(
-            tooltip: _calendar ? 'List view' : 'Calendar view',
+            tooltip: _calendar ? tr('List view') : tr('Calendar view'),
             icon: Icon(_calendar ? Icons.view_list : Icons.calendar_month),
             onPressed: () => setState(() => _calendar = !_calendar),
           ),
           IconButton(
-            tooltip: 'Add Transaction',
+            tooltip: tr('Add Transaction'),
             icon: const Icon(Icons.add),
             onPressed: () => Navigator.push(
               context,
@@ -88,18 +89,18 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
               }
             },
             itemBuilder: (_) => [
-              const PopupMenuItem(value: 'edit', child: Text('Edit Account')),
-              const PopupMenuItem(
-                  value: 'balance', child: Text('Set Current Balance')),
+              PopupMenuItem(value: 'edit', child: Text(tr('Edit Account'))),
+              PopupMenuItem(
+                  value: 'balance', child: Text(tr('Set Current Balance'))),
               if (account.type == AccountType.gold && !isGold(account.currency))
-                const PopupMenuItem(
-                    value: 'grams', child: Text('Switch to Grams…')),
+                PopupMenuItem(
+                    value: 'grams', child: Text(tr('Switch to Grams…'))),
             ],
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        tooltip: 'Add Transaction',
+        tooltip: tr('Add Transaction'),
         onPressed: () => Navigator.push(
           context,
           MaterialPageRoute(
@@ -166,11 +167,11 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
                       child: Row(
                         children: [
-                          for (final (label, type) in const [
-                            ('All', null),
-                            ('Expenses', TxType.expense),
-                            ('Income', TxType.income),
-                            ('Transfers', TxType.transfer),
+                          for (final (label, type) in [
+                            (tr('All'), null),
+                            (tr('Expenses'), TxType.expense),
+                            (tr('Income'), TxType.income),
+                            (tr('Transfers'), TxType.transfer),
                           ])
                             Padding(
                               padding: const EdgeInsets.only(right: 8),
@@ -187,8 +188,8 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
                         child: Text(
-                          '${shownIdx.length} ${_filter == TxType.expense ? 'expenses' : _filter == TxType.income ? 'income entries' : 'transfers'}'
-                          ' · ${_filter == TxType.transfer ? 'net ' : ''}'
+                          '${shownIdx.length} ${_filter == TxType.expense ? tr('expenses') : _filter == TxType.income ? tr('income entries') : tr('transfers')}'
+                          ' · ${_filter == TxType.transfer ? tr('net ') : ''}'
                           '${fmtMoney(_filter == TxType.expense ? -shownSum : shownSum, account.currency)}',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
@@ -218,7 +219,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                             style: Theme.of(context).textTheme.bodySmall),
                         const Spacer(),
                         if (running[idx] != null)
-                          Text('Balance ${fmtAmount(running[idx]!)}',
+                          Text(tr('Balance ${fmtAmount(running[idx]!)}'),
                               style: Theme.of(context).textTheme.bodySmall),
                       ],
                     ),
@@ -240,15 +241,15 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     final res = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(liability ? 'Amount owed today' : 'Balance today'),
+        title: Text(liability ? tr('Amount owed today') : tr('Balance today')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-                'Enter the real figure from your bank or wallet. The starting '
+            Text(
+                tr('Enter the real figure from your bank or wallet. The starting '
                 'balance is adjusted so today\'s balance matches; no '
-                'transaction is added.'),
+                'transaction is added.')),
             const SizedBox(height: 12),
             TextField(
               controller: ctrl,
@@ -265,10 +266,10 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
+              child: Text(tr('Cancel'))),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, ctrl.text),
-              child: const Text('Set')),
+              child: Text(tr('Set'))),
         ],
       ),
     );
@@ -306,7 +307,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
           children: [
             Text(
                 '${account.type.label} · ${currencyUnit(account.currency)}'
-                '${liability ? ' · amount owed' : ''}',
+                '${liability ? tr(' · amount owed') : ''}',
                 style: TextStyle(color: scheme.onPrimaryContainer)),
             const SizedBox(height: 4),
             Text(
@@ -323,7 +324,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
               ),
             if (count != null) ...[
               const SizedBox(height: 8),
-              Text('$count transaction(s)',
+              Text(tr('$count transaction(s)'),
                   style: TextStyle(
                       color: scheme.onPrimaryContainer.withValues(alpha: 0.75),
                       fontSize: 12)),

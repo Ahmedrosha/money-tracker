@@ -10,6 +10,7 @@ import 'notification_settings.dart';
 import 'currencies_screen.dart';
 import 'recurring_screen.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -18,23 +19,48 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: Text(tr('Settings'))),
       body: ListView(
         children: [
           const _LockTile(),
           SwitchListTile(
             secondary: const Icon(Icons.visibility_off_outlined),
-            title: const Text('Hide Amounts'),
-            subtitle: const Text('Show •••• instead of numbers. Also the eye button at the top of each screen.'),
+            title: Text(tr('Hide Amounts')),
+            subtitle: Text(tr('Show •••• instead of numbers. Also the eye button at the top of each screen.')),
             value: state.hideAmounts,
             onChanged: (v) => state.setHideAmounts(v),
+          ),
+          ListTile(
+            leading: const Icon(Icons.translate),
+            // Both languages, so it can be found whichever one is showing.
+            title: Text(isArabic ? 'اللغة · Language' : 'Language · اللغة'),
+            subtitle: Text(_languageName(state.language)),
+            onTap: () async {
+              final v = await showDialog<String>(
+                context: context,
+                builder: (ctx) => SimpleDialog(
+                  title: Text(tr('Language')),
+                  children: [
+                    for (final code in const ['system', 'en', 'ar'])
+                      ListTile(
+                        leading: Icon(state.language == code
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_unchecked),
+                        title: Text(_languageName(code)),
+                        onTap: () => Navigator.pop(ctx, code),
+                      ),
+                  ],
+                ),
+              );
+              if (v != null && v != state.language) await state.setLanguage(v);
+            },
           ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.flag_outlined),
-            title: const Text('Main Currency'),
+            title: Text(tr('Main Currency')),
             subtitle: Text(
-                '${state.baseCurrency} — ${currencyName(state.baseCurrency)}\nTotals and net worth are shown in this currency'),
+                tr('${state.baseCurrency} — ${currencyName(state.baseCurrency)}\nTotals and net worth are shown in this currency')),
             isThreeLine: true,
             onTap: () async {
               final c =
@@ -44,8 +70,8 @@ class SettingsScreen extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.currency_exchange),
-            title: const Text('Currencies & Exchange Rates'),
-            subtitle: const Text('Online rates, manual overrides'),
+            title: Text(tr('Currencies & Exchange Rates')),
+            subtitle: Text(tr('Online rates, manual overrides')),
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const CurrenciesScreen()),
@@ -55,7 +81,7 @@ class SettingsScreen extends StatelessWidget {
             listenable: state.dropbox,
             builder: (context, _) => ListTile(
               leading: const Icon(Icons.cloud_sync_outlined),
-              title: const Text('Dropbox'),
+              title: Text(tr('Dropbox')),
               subtitle: Text(dropboxStatus(state.dropbox)),
               onTap: () => Navigator.push(
                 context,
@@ -65,10 +91,10 @@ class SettingsScreen extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.notifications_outlined),
-            title: const Text('Notifications'),
+            title: Text(tr('Notifications')),
             subtitle: Text(state.notifSettings.enabled
-                ? 'Card payments, recurring items, backups'
-                : 'Off'),
+                ? tr('Card payments, recurring items, backups')
+                : tr('Off')),
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(
@@ -77,10 +103,10 @@ class SettingsScreen extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.backup_outlined),
-            title: const Text('Backup & Restore'),
+            title: Text(tr('Backup & Restore')),
             subtitle: Text(state.lastBackup == null
-                ? 'No backup yet'
-                : 'Last backup ${state.lastBackup!.day}/${state.lastBackup!.month}/${state.lastBackup!.year}'),
+                ? tr('No backup yet')
+                : tr('Last backup ${state.lastBackup!.day}/${state.lastBackup!.month}/${state.lastBackup!.year}')),
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const BackupScreen()),
@@ -88,9 +114,9 @@ class SettingsScreen extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.repeat),
-            title: const Text('Recurring Items'),
+            title: Text(tr('Recurring Items')),
             subtitle: Text(
-                '${state.rules.where((r) => !r.finished).length} active · subscriptions, salary…'),
+                tr('${state.rules.where((r) => !r.finished).length} active · subscriptions, salary…')),
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const RecurringScreen()),
@@ -98,13 +124,13 @@ class SettingsScreen extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.calendar_view_week),
-            title: const Text('First Day of Week'),
+            title: Text(tr('First Day of Week')),
             subtitle: Text(_dayName(state.weekStart)),
             onTap: () async {
               final v = await showDialog<int>(
                 context: context,
                 builder: (ctx) => SimpleDialog(
-                  title: const Text('First Day of Week'),
+                  title: Text(tr('First Day of Week')),
                   children: [
                     for (final d in const [
                       DateTime.saturday,
@@ -123,33 +149,43 @@ class SettingsScreen extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.category_outlined),
-            title: const Text('Categories'),
-            subtitle: Text('${state.categories.length} categories'),
+            title: Text(tr('Categories')),
+            subtitle: Text(tr('${state.categories.length} categories')),
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const CategoriesScreen()),
             ),
           ),
           const Divider(),
-          const ListTile(
-            leading: Icon(Icons.info_outline),
-            title: Text('Money Tracker'),
-            subtitle: Text(
-                'Version 0.28 — property value and ownership share'),
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: const Text('Money Tracker'),
+            subtitle: Text(tr('Version 0.29 — Arabic language')),
           ),
         ],
       ),
     );
   }
 
+  static String _languageName(String code) {
+    switch (code) {
+      case 'en':
+        return 'English';
+      case 'ar':
+        return 'العربية';
+      default:
+        return tr('Phone Language');
+    }
+  }
+
   static String _dayName(int d) {
     switch (d) {
       case DateTime.saturday:
-        return 'Saturday';
+        return tr('Saturday');
       case DateTime.sunday:
-        return 'Sunday';
+        return tr('Sunday');
       default:
-        return 'Monday';
+        return tr('Monday');
     }
   }
 }
@@ -172,9 +208,9 @@ class _LockTileState extends State<_LockTile> {
       future: _method,
       builder: (context, snap) => SwitchListTile(
         secondary: const Icon(Icons.lock_outline),
-        title: const Text('App Lock'),
+        title: Text(tr('App Lock')),
         subtitle: Text(
-            '${snap.data ?? 'Face ID / fingerprint'} when opening the app and after a minute away. Phone passcode works too.'),
+            tr('${snap.data ?? tr('Face ID / fingerprint')} when opening the app and after a minute away. Phone passcode works too.')),
         isThreeLine: true,
         value: state.lockEnabled,
         onChanged: (v) async {
@@ -182,7 +218,7 @@ class _LockTileState extends State<_LockTile> {
             if (!await _lock.available()) {
               if (context.mounted) {
                 showSnack(context,
-                    'Set up a screen lock (Face ID, fingerprint or passcode) on your phone first');
+                    tr('Set up a screen lock (Face ID, fingerprint or passcode) on your phone first'));
               }
               return;
             }

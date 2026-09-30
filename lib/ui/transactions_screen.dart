@@ -8,6 +8,7 @@ import 'calendar_screen.dart';
 import 'search_screen.dart';
 import 'transaction_edit.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key});
@@ -41,7 +42,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       initialDate: _month,
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
-      helpText: 'Pick any day in the month',
+      helpText: tr('Pick any day in the month'),
     );
     if (picked != null) {
       setState(() => _month = DateTime(picked.year, picked.month));
@@ -64,7 +65,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       floatingActionButton: _calendar
           ? null // the calendar adds on the selected day
           : FloatingActionButton(
-              tooltip: 'Add Transaction',
+              tooltip: tr('Add Transaction'),
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const TransactionEditScreen()),
@@ -72,7 +73,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               child: const Icon(Icons.add),
             ),
       appBar: AppBar(
-        title: const Text('Transactions'),
+        title: Text(tr('Transactions')),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(52),
           child: Padding(
@@ -80,15 +81,15 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             child: Row(
               children: [
                 SegmentedButton<bool>(
-                  segments: const [
+                  segments: [
                     ButtonSegment(
                         value: false,
                         icon: Icon(Icons.view_list),
-                        label: Text('List')),
+                        label: Text(tr('List'))),
                     ButtonSegment(
                         value: true,
                         icon: Icon(Icons.calendar_month),
-                        label: Text('Calendar')),
+                        label: Text(tr('Calendar'))),
                   ],
                   selected: {_calendar},
                   showSelectedIcon: false,
@@ -100,12 +101,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     child: TextButton.icon(
                       icon: const Icon(Icons.filter_list),
                       label: Text(
-                          state.accountById(_calAccountId)?.name ?? 'All Accounts',
+                          state.accountById(_calAccountId)?.name ?? tr('All Accounts'),
                           overflow: TextOverflow.ellipsis),
                       onPressed: () async {
                         final id = await pickAccount(context,
                             current: _calAccountId,
-                            title: 'Show Calendar for',
+                            title: tr('Show Calendar for'),
                             allowAll: true);
                         if (id == null) return;
                         setState(() => _calAccountId = id == -1 ? null : id);
@@ -119,7 +120,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         actions: [
           const HideAmountsButton(),
           IconButton(
-            tooltip: 'Search All Transactions',
+            tooltip: tr('Search All Transactions'),
             icon: const Icon(Icons.search),
             onPressed: () => Navigator.push(
               context,
@@ -218,7 +219,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   children: [
                     Expanded(
                       child: _TotalBox(
-                          label: 'Income',
+                          label: tr('Income'),
                           value: income,
                           currency: state.baseCurrency,
                           color: kIncomeColor),
@@ -226,7 +227,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: _TotalBox(
-                          label: 'Expenses',
+                          label: tr('Expenses'),
                           value: expense,
                           currency: state.baseCurrency,
                           color: kExpenseColor),
@@ -234,7 +235,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: _TotalBox(
-                          label: 'Net',
+                          label: tr('Net'),
                           value: income - expense,
                           currency: state.baseCurrency,
                           color: amountColor(context, income - expense)),
@@ -247,7 +248,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                 child: Row(
                   children: [
-                    _chip('All', null),
+                    _chip(tr('All'), null),
                     // Long-press and drag to change the order of these
                     // (also the order of the sections below).
                     SizedBox(
@@ -274,34 +275,34 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     ),
                     const SizedBox(width: 4),
                     PopupMenuButton<String>(
-                      tooltip: 'Sort by',
+                      tooltip: tr('Sort by'),
                       initialValue: state.txnSort,
                       onSelected: state.setTxnSort,
-                      itemBuilder: (_) => const [
+                      itemBuilder: (_) => [
                         PopupMenuItem(
-                            value: 'date', child: Text('By Date · Newest First')),
+                            value: 'date', child: Text(tr('By Date · Newest First'))),
                         PopupMenuItem(
-                            value: 'date_asc', child: Text('By Date · Oldest First')),
+                            value: 'date_asc', child: Text(tr('By Date · Oldest First'))),
                         PopupMenuItem(
                             value: 'category',
-                            child: Text('Sort by Type (Category / Account)')),
+                            child: Text(tr('Sort by Type (Category / Account)'))),
                       ],
                       child: Chip(
                         avatar: const Icon(Icons.sort, size: 18),
                         label: Text(byCategory
-                            ? 'By type'
+                            ? tr('By type')
                             : state.txnSort == 'date_asc'
-                                ? 'Oldest first'
-                                : 'Newest first'),
+                                ? tr('Oldest first')
+                                : tr('Newest first')),
                       ),
                     ),
                   ],
                 ),
               ),
               if (snap.connectionState == ConnectionState.done && items.isEmpty)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.all(40),
-                  child: Center(child: Text('No transactions this month')),
+                  child: Center(child: Text(tr('No transactions this month'))),
                 ),
               ...rows,
             ],
@@ -343,10 +344,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   static String _sectionName(TxType t) => t == TxType.expense
-      ? 'Expenses'
+      ? tr('Expenses')
       : t == TxType.income
-          ? 'Income'
-          : 'Transfers';
+          ? tr('Income')
+          : tr('Transfers');
 
   /// Compares two groups according to the chosen order.
   static int _compare(AppState state, double va, double vb, int ca, int cb,
@@ -367,13 +368,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     return desc ? -r : r;
   }
 
-  static const _orders = [
-    ('value_desc', 'Value: highest first'),
-    ('value_asc', 'Value: lowest first'),
-    ('count_desc', 'Count: most transactions first'),
-    ('count_asc', 'Count: fewest transactions first'),
-    ('name_asc', 'Name: A → Z'),
-    ('name_desc', 'Name: Z → A'),
+  static List<(String, String)> get _orders => [
+    ('value_desc', tr('Value: highest first')),
+    ('value_asc', tr('Value: lowest first')),
+    ('count_desc', tr('Count: most transactions first')),
+    ('count_asc', tr('Count: fewest transactions first')),
+    ('name_asc', tr('Name: A → Z')),
+    ('name_desc', tr('Name: Z → A')),
   ];
 
   Widget _orderBar(BuildContext context, AppState state) {
@@ -384,7 +385,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       child: Align(
         alignment: Alignment.centerLeft,
         child: PopupMenuButton<String>(
-          tooltip: 'Order Groups by',
+          tooltip: tr('Order Groups by'),
           initialValue: state.groupOrder,
           onSelected: state.setGroupOrder,
           itemBuilder: (_) => [
@@ -392,7 +393,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           ],
           child: Chip(
             avatar: const Icon(Icons.swap_vert, size: 18),
-            label: Text('Order: $label'),
+            label: Text(tr('Order: $label')),
           ),
         ),
       ),
@@ -446,8 +447,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     for (final t in txns) {
       final c = state.categoryById(t.categoryId);
       final g = c == null
-          ? 'Uncategorized'
-          : (c.group.isEmpty ? 'Other' : c.group);
+          ? tr('Uncategorized')
+          : (c.group.isEmpty ? tr('Other') : c.group);
       groups.putIfAbsent(g, () => {}).putIfAbsent(t.categoryId, () => []).add(t);
     }
     double sum(Iterable<Txn> l) => l.fold(0.0, (s, t) => s + base(t));
@@ -471,7 +472,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               'txopen:g:${color == kExpenseColor ? 'e' : 'i'}:${g.key}'),
           title: Text(g.key, style: const TextStyle(fontWeight: FontWeight.w600)),
           subtitle: Text(
-              '${g.value.values.fold<int>(0, (n, l) => n + l.length)} transactions'),
+              tr('${g.value.values.fold<int>(0, (n, l) => n + l.length)} transactions')),
           trailing: Text(fmtMoney(sum(g.value.values.expand((l) => l)), cur),
               style: TextStyle(color: color, fontWeight: FontWeight.bold)),
           children: [
@@ -492,8 +493,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   initiallyExpanded: state.isCollapsed('txopen:c:${c.key}'),
                   onExpansionChanged: (_) =>
                       state.toggleCollapsed('txopen:c:${c.key}'),
-                  title: Text(state.categoryById(c.key)?.name ?? 'No category'),
-                  subtitle: Text('${c.value.length} transactions'),
+                  title: Text(state.categoryById(c.key)?.name ?? tr('No category')),
+                  subtitle: Text(tr('${c.value.length} transactions')),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -556,11 +557,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 style: const TextStyle(fontWeight: FontWeight.w600)),
             subtitle: Text.rich(TextSpan(children: [
               TextSpan(
-                  text: 'Out ${fmtAmount(outSum(id))}',
+                  text: tr('Out ${fmtAmount(outSum(id))}'),
                   style: const TextStyle(color: kExpenseColor)),
               const TextSpan(text: '  ·  '),
               TextSpan(
-                  text: 'In ${fmtAmount(inSum(id))}',
+                  text: tr('In ${fmtAmount(inSum(id))}'),
                   style: const TextStyle(color: kIncomeColor)),
               TextSpan(text: '  ${currencyUnit(cur)}'),
             ])),
@@ -568,7 +569,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               if ((outs[id] ?? []).isNotEmpty) ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 8, 16, 4),
-                  child: Text('Transfers out (${outs[id]!.length})',
+                  child: Text(tr('Transfers out (${outs[id]!.length})'),
                       style: small?.copyWith(color: kExpenseColor)),
                 ),
                 for (final t in outs[id]!)
@@ -577,7 +578,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               if ((ins[id] ?? []).isNotEmpty) ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 8, 16, 4),
-                  child: Text('Transfers in (${ins[id]!.length})',
+                  child: Text(tr('Transfers in (${ins[id]!.length})'),
                       style: small?.copyWith(color: kIncomeColor)),
                 ),
                 for (final t in ins[id]!)

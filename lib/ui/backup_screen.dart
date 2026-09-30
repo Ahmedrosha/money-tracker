@@ -10,6 +10,7 @@ import '../state/app_state.dart';
 import '../util/format.dart';
 import 'dropbox_screen.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 class BackupScreen extends StatefulWidget {
   const BackupScreen({super.key});
@@ -32,9 +33,9 @@ class _BackupScreenState extends State<BackupScreen> {
     try {
       final path = await _makeBackup();
       await Share.shareXFiles([XFile(path)],
-          subject: 'Money Tracker backup', text: 'Money Tracker backup');
+          subject: tr('Money Tracker backup'), text: tr('Money Tracker backup'));
     } catch (e) {
-      if (mounted) showSnack(context, 'Backup failed: $e');
+      if (mounted) showSnack(context, tr('Backup failed: $e'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -46,13 +47,13 @@ class _BackupScreenState extends State<BackupScreen> {
       final path = await _makeBackup();
       final bytes = await File(path).readAsBytes();
       final saved = await FilePicker.platform.saveFile(
-        dialogTitle: 'Save backup',
+        dialogTitle: tr('Save backup'),
         fileName: path.split('/').last,
         bytes: bytes,
       );
-      if (mounted && saved != null) showSnack(context, 'Backup saved');
+      if (mounted && saved != null) showSnack(context, tr('Backup saved'));
     } catch (e) {
-      if (mounted) showSnack(context, 'Backup failed: $e');
+      if (mounted) showSnack(context, tr('Backup failed: $e'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -61,7 +62,7 @@ class _BackupScreenState extends State<BackupScreen> {
   Future<void> _restore() async {
     final state = AppScope.read(context);
     final res = await FilePicker.platform.pickFiles(
-      dialogTitle: 'Choose a Money Tracker backup (.db)',
+      dialogTitle: tr('Choose a Money Tracker backup (.db)'),
       type: FileType.any,
     );
     final path = res?.files.single.path;
@@ -72,31 +73,31 @@ class _BackupScreenState extends State<BackupScreen> {
       info = await AppDb.inspect(path);
     } catch (e) {
       if (mounted) {
-        showSnack(context, 'This file is not a Money Tracker backup');
+        showSnack(context, tr('This file is not a Money Tracker backup'));
       }
       return;
     }
     if (!mounted) return;
     final range = info.first == null
-        ? 'no transactions'
+        ? tr('no transactions')
         : '${shortDateFmt.format(info.first!)} → ${shortDateFmt.format(info.last!)}';
     final ok = await confirmDialog(
       context,
-      title: 'Replace all data?',
-      message: 'The backup contains ${info.accounts} accounts and '
+      title: tr('Replace all data?'),
+      message: tr('The backup contains ${info.accounts} accounts and '
           '${info.transactions} transactions ($range).\n\n'
           'Everything currently in the app will be replaced. A copy of your '
-          'current data is kept on the phone so you can undo this.',
-      ok: 'Restore',
+          'current data is kept on the phone so you can undo this.'),
+      ok: tr('Restore'),
     );
     if (!ok || !mounted) return;
     setState(() => _busy = true);
     try {
       final docs = await getApplicationDocumentsDirectory();
       await state.restoreFrom(path, docs.path);
-      if (mounted) showSnack(context, 'Restored ${info.transactions} transactions');
+      if (mounted) showSnack(context, tr('Restored ${info.transactions} transactions'));
     } catch (e) {
-      if (mounted) showSnack(context, 'Restore failed: $e');
+      if (mounted) showSnack(context, tr('Restore failed: $e'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -112,7 +113,7 @@ class _BackupScreenState extends State<BackupScreen> {
       ..sort((a, b) => b.path.compareTo(a.path));
     if (!mounted) return;
     if (files.isEmpty) {
-      showSnack(context, 'No earlier data saved');
+      showSnack(context, tr('No earlier data saved'));
       return;
     }
     final f = files.first;
@@ -120,19 +121,19 @@ class _BackupScreenState extends State<BackupScreen> {
         f.path.split('before-restore-').last.replaceAll('.db', ''));
     final when = ms == null
         ? ''
-        : ' from ${shortDateFmt.format(DateTime.fromMillisecondsSinceEpoch(ms))}';
+        : tr(' from ${shortDateFmt.format(DateTime.fromMillisecondsSinceEpoch(ms))}');
     final ok = await confirmDialog(context,
-        title: 'Undo last restore?',
-        message: 'Go back to the data you had before the last restore$when.',
-        ok: 'Undo');
+        title: tr('Undo last restore?'),
+        message: tr('Go back to the data you had before the last restore$when.'),
+        ok: tr('Undo'));
     if (!ok || !mounted) return;
     setState(() => _busy = true);
     try {
       await AppScope.read(context).restoreFrom(f.path, docs.path);
       await f.delete();
-      if (mounted) showSnack(context, 'Previous data brought back');
+      if (mounted) showSnack(context, tr('Previous data brought back'));
     } catch (e) {
-      if (mounted) showSnack(context, 'Undo failed: $e');
+      if (mounted) showSnack(context, tr('Undo failed: $e'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -143,7 +144,7 @@ class _BackupScreenState extends State<BackupScreen> {
     final state = AppScope.of(context);
     final last = state.lastBackup;
     return Scaffold(
-      appBar: AppBar(title: const Text('Backup & Restore')),
+      appBar: AppBar(title: Text(tr('Backup & Restore'))),
       body: AbsorbPointer(
         absorbing: _busy,
         child: ListView(
@@ -153,41 +154,41 @@ class _BackupScreenState extends State<BackupScreen> {
               padding: const EdgeInsets.all(16),
               child: Text(
                 last == null
-                    ? 'You have not made a backup yet. Your data exists only on this phone.'
-                    : 'Last backup: ${dayFmt.format(last)}',
+                    ? tr('You have not made a backup yet. Your data exists only on this phone.')
+                    : tr('Last backup: ${dayFmt.format(last)}'),
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             ),
             ListTile(
               leading: const Icon(Icons.cloud_upload_outlined),
-              title: const Text('Back Up & Share'),
-              subtitle: const Text('Save to Google Drive, email, WhatsApp…'),
+              title: Text(tr('Back Up & Share')),
+              subtitle: Text(tr('Save to Google Drive, email, WhatsApp…')),
               onTap: _share,
             ),
             ListTile(
               leading: const Icon(Icons.save_alt),
-              title: const Text('Back Up to Phone Storage'),
-              subtitle: const Text('Choose a folder, e.g. Downloads'),
+              title: Text(tr('Back Up to Phone Storage')),
+              subtitle: Text(tr('Choose a folder, e.g. Downloads')),
               onTap: _saveToPhone,
             ),
             const Divider(),
             ListTile(
               leading: const Icon(Icons.restore),
-              title: const Text('Restore from Backup'),
-              subtitle: const Text('Replaces all current data'),
+              title: Text(tr('Restore from Backup')),
+              subtitle: Text(tr('Replaces all current data')),
               onTap: _restore,
             ),
             if (state.dropbox.connected)
               ListTile(
                 leading: const Icon(Icons.cloud_download_outlined),
-                title: const Text('Restore from Dropbox'),
-                subtitle: const Text('Replaces all current data'),
+                title: Text(tr('Restore from Dropbox')),
+                subtitle: Text(tr('Replaces all current data')),
                 onTap: () => restoreFromDropbox(context),
               ),
             ListTile(
               leading: const Icon(Icons.undo),
-              title: const Text('Undo Last Restore'),
-              subtitle: const Text('Bring back the data from before restoring'),
+              title: Text(tr('Undo Last Restore')),
+              subtitle: Text(tr('Bring back the data from before restoring')),
               onTap: _undoRestore,
             ),
           ],

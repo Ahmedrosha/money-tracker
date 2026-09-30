@@ -5,6 +5,7 @@ import '../state/app_state.dart';
 import '../util/format.dart';
 import 'transaction_edit.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 class RecurringScreen extends StatelessWidget {
   const RecurringScreen({super.key});
@@ -18,13 +19,13 @@ class RecurringScreen extends StatelessWidget {
     final ended = state.rules.where((r) => r.finished).toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Recurring Items')),
+      appBar: AppBar(title: Text(tr('Recurring Items'))),
       body: state.rules.isEmpty
-          ? const Center(
+          ? Center(
               child: Padding(
                 padding: EdgeInsets.all(32),
                 child: Text(
-                  'No recurring items yet.\nTurn on "Repeat" when adding a transaction.',
+                  tr('No recurring items yet.\nTurn on "Repeat" when adding a transaction.'),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -34,7 +35,7 @@ class RecurringScreen extends StatelessWidget {
                 for (final r in active) _tile(context, state, r),
                 if (ended.isNotEmpty)
                   ExpansionTile(
-                    title: Text('Ended (${ended.length})'),
+                    title: Text(tr('Ended (${ended.length})')),
                     children: [for (final r in ended) _tile(context, state, r)],
                   ),
               ],
@@ -46,7 +47,7 @@ class RecurringScreen extends StatelessWidget {
     final account = state.accountById(r.accountId);
     final category = state.categoryById(r.categoryId);
     final title = r.type == TxType.transfer
-        ? 'Transfer → ${state.accountById(r.toAccountId)?.fullName ?? '?'}'
+        ? tr('Transfer → ${state.accountById(r.toAccountId)?.fullName ?? '?'}')
         : (r.payee.isNotEmpty ? r.payee : (category?.name ?? r.type.label));
     final signed = r.type == TxType.expense ? -r.amount : r.amount;
     return ListTile(
@@ -55,7 +56,7 @@ class RecurringScreen extends StatelessWidget {
       title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(
         '${r.scheduleLabel}\n'
-        '${r.finished ? 'Ended' : 'Next: ${shortDateFmt.format(r.occurrence(r.nextIndex))}'}'
+        '${r.finished ? tr('Ended') : tr('Next: ${shortDateFmt.format(r.occurrence(r.nextIndex))}')}'
         ' · ${account?.fullName ?? '?'}',
       ),
       isThreeLine: true,

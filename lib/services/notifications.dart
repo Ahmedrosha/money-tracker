@@ -1,3 +1,4 @@
+import '../l10n/l10n.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
@@ -75,26 +76,26 @@ class Notifier {
   final _plugin = FlutterLocalNotificationsPlugin();
   bool _ready = false;
 
-  static const _details = NotificationDetails(
+  static NotificationDetails get _details => NotificationDetails(
     android: AndroidNotificationDetails(
       'reminders',
-      'Payment Reminders',
-      channelDescription: 'Card payments, recurring items and backups',
+      tr('Payment Reminders'),
+      channelDescription: tr('Card payments, recurring items and backups'),
       importance: Importance.high,
       priority: Priority.high,
     ),
-    iOS: DarwinNotificationDetails(),
+    iOS: const DarwinNotificationDetails(),
   );
 
-  static const _budgetDetails = NotificationDetails(
+  static NotificationDetails get _budgetDetails => NotificationDetails(
     android: AndroidNotificationDetails(
       'budgets',
-      'Budget Alerts',
-      channelDescription: 'When a budget reaches 80% or is exceeded',
+      tr('Budget Alerts'),
+      channelDescription: tr('When a budget reaches 80% or is exceeded'),
       importance: Importance.high,
       priority: Priority.high,
     ),
-    iOS: DarwinNotificationDetails(),
+    iOS: const DarwinNotificationDetails(),
   );
 
   Future<void> init() async {
@@ -147,7 +148,7 @@ class Notifier {
     await _plugin.show(
       id: 999999,
       title: 'Money Tracker',
-      body: 'Notifications are working.',
+      body: tr('Notifications are working.'),
       notificationDetails: _details,
     );
   }
@@ -159,8 +160,8 @@ class Notifier {
     try {
       await _plugin.show(
         id: 100000 + id,
-        title: title,
-        body: body,
+        title: tr(title),
+        body: tr(body),
         notificationDetails: _budgetDetails,
       );
     } catch (_) {}
@@ -180,8 +181,8 @@ class Notifier {
       for (final r in upcoming.take(60)) {
         await _plugin.zonedSchedule(
           id: id++,
-          title: r.title,
-          body: r.body,
+          title: tr(r.title),
+          body: tr(r.body),
           // The local time converted to an exact instant.
           scheduledDate: tz.TZDateTime.from(r.at, tz.UTC),
           notificationDetails: _details,

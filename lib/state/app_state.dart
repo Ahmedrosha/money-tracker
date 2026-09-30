@@ -1,6 +1,8 @@
+import '../l10n/l10n.dart';
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
+import 'package:intl/intl.dart' show Intl;
 import 'package:path_provider/path_provider.dart';
 
 import '../data/db.dart';
@@ -149,6 +151,40 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 'system' (follow the phone), 'en' or 'ar'.
+  String language = 'system';
+
+  /// Changes when the shown language changes (the app rebuilds).
+  final ValueNotifier<String> languageNotifier = ValueNotifier('en');
+
+  void _applyLanguage() {
+    final code = language == 'system'
+        ? WidgetsBinding.instance.platformDispatcher.locale.languageCode
+        : language;
+    appLang = code == 'ar' ? 'ar' : 'en';
+    Intl.defaultLocale = appLang;
+    languageNotifier.value = appLang;
+  }
+
+  /// Called when the phone's language changes.
+  void onSystemLocaleChanged() {
+    if (language == 'system') {
+      _applyLanguage();
+      version++;
+      notifyListeners();
+    }
+  }
+
+  Future<void> setLanguage(String v) async {
+    language = v;
+    await db.setSetting('language', v);
+    _applyLanguage();
+    version++;
+    notifyListeners();
+    // Reminder texts are written when scheduled.
+    await rescheduleReminders();
+  }
+
   /// Collapsed list sections, e.g. 'acc:Bank' (remembered).
   Set<String> collapsed = {};
 
@@ -170,6 +206,8 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> load() async {
+    language = await db.getSetting('language') ?? 'system';
+    _applyLanguage();
     baseCurrency = await db.getSetting('base_currency') ?? 'EGP';
     accountsGroupBy = await db.getSetting('accounts_group_by') ?? 'type';
     txnSort = await db.getSetting('txn_sort') ?? 'date';
@@ -227,12 +265,12 @@ class AppState extends ChangeNotifier {
   String budgetName(Budget b) {
     switch (b.scope) {
       case BudgetScope.total:
-        return 'All Spending';
+        return tr('All Spending');
       case BudgetScope.group:
         return b.target;
       case BudgetScope.category:
         final c = categoryById(b.categoryId);
-        if (c == null) return 'Deleted category';
+        if (c == null) return tr('Deleted category');
         return c.group.isEmpty ? c.name : '${c.group} › ${c.name}';
     }
   }
@@ -1221,7 +1259,7 @@ class AppState extends ChangeNotifier {
       {int? fromAccountId, DateTime? date}) async {
     final t = loan.loan!;
     final from = fromAccountId ?? t.payAccountId;
-    if (from == null) throw Exception('Choose the account you pay from');
+    if (from == null) throw Exception(tr('Choose the account you pay from'));
     final when = date ?? (row.date.isAfter(DateTime.now()) ? DateTime.now() : row.date);
     final label = 'Installment ${row.index + 1}/${t.months}';
     final payFrom = accountById(from);

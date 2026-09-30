@@ -6,6 +6,7 @@ import '../util/format.dart';
 import '../util/currencies.dart';
 import 'account_detail.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 /// Type to find an account (archived ones too) and jump straight to it.
 class AccountSearchScreen extends StatefulWidget {
@@ -40,15 +41,15 @@ class _AccountSearchScreenState extends State<AccountSearchScreen> {
         titleSpacing: 0,
         title: TextField(
           autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'Find account, bank, type…',
+          decoration: InputDecoration(
+            hintText: tr('Find account, bank, type…'),
             border: InputBorder.none,
           ),
           onChanged: (v) => setState(() => _q = v),
         ),
       ),
       body: found.isEmpty
-          ? const Center(child: Text('No matching accounts'))
+          ? Center(child: Text(tr('No matching accounts')))
           : ListView(
               padding: const EdgeInsets.only(bottom: 24),
               children: [
@@ -67,7 +68,7 @@ class _AccountSearchScreenState extends State<AccountSearchScreen> {
                       subtitle: Text([
                         a.type.label,
                         a.currency,
-                        if (a.archived) 'archived',
+                        if (a.archived) tr('archived'),
                       ].join(' · ')),
                       trailing: Text(
                         fmtMoney(a.type.isLiability ? -a.balance : a.balance,

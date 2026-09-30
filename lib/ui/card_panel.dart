@@ -7,6 +7,7 @@ import 'account_edit.dart';
 import 'pay_card.dart';
 import 'statement_detail.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 /// Credit card block on the account screen: limit, statement, pay.
 class CardPanel extends StatelessWidget {
@@ -37,7 +38,7 @@ class CardPanel extends StatelessWidget {
                   Row(
                     children: [
                       Expanded(
-                        child: Text('Available Limit',
+                        child: Text(tr('Available Limit'),
                             style: Theme.of(context).textTheme.titleSmall),
                       ),
                       Text(fmtMoney(summary.available!, cur),
@@ -62,8 +63,8 @@ class CardPanel extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Limit ${fmtAmount(limit)} · owed ${fmtAmount(summary.owedNow)}'
-                    '${summary.futureInstallments > 0 ? ' · future installments ${fmtAmount(summary.futureInstallments)}' : ''}',
+                    tr('Limit ${fmtAmount(limit)} · owed ${fmtAmount(summary.owedNow)}'
+                    '${summary.futureInstallments > 0 ? tr(' · future installments ${fmtAmount(summary.futureInstallments)}') : ''}'),
                     style: small,
                   ),
                 ],
@@ -75,8 +76,8 @@ class CardPanel extends StatelessWidget {
             margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: ListTile(
               leading: const Icon(Icons.info_outline),
-              title: const Text('Set the statement closing and due days'),
-              subtitle: const Text('to see statements and amounts due'),
+              title: Text(tr('Set the statement closing and due days')),
+              subtitle: Text(tr('to see statements and amounts due')),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Navigator.push(
                 context,
@@ -100,26 +101,26 @@ class CardPanel extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          'Statement ${shortDateFmt.format(last.closeDate)}',
+                          tr('Statement ${shortDateFmt.format(last.closeDate)}'),
                           style: Theme.of(context).textTheme.titleSmall,
                         ),
                       ),
                       if (last.settled)
-                        TagChip('Paid', color: kIncomeColor)
+                        TagChip(tr('Paid'), color: kIncomeColor)
                       else if (last.overdue)
-                        TagChip('Overdue', color: scheme.error)
+                        TagChip(tr('Overdue'), color: scheme.error)
                       else
-                        TagChip('Due ${shortDateFmt.format(last.dueDate)}',
+                        TagChip(tr('Due ${shortDateFmt.format(last.dueDate)}'),
                             color: scheme.secondary),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  _row('Statement Amount', fmtMoney(last.amount, cur)),
-                  _row('Paid Since Closing', fmtMoney(last.paid, cur)),
-                  _row('Remaining Due', fmtMoney(last.remaining, cur),
+                  _row(tr('Statement Amount'), fmtMoney(last.amount, cur)),
+                  _row(tr('Paid Since Closing'), fmtMoney(last.paid, cur)),
+                  _row(tr('Remaining Due'), fmtMoney(last.remaining, cur),
                       bold: true),
-                  _row('Minimum Due', fmtMoney(last.minimumDue, cur)),
-                  _row('Due Date', dayFmt.format(last.dueDate)),
+                  _row(tr('Minimum Due'), fmtMoney(last.minimumDue, cur)),
+                  _row(tr('Due Date'), dayFmt.format(last.dueDate)),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -130,7 +131,7 @@ class CardPanel extends StatelessWidget {
                               builder: (_) => StatementDetailScreen(
                                   card: a, close: last.closeDate)),
                         ),
-                        child: const Text('Details'),
+                        child: Text(tr('Details')),
                       ),
                       TextButton(
                         onPressed: () => Navigator.push(
@@ -138,13 +139,13 @@ class CardPanel extends StatelessWidget {
                           MaterialPageRoute(
                               builder: (_) => StatementsScreen(card: a)),
                         ),
-                        child: const Text('All Statements'),
+                        child: Text(tr('All Statements')),
                       ),
                       const Spacer(),
                       FilledButton.icon(
                         onPressed: () => showPayCard(context, summary),
                         icon: const Icon(Icons.payments_outlined),
-                        label: const Text('Pay'),
+                        label: Text(tr('Pay')),
                       ),
                     ],
                   ),
@@ -166,10 +167,10 @@ class CardPanel extends StatelessWidget {
                 ),
               ),
               title: Text(
-                  'Current Cycle: ${fmtMoney(summary.cycleSpent, cur)} spent'),
+                  tr('Current Cycle: ${fmtMoney(summary.cycleSpent, cur)} spent')),
               subtitle: Text(
-                  'Closes ${dayFmt.format(summary.nextClose!)} · due '
-                  '${shortDateFmt.format(dueDateAfter(summary.nextClose!, a.dueDay!))}'),
+                  tr('Closes ${dayFmt.format(summary.nextClose!)} · due '
+                  '${shortDateFmt.format(dueDateAfter(summary.nextClose!, a.dueDay!))}')),
             ),
           ),
       ],
@@ -199,7 +200,7 @@ class StatementsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text('${card.name} statements')),
+      appBar: AppBar(title: Text(tr('${card.name} statements'))),
       body: FutureBuilder<List<CardStatement>>(
         // Rebuilds when data changes because AppScope.of subscribes.
         key: ValueKey(state.version),
@@ -215,16 +216,16 @@ class StatementsScreen extends StatelessWidget {
             itemBuilder: (context, i) {
               final st = list[i];
               final status = st.amount <= 0
-                  ? 'Nothing due'
+                  ? tr('Nothing due')
                   : st.settled
-                      ? 'Paid'
+                      ? tr('Paid')
                       : (st.overdue
-                          ? 'Unpaid · ${fmtAmount(st.remaining)} left'
-                          : 'Due ${shortDateFmt.format(st.dueDate)} · ${fmtAmount(st.remaining)} left');
+                          ? tr('Unpaid · ${fmtAmount(st.remaining)} left')
+                          : tr('Due ${shortDateFmt.format(st.dueDate)} · ${fmtAmount(st.remaining)} left'));
               return ListTile(
-                title: Text('Closed ${shortDateFmt.format(st.closeDate)}'),
+                title: Text(tr('Closed ${shortDateFmt.format(st.closeDate)}')),
                 subtitle: Text(
-                    '$status\nPaid in cycle after closing: ${fmtAmount(st.paid)}'),
+                    tr('$status\nPaid in cycle after closing: ${fmtAmount(st.paid)}')),
                 isThreeLine: true,
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,

@@ -4,6 +4,7 @@ import '../data/models.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
 import 'widgets.dart';
+import '../l10n/l10n.dart';
 
 const Color kWarnColor = Color(0xFFEF8F00);
 
@@ -55,8 +56,8 @@ class BudgetRow extends StatelessWidget {
                 ),
                 Text(
                   s.over
-                      ? '${fmtAmount(-s.left)} over'
-                      : '${fmtAmount(s.left)} left',
+                      ? tr('${fmtAmount(-s.left)} over')
+                      : tr('${fmtAmount(s.left)} left'),
                   style: TextStyle(
                       fontWeight: FontWeight.w600,
                       color: s.over ? kExpenseColor : null),
@@ -98,8 +99,8 @@ class BudgetRow extends StatelessWidget {
             }),
             const SizedBox(height: 4),
             Text(
-              '${fmtAmount(s.spent)} of ${fmtMoney(s.limit, cur)} · ${(s.fraction * 100).toStringAsFixed(0)}%'
-              '${s.budget.rollover && s.carried.abs() >= 0.01 ? ' · ${s.carried >= 0 ? '+' : ''}${fmtAmount(s.carried)} carried' : ''}',
+              tr('${fmtAmount(s.spent)} of ${fmtMoney(s.limit, cur)} · ${(s.fraction * 100).toStringAsFixed(0)}%'
+              '${s.budget.rollover && s.carried.abs() >= 0.01 ? tr(' · ${s.carried >= 0 ? '+' : ''}${fmtAmount(s.carried)} carried') : ''}'),
               style: small,
             ),
           ],
@@ -117,12 +118,12 @@ class BudgetsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Budgets'),
+        title: Text(tr('Budgets')),
         actions: const [HideAmountsButton()],
       ),
       body: const BudgetsTab(),
       floatingActionButton: FloatingActionButton(
-        tooltip: 'Add Budget',
+        tooltip: tr('Add Budget'),
         onPressed: () => editBudget(context, null),
         child: const Icon(Icons.add),
       ),
@@ -209,8 +210,8 @@ class _BudgetsTabState extends State<BudgetsTab> {
                         size: 48,
                         color: Theme.of(context).colorScheme.onSurfaceVariant),
                     const SizedBox(height: 12),
-                    const Text(
-                      'Set a monthly limit for all spending, a category group or a single category.',
+                    Text(
+                      tr('Set a monthly limit for all spending, a category group or a single category.'),
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -223,7 +224,7 @@ class _BudgetsTabState extends State<BudgetsTab> {
                   child: Text(
                     '${others.length} budget${others.length == 1 ? '' : 's'} · '
                     '${fmtAmount(sumSpent)} of ${fmtMoney(sumLimit, cur)}'
-                    '${overCount > 0 ? ' · $overCount over' : ''}',
+                    '${overCount > 0 ? tr(' · $overCount over') : ''}',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),
@@ -242,7 +243,7 @@ class _BudgetsTabState extends State<BudgetsTab> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                   child: Text(
-                    'The line on each bar marks today, so you can see whether spending is ahead of the month.',
+                    tr('The line on each bar marks today, so you can see whether spending is ahead of the month.'),
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),
@@ -252,7 +253,7 @@ class _BudgetsTabState extends State<BudgetsTab> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
               child: FilledButton.tonalIcon(
                 icon: const Icon(Icons.add),
-                label: const Text('Add Budget'),
+                label: Text(tr('Add Budget')),
                 onPressed: () => editBudget(context, null),
               ),
             ),
@@ -320,12 +321,12 @@ class _BudgetEditScreenState extends State<BudgetEditScreen> {
   String _targetLabel(AppState state) {
     switch (_scope) {
       case BudgetScope.total:
-        return 'All Spending';
+        return tr('All Spending');
       case BudgetScope.group:
-        return _target.isEmpty ? 'Choose a Group' : _target;
+        return _target.isEmpty ? tr('Choose a Group') : _target;
       case BudgetScope.category:
         final c = state.categoryById(int.tryParse(_target));
-        if (c == null) return 'Choose a Category';
+        if (c == null) return tr('Choose a Category');
         return c.group.isEmpty ? c.name : '${c.group} › ${c.name}';
     }
   }
@@ -350,10 +351,10 @@ class _BudgetEditScreenState extends State<BudgetEditScreen> {
         builder: (ctx) => SizedBox(
           height: MediaQuery.of(ctx).size.height * 0.7,
           child: groups.isEmpty
-              ? const Center(
+              ? Center(
                   child: Padding(
                   padding: EdgeInsets.all(24),
-                  child: Text('No category groups yet. Set groups in Settings → Categories.'),
+                  child: Text(tr('No category groups yet. Set groups in Settings → Categories.')),
                 ))
               : ListView(
                   children: [
@@ -375,11 +376,11 @@ class _BudgetEditScreenState extends State<BudgetEditScreen> {
     final amount = parseAmount(_amount.text);
     if (_scope != BudgetScope.total && _target.isEmpty) {
       showSnack(context,
-          _scope == BudgetScope.group ? 'Choose a Group' : 'Choose a Category');
+          _scope == BudgetScope.group ? tr('Choose a Group') : tr('Choose a Category'));
       return;
     }
     if (amount == null || amount <= 0) {
-      showSnack(context, 'Enter a monthly amount');
+      showSnack(context, tr('Enter a monthly amount'));
       return;
     }
     final dup = state.budgets.any((b) =>
@@ -387,7 +388,7 @@ class _BudgetEditScreenState extends State<BudgetEditScreen> {
         b.scope == _scope &&
         (b.scope == BudgetScope.total || b.target == _target));
     if (dup) {
-      showSnack(context, 'There is already a budget for this');
+      showSnack(context, tr('There is already a budget for this'));
       return;
     }
     final old = widget.budget;
@@ -415,16 +416,16 @@ class _BudgetEditScreenState extends State<BudgetEditScreen> {
     }
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.budget == null ? 'New Budget' : 'Edit Budget'),
+        title: Text(widget.budget == null ? tr('New Budget') : tr('Edit Budget')),
         actions: [
           if (widget.budget != null)
             IconButton(
               icon: const Icon(Icons.delete_outline),
-              tooltip: 'Delete',
+              tooltip: tr('Delete'),
               onPressed: () async {
                 final ok = await confirmDialog(context,
-                    title: 'Delete this budget?',
-                    message: 'Your transactions are not affected.');
+                    title: tr('Delete this budget?'),
+                    message: tr('Your transactions are not affected.'));
                 if (ok && context.mounted) {
                   await state.deleteBudget(widget.budget!.id!);
                   if (context.mounted) Navigator.pop(context);
@@ -437,10 +438,10 @@ class _BudgetEditScreenState extends State<BudgetEditScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           SegmentedButton<BudgetScope>(
-            segments: const [
-              ButtonSegment(value: BudgetScope.category, label: Text('Category')),
-              ButtonSegment(value: BudgetScope.group, label: Text('Group')),
-              ButtonSegment(value: BudgetScope.total, label: Text('All Spending')),
+            segments: [
+              ButtonSegment(value: BudgetScope.category, label: Text(tr('Category'))),
+              ButtonSegment(value: BudgetScope.group, label: Text(tr('Group'))),
+              ButtonSegment(value: BudgetScope.total, label: Text(tr('All Spending'))),
             ],
             selected: {_scope},
             onSelectionChanged: widget.budget != null
@@ -467,7 +468,7 @@ class _BudgetEditScreenState extends State<BudgetEditScreen> {
             controller: _amount,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(
-              labelText: 'Monthly Limit',
+              labelText: tr('Monthly Limit'),
               suffixText: cur,
               border: const OutlineInputBorder(),
             ),
@@ -485,17 +486,17 @@ class _BudgetEditScreenState extends State<BudgetEditScreen> {
                         ? () => _amount.text = v.ceilToDouble().toStringAsFixed(0)
                         : null,
                     child: Text(v > 0
-                        ? 'Last 3 months average: ${fmtMoney(v, cur)} — use it'
-                        : 'No spending here in the last 3 months'),
+                        ? tr('Last 3 months average: ${fmtMoney(v, cur)} — use it')
+                        : tr('No spending here in the last 3 months')),
                   ),
                 );
               },
             ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Roll Over'),
-            subtitle: const Text(
-                'What\'s left at month end adds to next month; overspending takes from it'),
+            title: Text(tr('Roll Over')),
+            subtitle: Text(
+                tr('What\'s left at month end adds to next month; overspending takes from it')),
             value: _rollover,
             onChanged: (v) => setState(() => _rollover = v),
           ),
@@ -503,7 +504,7 @@ class _BudgetEditScreenState extends State<BudgetEditScreen> {
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.event),
-              title: const Text('Counting from'),
+              title: Text(tr('Counting from')),
               subtitle: Text(monthFmt.format(_start)),
               onTap: () async {
                 final d = await showDatePicker(
@@ -511,7 +512,7 @@ class _BudgetEditScreenState extends State<BudgetEditScreen> {
                   initialDate: _start,
                   firstDate: DateTime(2000),
                   lastDate: DateTime(2100),
-                  helpText: 'Any day in the first month',
+                  helpText: tr('Any day in the first month'),
                 );
                 if (d != null) setState(() => _start = DateTime(d.year, d.month));
               },
@@ -519,7 +520,7 @@ class _BudgetEditScreenState extends State<BudgetEditScreen> {
           const SizedBox(height: 24),
           FilledButton(
             onPressed: () => _save(state),
-            child: const Text('Save'),
+            child: Text(tr('Save')),
           ),
         ],
       ),

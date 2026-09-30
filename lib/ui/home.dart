@@ -6,6 +6,7 @@ import 'reports_screen.dart';
 import 'settings_screen.dart';
 import 'transaction_edit.dart';
 import 'transactions_screen.dart';
+import '../l10n/l10n.dart';
 
 /// The selected bottom tab; other screens can switch tabs through it.
 final ValueNotifier<int> homeTab = ValueNotifier<int>(0);
@@ -38,7 +39,7 @@ class HomeScreen extends StatelessWidget {
         floatingActionButton: index != HomeTabs.accounts
             ? null
             : FloatingActionButton(
-                tooltip: 'Add Transaction',
+                tooltip: tr('Add Transaction'),
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -49,27 +50,27 @@ class HomeScreen extends StatelessWidget {
         bottomNavigationBar: NavigationBar(
           selectedIndex: index,
           onDestinationSelected: (i) => homeTab.value = i,
-          destinations: const [
+          destinations: [
             NavigationDestination(
                 icon: Icon(Icons.account_balance_wallet_outlined),
                 selectedIcon: Icon(Icons.account_balance_wallet),
-                label: 'Accounts'),
+                label: tr('Accounts')),
             NavigationDestination(
                 icon: Icon(Icons.receipt_long_outlined),
                 selectedIcon: Icon(Icons.receipt_long),
-                label: 'Transactions'),
+                label: tr('Transactions')),
             NavigationDestination(
                 icon: Icon(Icons.savings_outlined),
                 selectedIcon: Icon(Icons.savings),
-                label: 'Budgets'),
+                label: tr('Budgets')),
             NavigationDestination(
                 icon: Icon(Icons.insights_outlined),
                 selectedIcon: Icon(Icons.insights),
-                label: 'Reports'),
+                label: tr('Reports')),
             NavigationDestination(
                 icon: Icon(Icons.settings_outlined),
                 selectedIcon: Icon(Icons.settings),
-                label: 'Settings'),
+                label: tr('Settings')),
           ],
         ),
       ),

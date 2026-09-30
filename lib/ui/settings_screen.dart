@@ -22,7 +22,7 @@ class SettingsScreen extends StatelessWidget {
       appBar: AppBar(title: Text(tr('Settings'))),
       body: ListView(
         children: [
-          const _LockTile(),
+          const AppLockTile(),
           SwitchListTile(
             secondary: const Icon(Icons.visibility_off_outlined),
             title: Text(tr('Hide Amounts')),
@@ -157,10 +157,25 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
           const Divider(),
+          if (state.hasSampleData) ...[
+            ListTile(
+              leading: const Icon(Icons.auto_awesome_outlined),
+              title: Text(tr('Clear Sample Data')),
+              subtitle: Text(tr('Removes the example accounts, their transactions and budgets. Your own entries stay.')),
+              onTap: () async {
+                final ok = await confirmDialog(context,
+                    title: 'Clear sample data?',
+                    message: 'Removes the example accounts, their transactions and budgets. Your own entries stay.',
+                    ok: 'Clear');
+                if (ok) await state.clearSampleData();
+              },
+            ),
+            const Divider(),
+          ],
           ListTile(
             leading: const Icon(Icons.info_outline),
-            title: const Text('Money Tracker'),
-            subtitle: Text(tr('Version 0.29 — Arabic language')),
+            title: const Text('Expense & Wealth Tracker'),
+            subtitle: Text(tr('Version 0.30 — welcome screens and sample data')),
           ),
         ],
       ),
@@ -190,14 +205,14 @@ class SettingsScreen extends StatelessWidget {
   }
 }
 
-class _LockTile extends StatefulWidget {
-  const _LockTile();
+class AppLockTile extends StatefulWidget {
+  const AppLockTile({super.key});
 
   @override
-  State<_LockTile> createState() => _LockTileState();
+  State<AppLockTile> createState() => AppLockTileState();
 }
 
-class _LockTileState extends State<_LockTile> {
+class AppLockTileState extends State<AppLockTile> {
   final _lock = AppLock();
   late final Future<String> _method = _lock.methodName();
 

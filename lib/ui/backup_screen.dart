@@ -33,7 +33,7 @@ class _BackupScreenState extends State<BackupScreen> {
     try {
       final path = await _makeBackup();
       await Share.shareXFiles([XFile(path)],
-          subject: tr('Money Tracker backup'), text: tr('Money Tracker backup'));
+          subject: tr('Expense & Wealth Tracker backup'), text: tr('Expense & Wealth Tracker backup'));
     } catch (e) {
       if (mounted) showSnack(context, tr('Backup failed: $e'));
     } finally {
@@ -62,7 +62,7 @@ class _BackupScreenState extends State<BackupScreen> {
   Future<void> _restore() async {
     final state = AppScope.read(context);
     final res = await FilePicker.platform.pickFiles(
-      dialogTitle: tr('Choose a Money Tracker backup (.db)'),
+      dialogTitle: tr('Choose a Expense & Wealth Tracker backup (.db)'),
       type: FileType.any,
     );
     final path = res?.files.single.path;
@@ -73,7 +73,7 @@ class _BackupScreenState extends State<BackupScreen> {
       info = await AppDb.inspect(path);
     } catch (e) {
       if (mounted) {
-        showSnack(context, tr('This file is not a Money Tracker backup'));
+        showSnack(context, tr('This file is not a Expense & Wealth Tracker backup'));
       }
       return;
     }

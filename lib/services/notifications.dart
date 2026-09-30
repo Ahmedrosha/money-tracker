@@ -147,7 +147,7 @@ class Notifier {
     await init();
     await _plugin.show(
       id: 999999,
-      title: 'Money Tracker',
+      title: 'Expense & Wealth Tracker',
       body: tr('Notifications are working.'),
       notificationDetails: _details,
     );

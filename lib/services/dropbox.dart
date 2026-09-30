@@ -213,6 +213,9 @@ class DropboxSync extends ChangeNotifier {
   /// - Dropbox has a newer copy and this phone has no new changes → take it.
   /// - This phone has changes and Dropbox hasn't changed → upload them.
   /// - Both changed → [conflict]; the user chooses which copy to keep.
+  /// True when this phone has no data yet (set by the app).
+  bool Function()? localIsEmpty;
+
   Future<void> syncNow() async {
     if (!connected || conflict != null) return;
     if (busy) {
@@ -232,7 +235,8 @@ class DropboxSync extends ChangeNotifier {
       if (remoteRev != null && remoteRev != _rev) {
         // Another phone uploaded since this one last synced.
         final path = await _download(token, 'dropbox-incoming.db');
-        if (!_dirty && _rev != null) {
+        // A new phone with nothing in it simply takes the Dropbox copy.
+        if ((!_dirty && _rev != null) || (localIsEmpty?.call() ?? false)) {
           incoming = path;
           incomingRev = remoteRev;
         } else {

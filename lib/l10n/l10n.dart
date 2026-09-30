@@ -119,3 +119,30 @@ const Map<String, String> kArabicCurrencyNames = {
   'MYR': 'رينجت ماليزي',
   'PKR': 'روبية باكستانية',
 };
+
+/// Arabic names for the starter categories created on a new install.
+const Map<String, String> kArabicStarterCategories = {
+  'Food & Dining': 'طعام ومطاعم',
+  'Groceries': 'بقالة وسوبر ماركت',
+  'Transport': 'مواصلات',
+  'Fuel': 'بنزين',
+  'Home & Rent': 'السكن والإيجار',
+  'Bills & Utilities': 'فواتير ومرافق',
+  'Phone & Internet': 'الهاتف والإنترنت',
+  'Health': 'صحة',
+  'Shopping': 'تسوق',
+  'Clothes': 'ملابس',
+  'Entertainment': 'ترفيه',
+  'Travel': 'سفر',
+  'Education': 'تعليم',
+  'Gifts': 'هدايا',
+  'Charity': 'صدقات وتبرعات',
+  'Bank fees': 'رسوم بنكية',
+  'Other': 'أخرى',
+  'Salary': 'راتب',
+  'Bonus': 'مكافأة',
+  'Business': 'عمل حر',
+  'Interest & Dividends': 'فوائد وأرباح',
+  'Refund': 'استرداد',
+  'Other income': 'دخل آخر',
+};

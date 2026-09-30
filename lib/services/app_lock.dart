@@ -28,7 +28,7 @@ class AppLock {
   Future<bool> authenticate() async {
     try {
       return await _auth.authenticate(
-        localizedReason: tr('Unlock Money Tracker'),
+        localizedReason: tr('Unlock Expense & Wealth Tracker'),
         biometricOnly: false,
         persistAcrossBackgrounding: true,
       );

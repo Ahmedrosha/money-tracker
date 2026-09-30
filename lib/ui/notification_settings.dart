@@ -63,7 +63,7 @@ class _NotificationSettingsScreenState
                 final ok = await state.notifier.requestPermission();
                 if (!ok && context.mounted) {
                   showSnack(context,
-                      tr('Allow notifications for Money Tracker in Android settings'));
+                      tr('Allow notifications for Expense & Wealth Tracker in Android settings'));
                 }
               }
               _update(() => _s.enabled = v);

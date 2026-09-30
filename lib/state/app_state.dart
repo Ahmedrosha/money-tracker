@@ -21,6 +21,7 @@ class AppState extends ChangeNotifier {
       await db.backupTo(path);
       return path;
     }, _replaceFromDropbox);
+    dropbox.localIsEmpty = () => accounts.isEmpty;
   }
 
   late final DropboxSync dropbox;
@@ -234,6 +235,14 @@ class AppState extends ChangeNotifier {
     await dropbox.init();
     notifSettings = await NotifSettings.load(db);
     await _reloadAll();
+    final setupDone = await db.getSetting('setup_done');
+    if (setupDone == null && accounts.isNotEmpty) {
+      // Existing data (an update, or a restore): no welcome screens.
+      await db.setSetting('setup_done', '1');
+    }
+    needsSetup = setupDone == null && accounts.isEmpty;
+    _sampleAccounts = _idList(await db.getSetting('sample_accounts'));
+    _sampleBudgets = _idList(await db.getSetting('sample_budgets'));
     _loaded = true;
   }
 
@@ -392,6 +401,220 @@ class AppState extends ChangeNotifier {
         );
       }
     } catch (_) {}
+  }
+
+  // ---------------- First launch ----------------
+
+  /// A new install with nothing in it yet: show the welcome screens.
+  bool needsSetup = false;
+
+  /// Which welcome screen is showing (kept here so a language change,
+  /// which rebuilds the app, stays on the same step).
+  int setupStep = 0;
+
+  void setSetupStep(int step) {
+    setupStep = step;
+    notifyListeners();
+  }
+
+  Future<void> completeSetup() async {
+    await localizeDefaultCategories();
+    await db.setSetting('setup_done', '1');
+    needsSetup = false;
+    notifyListeners();
+  }
+
+  static List<int> _idList(String? s) => (s ?? '')
+      .split(',')
+      .map(int.tryParse)
+      .whereType<int>()
+      .toList();
+
+  List<int> _sampleAccounts = [];
+  List<int> _sampleBudgets = [];
+
+  bool get hasSampleData =>
+      _sampleAccounts.any((id) => accounts.any((a) => a.id == id));
+
+  /// Renames the starter categories into Arabic when the app is in Arabic
+  /// (only the ones still carrying their original English name).
+  Future<void> localizeDefaultCategories() async {
+    if (!isArabic) return;
+    var changed = false;
+    for (final c in categories) {
+      final ar = kArabicStarterCategories[c.name];
+      if (ar == null) continue;
+      await db.updateCategory(Category(
+          id: c.id,
+          name: ar,
+          group: c.group,
+          kind: c.kind,
+          icon: c.icon,
+          color: c.color));
+      changed = true;
+    }
+    if (changed) await _reloadAll();
+  }
+
+  /// Example accounts, three months of transactions, a portfolio and two
+  /// budgets, to explore the app. Removed with [clearSampleData].
+  Future<void> loadSampleData() async {
+    final cur = baseCurrency;
+    // Amounts are in Egyptian pounds; scaled down for other currencies.
+    final k = cur == 'EGP' ? 1.0 : 0.02;
+    double m(double v) => (v * k * 100).roundToDouble() / 100;
+    final now = DateTime.now();
+    DateTime day(int monthsAgo, int d) =>
+        DateTime(now.year, now.month - monthsAgo, d, 12);
+    int? cat(String icon, TxType kind) => categories
+        .where((c) => c.icon == icon && c.kind == kind)
+        .firstOrNull
+        ?.id;
+    final ids = <int>[];
+    Future<int> acc(Account a) async {
+      final id = await db.insertAccount(a);
+      ids.add(id);
+      return id;
+    }
+
+    final bankName = tr('Sample Bank');
+    final cash = await acc(Account(
+        name: tr('Wallet'),
+        type: AccountType.cash,
+        currency: cur,
+        openingBalance: m(1500)));
+    final bank = await acc(Account(
+        name: tr('Current Account'),
+        bank: bankName,
+        type: AccountType.bank,
+        currency: cur,
+        openingBalance: m(42000),
+        sortOrder: 1));
+    final savings = await acc(Account(
+        name: tr('Savings Account'),
+        bank: bankName,
+        type: AccountType.savings,
+        currency: cur,
+        openingBalance: m(150000),
+        sortOrder: 2));
+    final card = await acc(Account(
+        name: 'Visa Gold',
+        bank: bankName,
+        type: AccountType.creditCard,
+        currency: cur,
+        creditLimit: m(60000),
+        statementDay: 25,
+        dueDay: 15,
+        minPayPct: 5,
+        sortOrder: 3));
+    final stocks = await acc(Account(
+        name: tr('Stocks'),
+        bank: 'Thndr',
+        type: AccountType.investment,
+        currency: 'EGP',
+        openingBalance: 30000,
+        investMode: 'holdings',
+        sortOrder: 4));
+    await acc(Account(
+        name: tr('Gold'),
+        type: AccountType.gold,
+        currency: 'XAU21',
+        openingBalance: 20,
+        sortOrder: 5));
+
+    final ex = TxType.expense;
+    final txns = <Txn>[];
+    void add(TxType type, DateTime date, double amount, int account,
+        {String? icon, String payee = '', int? to}) {
+      if (date.isAfter(now)) return;
+      txns.add(Txn(
+        type: type,
+        date: date,
+        amount: m(amount),
+        accountId: account,
+        toAccountId: to,
+        toAmount: to == null ? null : m(amount),
+        categoryId: icon == null ? null : cat(icon, type),
+        payee: payee,
+      ));
+    }
+
+    for (var mo = 2; mo >= 0; mo--) {
+      add(TxType.income, day(mo, 1), 35000, bank, icon: 'salary');
+      add(TxType.transfer, day(mo, 2), 3000, bank, to: cash);
+      add(ex, day(mo, 3), 9000, bank, icon: 'home', payee: tr('Rent'));
+      add(TxType.transfer, day(mo, 4), 5000, bank, to: savings);
+      add(ex, day(mo, 5), 2300, card, icon: 'groceries', payee: 'Carrefour');
+      add(ex, day(mo, 6), 900, card, icon: 'fuel', payee: 'Wataniya');
+      add(ex, day(mo, 8), 640, card, icon: 'food', payee: 'Talabat');
+      add(ex, day(mo, 10), 1200, bank, icon: 'bills', payee: tr('Electricity'));
+      add(ex, day(mo, 11), 350, cash, icon: 'transport', payee: 'Uber');
+      add(ex, day(mo, 12), 450, bank, icon: 'internet', payee: 'WE');
+      add(ex, day(mo, 14), 2700 - mo * 400, card,
+          icon: 'clothes', payee: 'Zara');
+      add(TxType.transfer, day(mo, 15), 8500, bank, to: card);
+      add(ex, day(mo, 16), 980, card, icon: 'food', payee: 'Zooba');
+      add(ex, day(mo, 17), 600, card, icon: 'entertainment', payee: 'Vox Cinemas');
+      add(ex, day(mo, 19), 1850, card, icon: 'groceries', payee: 'Seoudi');
+      add(ex, day(mo, 20), 900, card, icon: 'fuel', payee: 'Wataniya');
+      add(ex, day(mo, 22), 420, cash, icon: 'food', payee: 'Koshary Abou Tarek');
+      add(ex, day(mo, 26), 750 + mo * 150, card, icon: 'health', payee: tr('Pharmacy'));
+    }
+    for (final t in txns) {
+      await db.insertTxn(t);
+    }
+
+    final start = DateTime(now.year, now.month - 2, 1);
+    final budgetIds = <int>[
+      await db.insertBudget(
+          Budget(scope: BudgetScope.total, amount: m(25000), start: start)),
+      if (cat('food', ex) != null)
+        await db.insertBudget(Budget(
+            scope: BudgetScope.category,
+            target: '${cat('food', ex)}',
+            amount: m(3000),
+            start: start,
+            sortOrder: 1)),
+    ];
+
+    await db.setSetting('sample_accounts', ids.join(','));
+    await db.setSetting('sample_budgets', budgetIds.join(','));
+    _sampleAccounts = ids;
+    _sampleBudgets = budgetIds;
+    await _reloadAll();
+
+    final stockAcc = accounts.firstWhere((a) => a.id == stocks);
+    await addTrade(stockAcc, 'COMI', true, 150, 82.5, 0, day(2, 9));
+    await addTrade(stockAcc, 'TMGH', true, 400, 58, 0, day(1, 13));
+    await addTrade(stockAcc, 'FWRY', true, 1000, 11.2, 0, day(0, 2));
+  }
+
+  Future<void> clearSampleData() async {
+    for (final id in _sampleBudgets) {
+      await db.deleteBudget(id);
+    }
+    for (final id in _sampleAccounts) {
+      await db.deleteAccount(id);
+    }
+    await db.setSetting('sample_accounts', '');
+    await db.setSetting('sample_budgets', '');
+    _sampleAccounts = [];
+    _sampleBudgets = [];
+    await _reloadAll();
+  }
+
+  /// Creates a starter account from the welcome screens.
+  Future<void> addStarterAccount(
+      String name, AccountType type, double balance, {String bank = ''}) async {
+    await db.insertAccount(Account(
+      name: name,
+      bank: bank,
+      type: type,
+      currency: baseCurrency,
+      openingBalance: type.isLiability ? -balance.abs() : balance,
+      sortOrder: accounts.length,
+    ));
+    await _reloadAll();
   }
 
   // ---------------- Credit cards ----------------

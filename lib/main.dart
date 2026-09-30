@@ -8,6 +8,7 @@ import 'util/format.dart';
 import 'services/app_lock.dart';
 import 'state/app_state.dart';
 import 'ui/home.dart';
+import 'ui/setup_screen.dart';
 import 'l10n/l10n.dart';
 
 Future<void> main() async {
@@ -25,7 +26,8 @@ Future<void> main() async {
   // Opening the app uploads the latest copy to Dropbox.
   state.dropbox.syncNow();
   // Ask once for notification permission (Android 13+).
-  if (await db.getSetting('notif_asked') == null) {
+  // (New installs are asked on the welcome screens instead.)
+  if (!state.needsSetup && await db.getSetting('notif_asked') == null) {
     await db.setSetting('notif_asked', '1');
     await state.notifier.requestPermission();
     await state.rescheduleReminders();
@@ -192,7 +194,7 @@ class _MoneyAppState extends State<MoneyApp> with WidgetsBindingObserver {
       child: ValueListenableBuilder<String>(
         valueListenable: state.languageNotifier,
         builder: (context, lang, _) => MaterialApp(
-        title: 'Money Tracker',
+        title: 'Expense & Wealth Tracker',
         locale: Locale(lang),
         supportedLocales: const [Locale('en'), Locale('ar')],
         localizationsDelegates: const [
@@ -214,7 +216,7 @@ class _MoneyAppState extends State<MoneyApp> with WidgetsBindingObserver {
         ),
         navigatorKey: _navKey,
         // A new key rebuilds every screen in the new language.
-        home: HomeScreen(key: ValueKey(lang)),
+        home: _Root(key: ValueKey(lang)),
         builder: (context, child) => Stack(
           children: [
             // Keep every screen above Android's navigation buttons /
@@ -256,7 +258,7 @@ class _LockScreen extends StatelessWidget {
               children: [
                 Icon(Icons.lock_outline, size: 56, color: scheme.primary),
                 const SizedBox(height: 16),
-                Text(tr('Money Tracker is locked'),
+                Text(tr('Expense & Wealth Tracker is locked'),
                     style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: 24),
                 FilledButton.icon(
@@ -270,5 +272,17 @@ class _LockScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// The welcome screens on a new install, the app afterwards.
+class _Root extends StatelessWidget {
+  const _Root({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return AppScope.of(context).needsSetup
+        ? const SetupScreen()
+        : const HomeScreen();
   }
 }

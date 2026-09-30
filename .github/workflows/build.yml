@@ -36,7 +36,8 @@ jobs:
           cp -r assets build_app/assets
           python3 ci/patch_android.py
           MANIFEST=build_app/android/app/src/main/AndroidManifest.xml
-          sed -i 's/android:label="money_tracker"/android:label="Money Tracker"/' "$MANIFEST"
+          sed -i 's/android:label="money_tracker"/android:label="Expense \&amp; Wealth Tracker"/' "$MANIFEST"
+          grep -o 'android:label="[^"]*"' "$MANIFEST"
           sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' "$MANIFEST"
           # Let the app open https links (Dropbox sign-in) on Android 11+.
           sed -i 's#</manifest>#    <queries><intent><action android:name="android.intent.action.VIEW"/><data android:scheme="https"/></intent></queries>\n</manifest>#' "$MANIFEST"

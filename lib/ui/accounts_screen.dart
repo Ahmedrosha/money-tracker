@@ -14,6 +14,7 @@ import 'pay_card.dart';
 import 'statement_detail.dart';
 import 'widgets.dart';
 import 'sms_inbox_screen.dart';
+import 'cards_due.dart';
 import '../l10n/l10n.dart';
 
 class AccountsScreen extends StatelessWidget {
@@ -144,46 +145,7 @@ class AccountsScreen extends StatelessWidget {
                 ),
               ),
             ),
-          for (final c in state.cardsDue
-              .where((c) => !state.dismissedCards.contains(c.card.id)))
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Card(
-                color: c.last!.overdue
-                    ? Theme.of(context).colorScheme.errorContainer
-                    : Theme.of(context).colorScheme.secondaryContainer,
-                child: ListTile(
-                  // Tap the banner to see the statement behind it.
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => StatementDetailScreen(
-                          card: c.card, close: c.last!.closeDate),
-                    ),
-                  ),
-                  leading: const Icon(Icons.credit_card),
-                  title: Text(
-                      tr('${c.card.fullName}: ${fmtMoney(c.last!.remaining, c.card.currency)} due')),
-                  subtitle: Text(
-                      '${c.last!.overdue ? tr('Overdue since') : tr('Due')} ${shortDateFmt.format(c.last!.dueDate)}'
-                      ' · minimum ${fmtAmount(c.last!.minimumDue)}'),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      FilledButton.tonal(
-                        onPressed: () => showPayCard(context, c),
-                        child: Text(tr('Pay')),
-                      ),
-                      IconButton(
-                        tooltip: tr('Hide until the app is reopened'),
-                        icon: const Icon(Icons.close),
-                        onPressed: () => state.dismissCard(c.card.id!),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+          const CardsDueBox(),
           for (final (loan, row) in state.loansDue)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),

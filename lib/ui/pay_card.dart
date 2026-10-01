@@ -7,7 +7,9 @@ import 'transaction_edit.dart';
 import '../l10n/l10n.dart';
 
 /// Asks how much to pay, then opens a prefilled transfer into the card.
-Future<void> showPayCard(BuildContext context, CardSummary c) async {
+/// [preset]: skip the choice (0 = type another amount).
+Future<void> showPayCard(BuildContext context, CardSummary c,
+    {double? preset}) async {
   final cur = c.card.currency;
   final last = c.last;
   final options = <(String, String, double)>[
@@ -22,7 +24,7 @@ Future<void> showPayCard(BuildContext context, CardSummary c) async {
           c.owedNow),
   ];
 
-  final choice = await showModalBottomSheet<double>(
+  final choice = preset ?? await showModalBottomSheet<double>(
     context: context,
     showDragHandle: true,
     builder: (ctx) => SafeArea(

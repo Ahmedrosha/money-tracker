@@ -139,6 +139,31 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Snoozed card reminders: card id -> hidden until (remembered).
+  Map<int, DateTime> cardSnooze = {};
+
+  bool isSnoozed(CardSummary c) {
+    final u = cardSnooze[c.card.id];
+    return u != null && DateTime.now().isBefore(u);
+  }
+
+  /// Hides a card until 3 days before its due date (or tomorrow if that is
+  /// already close).
+  Future<void> snoozeCard(CardSummary c) async {
+    final due = c.last!.dueDate;
+    var until = DateTime(due.year, due.month, due.day - 3);
+    final now = DateTime.now();
+    if (!until.isAfter(now)) until = DateTime(now.year, now.month, now.day + 1);
+    cardSnooze[c.card.id!] = until;
+    await db.setSetting('card_snooze',
+        cardSnooze.entries.map((e) => '${e.key}:${e.value.millisecondsSinceEpoch}').join(','));
+    notifyListeners();
+  }
+
+  /// Cards still to pay and not snoozed, soonest first.
+  List<CardSummary> get cardsToShow =>
+      cardsDue.where((c) => !isSnoozed(c)).toList();
+
   /// Credit card summaries keyed by account id.
   Map<int, CardSummary> cards = {};
 
@@ -234,6 +259,12 @@ class AppState extends ChangeNotifier {
     amountsHidden = await db.getSetting('hide_amounts') == '1';
     lockEnabled = await db.getSetting('lock_enabled') == '1';
     smsAuto = await db.getSetting('sms_auto') == '1';
+    cardSnooze = {
+      for (final p in (await db.getSetting('card_snooze') ?? '').split(','))
+        if (p.contains(':'))
+          int.parse(p.split(':')[0]):
+              DateTime.fromMillisecondsSinceEpoch(int.parse(p.split(':')[1])),
+    };
     try {
       final o = await db.getSetting('online_rates');
       onlineRates = o == null

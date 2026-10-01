@@ -1,4 +1,5 @@
 import '../l10n/l10n.dart';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
@@ -481,6 +482,34 @@ class AppState extends ChangeNotifier {
     } finally {
       _readingSms = false;
     }
+    if (added > 0) await _reloadAll();
+    return added;
+  }
+
+  /// iPhone: messages left by the "Add Bank Message" Shortcuts action.
+  Future<int> readIncomingSmsFile() async {
+    if (!Platform.isIOS) return 0;
+    var added = 0;
+    try {
+      final docs = await getApplicationDocumentsDirectory();
+      final f = File('${docs.path}/incoming_sms.jsonl');
+      if (!await f.exists()) return 0;
+      final lines = await f.readAsLines();
+      await f.delete();
+      for (final l in lines) {
+        if (l.trim().isEmpty) continue;
+        try {
+          final m = jsonDecode(l) as Map<String, dynamic>;
+          final text = (m['text'] as String?) ?? '';
+          final at = m['at'] is num
+              ? DateTime.fromMillisecondsSinceEpoch((m['at'] as num).toInt())
+              : DateTime.now();
+          if (text.trim().isEmpty) continue;
+          if (!SmsParser.parse(text, received: at).usable) continue;
+          if (await db.insertSms((m['from'] as String?) ?? '', text, at)) added++;
+        } catch (_) {}
+      }
+    } catch (_) {}
     if (added > 0) await _reloadAll();
     return added;
   }

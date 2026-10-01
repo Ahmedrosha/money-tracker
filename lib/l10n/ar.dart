@@ -3,6 +3,12 @@
 // ignore_for_file: prefer_single_quotes
 
 const Map<String, String> kArabic = {
+  "Open the Shortcuts app → Automation → + → Message.": "افتح تطبيق الاختصارات ← أتمتة ← + ← رسالة.",
+  "Message Contains: EGP. Choose Run Immediately, then Next.": "الرسالة تحتوي على: EGP. اختر التشغيل فورًا، ثم التالي.",
+  "Tap New Blank Automation, search \"Expense\" and tap Add Bank Message. Its Message is filled with the SMS automatically. Tap Done.": "اضغط أتمتة فارغة جديدة، ابحث عن \"Expense\" واضغط Add Bank Message. يُملأ حقل الرسالة تلقائيًا. اضغط تم.",
+  "Bank SMS are now saved quietly; they wait in Bank Messages the next time you open the app. Messages without an amount are ignored.": "تُحفظ رسائل البنك الآن بهدوء، وتنتظر في رسائل البنك عند فتح التطبيق. الرسائل بدون مبلغ يتم تجاهلها.",
+  "Banks that send other currencies (e.g. USD): add another automation the same way with that word.": "للبنوك التي ترسل عملات أخرى (مثل USD): أضف أتمتة أخرى بنفس الطريقة بهذه الكلمة.",
+  "Set up once (iOS 16+): an automation saves each bank SMS here, without opening the app.": "إعداد لمرة واحدة (iOS 16+): أتمتة تحفظ كل رسالة بنك هنا دون فتح التطبيق.",
   "Account Number": "رقم الحساب",
   "Account number": "رقم الحساب",
   "Use MM/YY, e.g. 09/28": "استخدم الصيغة MM/YY، مثلًا 09/28",
@@ -43,7 +49,7 @@ const Map<String, String> kArabic = {
   "Dismiss": "تجاهل",
   "{0} bank messages to add": "{0} رسالة بنك بانتظار الإضافة",
   "Add transactions from bank SMS": "أضف المعاملات من رسائل البنك",
-  "Version 0.34 — bank messages": "الإصدار 0.34 — رسائل البنك",
+  "Version 0.35 — Add Bank Message for Shortcuts": "الإصدار 0.35 — إضافة رسائل البنك من الاختصارات",
   "SMS Sender Name": "اسم مرسل الرسائل",
   "e.g. ADCB Egypt": "مثلًا ADCB Egypt",
   "Exactly as it shows in Messages. Only messages from this sender are read for this account.": "كما يظهر بالضبط في الرسائل. تُقرأ رسائل هذا المرسل فقط لهذا الحساب.",

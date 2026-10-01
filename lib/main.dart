@@ -136,6 +136,7 @@ class _MoneyAppState extends State<MoneyApp> with WidgetsBindingObserver {
     // Bank messages: Android reads new SMS; iPhone Shortcuts send them in
     // as ewtracker://sms?from=…&text=…
     state.readAndroidSms();
+    state.readIncomingSmsFile();
     _linkSub = AppLinks().uriLinkStream.listen(_onLink, onError: (_) {});
   }
 
@@ -208,6 +209,7 @@ class _MoneyAppState extends State<MoneyApp> with WidgetsBindingObserver {
     } else if (s == AppLifecycleState.resumed) {
       state.refreshForToday();
       state.readAndroidSms();
+      state.readIncomingSmsFile();
       // Coming back to the app: pick up changes from the other phone
       // (at most once a minute) or send waiting ones.
       if (DateTime.now().difference(_lastResume).inSeconds >= 60 || dbx.pending) {

@@ -133,7 +133,7 @@ class _SmsInboxScreenState extends State<SmsInboxScreen> {
               child: ListTile(
                 leading: const Icon(Icons.bolt_outlined),
                 title: Text(tr('Add Messages Automatically (Shortcuts)')),
-                subtitle: Text(tr('Set up once: a Shortcuts automation sends each bank SMS here.')),
+                subtitle: Text(tr('Set up once (iOS 16+): an automation saves each bank SMS here, without opening the app.')),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => _shortcutHelp(context),
               ),
@@ -178,14 +178,12 @@ class _SmsInboxScreenState extends State<SmsInboxScreen> {
       );
 
   void _shortcutHelp(BuildContext context) {
-    const link = 'ewtracker://sms?from=SENDER&text=MESSAGE';
     final steps = [
-      tr('Open the Shortcuts app → Automation → + (New Automation) → Message.'),
-      tr('Message Contains: EGP (or the bank\'s name). Choose Run Immediately, then Next.'),
-      tr('New Blank Automation → add the action "URL Encode". Tap its input and pick Shortcut Input → Content.'),
-      tr('Add "Text" and type ewtracker://sms?text= then insert the URL Encoded Text variable right after it.'),
-      tr('Add "Open URLs" and pick the Text from the step before. Done.'),
-      tr('Each matching SMS now opens the app and waits in Bank Messages for you to add it. Messages without an amount are ignored.'),
+      tr('Open the Shortcuts app → Automation → + → Message.'),
+      tr('Message Contains: EGP. Choose Run Immediately, then Next.'),
+      tr('Tap New Blank Automation, search "Expense" and tap Add Bank Message. Its Message is filled with the SMS automatically. Tap Done.'),
+      tr('Bank SMS are now saved quietly; they wait in Bank Messages the next time you open the app. Messages without an amount are ignored.'),
+      tr('Banks that send other currencies (e.g. USD): add another automation the same way with that word.'),
     ];
     showModalBottomSheet<void>(
       context: context,
@@ -212,26 +210,6 @@ class _SmsInboxScreenState extends State<SmsInboxScreen> {
                     ],
                   ),
                 ),
-              const SizedBox(height: 8),
-              Text(tr('Link format'), style: Theme.of(ctx).textTheme.labelLarge),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  const Expanded(child: SelectableText(link)),
-                  IconButton(
-                    tooltip: tr('Copy'),
-                    icon: const Icon(Icons.copy),
-                    onPressed: () {
-                      Clipboard.setData(const ClipboardData(text: 'ewtracker://sms?text='));
-                      showSnack(ctx, tr('Copied'));
-                    },
-                  ),
-                ],
-              ),
-              Text(
-                tr('Adding &from= with the sender is optional; the app also matches by the last 4 digits.'),
-                style: Theme.of(ctx).textTheme.bodySmall,
-              ),
             ],
           ),
         ),

@@ -79,3 +79,50 @@ if "UNUserNotificationCenter" not in d:
     print("notification delegate added" if k else "notification delegate: pattern not found, skipped")
     open(delegate, "w").write(d)
 print(open(delegate).read())
+
+# --- "Add Bank Message" action for Shortcuts (iOS 16+). It runs without
+# opening the app and appends the SMS to Documents/incoming_sms.jsonl,
+# which the app reads into Bank Messages when it next opens.
+d = open(delegate).read()
+if "AddBankMessageIntent" not in d:
+    if "import AppIntents" not in d:
+        d = d.replace("import UIKit", "import UIKit\nimport AppIntents", 1)
+    d += '''
+
+@available(iOS 16.0, *)
+struct AddBankMessageIntent: AppIntent {
+  static var title: LocalizedStringResource = "Add Bank Message"
+  static var description = IntentDescription(
+    "Adds a bank SMS to Bank Messages in Expense & Wealth Tracker, to confirm later.")
+  static var openAppWhenRun: Bool = false
+
+  @Parameter(title: "Message")
+  var message: String
+
+  @Parameter(title: "Sender")
+  var sender: String?
+
+  func perform() async throws -> some IntentResult {
+    let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+    let file = dir.appendingPathComponent("incoming_sms.jsonl")
+    let entry: [String: Any] = [
+      "from": sender ?? "",
+      "text": message,
+      "at": Int(Date().timeIntervalSince1970 * 1000),
+    ]
+    var line = try JSONSerialization.data(withJSONObject: entry)
+    line.append(0x0A)
+    if FileManager.default.fileExists(atPath: file.path) {
+      let h = try FileHandle(forWritingTo: file)
+      _ = try h.seekToEnd()
+      try h.write(contentsOf: line)
+      try h.close()
+    } else {
+      try line.write(to: file)
+    }
+    return .result()
+  }
+}
+'''
+    open(delegate, "w").write(d)
+    print("Added the Add Bank Message action")

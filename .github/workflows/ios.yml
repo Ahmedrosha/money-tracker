@@ -92,59 +92,42 @@ jobs:
           printf '%s\n' "$ASC_KEY_P8" > ~/private_keys/AuthKey_$ASC_KEY_ID.p8
           echo "ASC_KEY_PATH=$HOME/private_keys/AuthKey_$ASC_KEY_ID.p8" >> "$GITHUB_ENV"
 
-      # Build unsigned; signing happens once, at export, with Apple's
-      # cloud-managed distribution certificate (no new certificates per build).
-      - name: Archive
+      # Home screen widgets: a WidgetKit extension added to the generated
+      # project. A copy without it is kept as a fallback.
+      - name: Add widget extension
         if: steps.check.outputs.ok == 'true'
-        working-directory: build_ios/ios
         shell: bash
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
         run: |
-          set -o pipefail
-          xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Release \
-            -destination 'generic/platform=iOS' \
-            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
-            CODE_SIGNING_ALLOWED=NO \
-            archive 2>&1 | tee -a ../../build.log | grep -E 'error|warning: .*sign|ARCHIVE|Signing' || true
-          test -d "$RUNNER_TEMP/Runner.xcarchive"
+          cp -R build_ios/ios build_ios/ios_plain
+          W=build_ios/ios/ExpenseWidget
+          mkdir -p $W
+          cp ci/ios_widget/ExpenseWidget.swift $W/
+          cp ci/ios_widget/entitlements.plist $W/ExpenseWidget.entitlements
+          cp ci/ios_widget/entitlements.plist build_ios/ios/Runner/Runner.entitlements
+          sed -e "s/__VERSION__/$APP_VERSION/" -e "s/__BUILD__/$BUILD_NUMBER/" ci/ios_widget/Info.plist.template > $W/Info.plist
+          ruby -e "require 'xcodeproj'" 2>/dev/null || gem install xcodeproj --user-install
+          (cd build_ios/ios && ruby ../../ci/ios_widget/add_widget.rb) 2>&1 | tee -a build.log || rm -rf $W
 
-      - name: Upload to TestFlight
+      # Signing happens once, at export, with Apple's cloud-managed
+      # distribution certificate (no new certificates per build).
+      - name: Archive and upload to TestFlight
         if: steps.check.outputs.ok == 'true'
         shell: bash
-        run: |
-          set -o pipefail
-          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key><string>app-store-connect</string>
-            <key>destination</key><string>upload</string>
-            <key>teamID</key><string>$APPLE_TEAM_ID</string>
-            <key>signingStyle</key><string>automatic</string>
-            <key>uploadSymbols</key><true/>
-            <key>manageAppVersionAndBuildNumber</key><false/>
-          </dict>
-          </plist>
-          EOF
-          xcodebuild -exportArchive \
-            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
-            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
-            -exportPath "$RUNNER_TEMP/export" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$ASC_KEY_PATH" \
-            -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID" 2>&1 | tee -a build.log
-          echo "Uploaded build $APP_VERSION (${{ github.run_number }}) to App Store Connect."
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: bash ci/ios_build_upload.sh
 
       - name: Remove key
         if: always()
         run: rm -rf ~/private_keys
 
-      - name: Publish build log on failure
-        if: failure()
+      - name: Publish build log
+        if: always() && steps.check.outputs.ok == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ci-log-ios
-          name: iOS CI log (latest failure)
+          name: iOS CI log (latest run)
           prerelease: true
           files: build.log

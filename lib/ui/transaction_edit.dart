@@ -68,6 +68,10 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
   int? _accountId;
   int? _toAccountId;
   int? _categoryId;
+
+  /// A category (or "No category") was picked on purpose. New entries
+  /// start without one; Save asks for it.
+  bool _categoryChosen = true;
   late DateTime _date;
 
   /// Card expenses: posting date set by hand. Null = follows [_date].
@@ -226,6 +230,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       _note.text = widget.initialNote ?? '';
       _payee.text = widget.initialPayee ?? '';
       _categoryId = widget.initialCategoryId;
+      _categoryChosen = widget.initialCategoryId != null;
     }
     _startMonth = DateTime(_date.year, _date.month + 1);
   }
@@ -456,11 +461,10 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       showSnack(context, tr('Pick an end date'));
       return;
     }
-    // Settings → Category Required (on by default).
-    if (state.requireCategory &&
-        _type != TxType.transfer &&
-        _categoryId == null) {
-      showSnack(context, tr('Choose a category'));
+    // Every expense / income needs a category — or "No category", chosen
+    // on purpose.
+    if (_type != TxType.transfer && !_categoryChosen) {
+      showSnack(context, tr('Choose a category, or No category if you\'re not sure'));
       return;
     }
     setState(() => _saving = true);
@@ -724,7 +728,10 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                 onSelectionChanged: (s) => setState(() {
                   _type = s.first;
                   final c = state.categoryById(_categoryId);
-                  if (c != null && c.kind != _type) _categoryId = null;
+                  if (c != null && c.kind != _type) {
+                    _categoryId = null;
+                    _categoryChosen = false;
+                  }
                   if (_type != TxType.expense) _installments = false;
                   _recalcToAmount();
                 }),
@@ -846,7 +853,11 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               CategoryField(
                 kind: _type,
                 value: _categoryId,
-                onChanged: (v) => setState(() => _categoryId = v),
+                noneChosen: _categoryChosen,
+                onChanged: (v) => setState(() {
+                  _categoryId = v;
+                  _categoryChosen = true;
+                }),
               ),
               const SizedBox(height: 16),
               TextFormField(

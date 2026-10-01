@@ -741,11 +741,16 @@ class CategoryField extends StatelessWidget {
     required this.kind,
     required this.value,
     required this.onChanged,
+    this.noneChosen = false,
   });
 
   final TxType kind;
   final int? value;
   final ValueChanged<int?> onChanged;
+
+  /// With no category: true shows "No category" (picked on purpose),
+  /// false shows "Choose a category".
+  final bool noneChosen;
 
   @override
   Widget build(BuildContext context) {
@@ -778,7 +783,7 @@ class CategoryField extends StatelessWidget {
                 ),
         ),
         child: c == null
-            ? Text(tr('Select Category'),
+            ? Text(noneChosen ? tr('No category') : tr('Choose a category'),
                 style: TextStyle(
                     color: Theme.of(context).colorScheme.onSurfaceVariant))
             : Column(

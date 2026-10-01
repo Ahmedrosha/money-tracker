@@ -146,15 +146,6 @@ class AppState extends ChangeNotifier {
 
   bool refreshingRates = false;
 
-  /// Expenses and income must have a category (on unless turned off).
-  bool requireCategory = true;
-
-  Future<void> setRequireCategory(bool v) async {
-    requireCategory = v;
-    await db.setSetting('require_category', v ? '1' : '0');
-    notifyListeners();
-  }
-
   /// Amounts shown as dots (remembered between sessions).
   bool get hideAmounts => amountsHidden;
 
@@ -240,7 +231,6 @@ class AppState extends ChangeNotifier {
     amountsHidden = await db.getSetting('hide_amounts') == '1';
     lockEnabled = await db.getSetting('lock_enabled') == '1';
     smsAuto = await db.getSetting('sms_auto') == '1';
-    requireCategory = await db.getSetting('require_category') != '0';
     collapsed = (await db.getSetting('collapsed') ?? '')
         .split('\n')
         .where((s) => s.isNotEmpty)

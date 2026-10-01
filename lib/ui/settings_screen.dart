@@ -32,13 +32,6 @@ class SettingsScreen extends StatelessWidget {
             value: state.hideAmounts,
             onChanged: (v) => state.setHideAmounts(v),
           ),
-          SwitchListTile(
-            secondary: const Icon(Icons.category_outlined),
-            title: Text(tr('Category Required')),
-            subtitle: Text(tr('Expenses and income can\'t be saved without a category. Transfers don\'t need one.')),
-            value: state.requireCategory,
-            onChanged: (v) => state.setRequireCategory(v),
-          ),
           ListTile(
             leading: const Icon(Icons.translate),
             // Both languages, so it can be found whichever one is showing.

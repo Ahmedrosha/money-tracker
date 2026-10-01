@@ -263,6 +263,7 @@ class AppState extends ChangeNotifier {
     budgets = await db.budgets();
     accountDetails = await db.accountDetails();
     smsPending = await db.pendingSms();
+    smsDismissed = await db.dismissedSms();
     bankNames = await db.bankNames();
     await _computeProjection();
     await _computeCards();
@@ -414,6 +415,9 @@ class AppState extends ChangeNotifier {
 
   /// Messages waiting to be added as transactions.
   List<SmsItem> smsPending = [];
+
+  /// Dismissed messages (the Archive group in Bank Messages).
+  List<SmsItem> smsDismissed = [];
 
   /// Android: read bank SMS automatically when the app opens.
   bool smsAuto = false;

@@ -498,6 +498,13 @@ class AppDb {
     return rows.map(SmsItem.fromMap).toList();
   }
 
+  /// Dismissed messages, newest first (kept 120 days).
+  Future<List<SmsItem>> dismissedSms() async {
+    final rows = await db.query('sms_inbox',
+        where: "status = 'dismissed'", orderBy: 'received_at DESC', limit: 300);
+    return rows.map(SmsItem.fromMap).toList();
+  }
+
   Future<void> setSmsStatus(int id, String status) => db.update(
       'sms_inbox', {'status': status},
       where: 'id = ?', whereArgs: [id]);

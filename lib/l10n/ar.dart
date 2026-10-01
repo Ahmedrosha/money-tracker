@@ -3,6 +3,8 @@
 // ignore_for_file: prefer_single_quotes
 
 const Map<String, String> kArabic = {
+  "Archive ({0})": "الأرشيف ({0})",
+  "Move to Archive": "نقل إلى الأرشيف",
   "Open the Shortcuts app → Automation → + → Message.": "افتح تطبيق الاختصارات ← أتمتة ← + ← رسالة.",
   "Message Contains: EGP. Choose Run Immediately, then Next.": "الرسالة تحتوي على: EGP. اختر التشغيل فورًا، ثم التالي.",
   "Tap New Blank Automation, search \"Expense\" and tap Add Bank Message. Its Message is filled with the SMS automatically. Tap Done.": "اضغط أتمتة فارغة جديدة، ابحث عن \"Expense\" واضغط Add Bank Message. يُملأ حقل الرسالة تلقائيًا. اضغط تم.",

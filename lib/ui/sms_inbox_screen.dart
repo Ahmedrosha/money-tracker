@@ -160,6 +160,30 @@ class _SmsInboxScreenState extends State<SmsInboxScreen> {
             )
           else
             for (final m in items) _SmsCard(item: m),
+          if (state.smsDismissed.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            InkWell(
+              onTap: () => state.toggleCollapsed('smsopen:archive'),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(4, 12, 4, 8),
+                child: Row(
+                  children: [
+                    CollapseArrow(
+                        collapsed: !state.isCollapsed('smsopen:archive')),
+                    const SizedBox(width: 6),
+                    const Icon(Icons.archive_outlined, size: 20),
+                    const SizedBox(width: 8),
+                    Text(tr('Archive (${state.smsDismissed.length})'),
+                        style: Theme.of(context).textTheme.titleSmall),
+                  ],
+                ),
+              ),
+            ),
+            // Closed by default; the choice is remembered.
+            if (state.isCollapsed('smsopen:archive'))
+              for (final m in state.smsDismissed)
+                _SmsCard(item: m, archived: true),
+          ],
         ],
       ),
     );
@@ -219,9 +243,12 @@ class _SmsInboxScreenState extends State<SmsInboxScreen> {
 }
 
 class _SmsCard extends StatefulWidget {
-  const _SmsCard({required this.item});
+  const _SmsCard({required this.item, this.archived = false});
 
   final SmsItem item;
+
+  /// Dismissed earlier: can be restored or still added.
+  final bool archived;
 
   @override
   State<_SmsCard> createState() => _SmsCardState();
@@ -354,11 +381,18 @@ class _SmsCardState extends State<_SmsCard> {
                   child: Text(_showText ? tr('Hide Message') : tr('Show Message')),
                 ),
                 const Spacer(),
-                IconButton(
-                  tooltip: tr('Dismiss'),
-                  icon: const Icon(Icons.close),
-                  onPressed: () => state.setSmsStatus(m.id, 'dismissed'),
-                ),
+                if (widget.archived)
+                  IconButton(
+                    tooltip: tr('Restore'),
+                    icon: const Icon(Icons.unarchive_outlined),
+                    onPressed: () => state.setSmsStatus(m.id, 'pending'),
+                  )
+                else
+                  IconButton(
+                    tooltip: tr('Move to Archive'),
+                    icon: const Icon(Icons.archive_outlined),
+                    onPressed: () => state.setSmsStatus(m.id, 'dismissed'),
+                  ),
                 if (p.credit)
                   TextButton(
                     onPressed: () => _add(state, p, accountId, transfer: true),

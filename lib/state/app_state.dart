@@ -231,6 +231,15 @@ class AppState extends ChangeNotifier {
     amountsHidden = await db.getSetting('hide_amounts') == '1';
     lockEnabled = await db.getSetting('lock_enabled') == '1';
     smsAuto = await db.getSetting('sms_auto') == '1';
+    try {
+      final o = await db.getSetting('online_rates');
+      onlineRates = o == null
+          ? {}
+          : (jsonDecode(o) as Map<String, dynamic>)
+              .map((k, v) => MapEntry(k, (v as num).toDouble()));
+    } catch (_) {
+      onlineRates = {};
+    }
     collapsed = (await db.getSetting('collapsed') ?? '')
         .split('\n')
         .where((s) => s.isNotEmpty)
@@ -1154,6 +1163,37 @@ class AppState extends ChangeNotifier {
 
   /// Converts [amount] from one currency to another. Returns null when a
   /// rate is missing.
+  /// Latest downloaded rates (units per USD), even where a manual rate is
+  /// set: the "market" rate for comparing transfers.
+  Map<String, double> onlineRates = {};
+
+  double? _onlinePerUsd(String code) {
+    if (code == 'USD') return 1;
+    final o = onlineRates[code];
+    if (o != null) return o;
+    final r = rates[code];
+    return r != null && !r.manual ? r.perUsd : null;
+  }
+
+  /// Market rate: units of [to] per 1 [from].
+  double? onlineRate(String from, String to) {
+    final f = _onlinePerUsd(from), t = _onlinePerUsd(to);
+    if (f == null || t == null || f == 0) return null;
+    return t / f;
+  }
+
+  /// The rate set by hand in Currencies, when either side has one.
+  double? myRate(String from, String to) {
+    if (!(rates[from]?.manual ?? false) && !(rates[to]?.manual ?? false)) {
+      return null;
+    }
+    return convert(1, from, to);
+  }
+
+  /// Rate of the last transfer between these two currencies (either way).
+  Future<double?> lastTransferRate(String from, String to, {int? exceptId}) =>
+      db.lastTransferRate(from, to, exceptId: exceptId);
+
   double? convert(double amount, String from, String to) {
     if (from == to) return amount;
     final f = rates[from]?.perUsd;
@@ -1226,6 +1266,9 @@ class AppState extends ChangeNotifier {
     try {
       final fetched = await _rateService.fetchPerUsd();
       await db.saveFetchedRates(fetched);
+      // Market rates kept apart, also for currencies with a manual rate.
+      onlineRates = {...onlineRates, ...fetched};
+      await db.setSetting('online_rates', jsonEncode(onlineRates));
       rates = {for (final r in await db.rates()) r.code: r};
       version++;
     } finally {

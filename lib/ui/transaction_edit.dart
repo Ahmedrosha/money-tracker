@@ -173,6 +173,16 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
 
   /// True once the user typed the received amount themselves.
   bool _toAmountEdited = false;
+
+  // Cross-currency transfers: units received per 1 unit sent. Sent, rate
+  // and received are linked: change one and the next one follows.
+  double? _rate;
+  final _rateCtl = TextEditingController();
+
+  /// Rate shown as "1 <from> = x <to>" (true) or "1 <to> = x <from>";
+  /// null = whichever gives a number of 1 or more.
+  bool? _rateFromSide;
+  double? _lastRate;
   bool _saving = false;
 
   /// false = app calculator keypad, true = phone keyboard (typed math).
@@ -268,13 +278,85 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     _categoryId = r.categoryId;
   }
 
+  /// Rate field, quick rates and the comparison with the market rate.
+  List<Widget> _rateSection(AppState state, Account from, Account to) {
+    final theme = Theme.of(context);
+    final fromU = currencyUnit(from.currency);
+    final toU = currencyUnit(to.currency);
+    final showFrom = _rateShowsFrom;
+    final online = state.onlineRate(from.currency, to.currency);
+    final mine = state.myRate(from.currency, to.currency);
+    String show(double r) => _rateText(showFrom ? r : 1 / r);
+
+    Widget chip(String label, double r) => ActionChip(
+          label: Text('$label ${show(r)}'),
+          onPressed: () => setState(() => _useRate(r)),
+        );
+
+    // Compared with the market (online) rate.
+    String? compare;
+    final amt = parseAmount(_amount.text)?.abs();
+    if (online != null && _rate != null && amt != null && amt > 0) {
+      final pct = (_rate! / online - 1) * 100;
+      final diff = amt * (_rate! - online); // in the "to" currency
+      final diffBase = state.toBase(diff.abs(), to.currency);
+      if (pct.abs() < 0.05) {
+        compare = tr('Same as the market rate (${show(online)})');
+      } else {
+        final p = pct.abs().toStringAsFixed(pct.abs() < 10 ? 1 : 0);
+        compare = pct < 0
+            ? tr('Market rate ${show(online)}: you get $p% less (≈ ${fmtMoney(diffBase, state.baseCurrency)})')
+            : tr('Market rate ${show(online)}: you get $p% more (≈ ${fmtMoney(diffBase, state.baseCurrency)})');
+      }
+    }
+
+    return [
+      TextFormField(
+        controller: _rateCtl,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: InputDecoration(
+          labelText: tr('Exchange Rate'),
+          prefixText: '1 ${showFrom ? fromU : toU} = ',
+          suffixText: showFrom ? toU : fromU,
+          border: const OutlineInputBorder(),
+          suffixIcon: IconButton(
+            tooltip: tr('Flip the rate'),
+            icon: const Icon(Icons.swap_horiz),
+            onPressed: () => setState(() {
+              _rateFromSide = !showFrom;
+              _syncRateText();
+            }),
+          ),
+        ),
+        onChanged: (v) => setState(() => _rateTyped(v)),
+      ),
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: 8,
+        runSpacing: 4,
+        children: [
+          if (online != null) chip(tr('Online'), online),
+          if (mine != null) chip(tr('My rate'), mine),
+          if (_lastRate != null) chip(tr('Last used'), _lastRate!),
+        ],
+      ),
+      if (compare != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 6, left: 4),
+          child: Text(compare,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+        ),
+    ];
+  }
+
   Future<void> _openPad(TextEditingController c, String? currency,
       {bool received = false}) async {
     FocusScope.of(context).unfocus();
     await showCalcPad(context, c, currency: currency, onChanged: () {
       setState(() {
         if (received) {
-          _toAmountEdited = true;
+          _rateFromReceived();
         } else {
           _recalcToAmount();
         }
@@ -330,12 +412,17 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
         _toAmountEdited = true;
       }
     }
+    if (_type == TxType.transfer) {
+      _recalcToAmount();
+      _loadLastRate();
+    }
   }
 
   @override
   void dispose() {
     _amount.dispose();
     _toAmount.dispose();
+    _rateCtl.dispose();
     _payee.dispose();
     _note.dispose();
     _fee.dispose();
@@ -358,18 +445,92 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     return a != null && b != null && a.currency != b.currency;
   }
 
-  void _recalcToAmount() {
-    if (_toAmountEdited) return;
+  /// Received = sent × rate. The rate starts from your own / the online
+  /// rate, or from the two amounts of an existing transfer.
+  void _recalcToAmount({bool keepRateText = false}) {
     final state = AppScope.read(context);
     final a = state.accountById(_accountId);
     final b = state.accountById(_toAccountId);
-    final amt = parseAmount(_amount.text);
-    if (a == null || b == null || amt == null || a.currency == b.currency) {
+    if (a == null || b == null || a.currency == b.currency) return;
+    final amt = parseAmount(_amount.text)?.abs();
+    if (_rate == null) {
+      final rcv = parseAmount(_toAmount.text)?.abs();
+      if (_toAmountEdited && amt != null && amt > 0 && rcv != null && rcv > 0) {
+        _rate = rcv / amt;
+      } else {
+        _rate = state.rate(a.currency, b.currency);
+      }
+    }
+    if (!keepRateText) _syncRateText();
+    if (amt == null || _rate == null) return;
+    _toAmount.text = (amt * _rate!).toStringAsFixed(2);
+  }
+
+  bool get _rateShowsFrom => _rateFromSide ?? ((_rate ?? 1) >= 1);
+
+  static String _rateText(double v) {
+    var t = v.toStringAsFixed(v >= 100 ? 2 : (v >= 1 ? 4 : 6));
+    if (t.contains('.')) {
+      t = t.replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
+    }
+    return t;
+  }
+
+  void _syncRateText() {
+    final r = _rate;
+    if (r == null || r <= 0) {
+      _rateCtl.text = '';
       return;
     }
-    final conv = state.convert(amt, a.currency, b.currency);
-    if (conv != null) _toAmount.text = conv.toStringAsFixed(2);
+    _rateCtl.text = _rateText(_rateShowsFrom ? r : 1 / r);
   }
+
+  /// The received amount was typed: work the rate out from it.
+  void _rateFromReceived() {
+    _toAmountEdited = true;
+    final amt = parseAmount(_amount.text)?.abs();
+    final rcv = parseAmount(_toAmount.text)?.abs();
+    if (amt != null && amt > 0 && rcv != null && rcv > 0) {
+      _rate = rcv / amt;
+      _syncRateText();
+    }
+  }
+
+  /// The rate was typed (in the direction shown).
+  void _rateTyped(String v) {
+    final d = parseAmount(v)?.abs();
+    if (d == null || d == 0) return;
+    _rate = _rateShowsFrom ? d : 1 / d;
+    _toAmountEdited = true;
+    _recalcToAmount(keepRateText: true);
+  }
+
+  void _useRate(double r) {
+    _rate = r;
+    _toAmountEdited = true;
+    _recalcToAmount();
+  }
+
+  /// Accounts changed: start again from the usual rate.
+  void _resetRate() {
+    _rate = null;
+    _rateFromSide = null;
+    _toAmountEdited = false;
+    _lastRate = null;
+    _recalcToAmount();
+    _loadLastRate();
+  }
+
+  Future<void> _loadLastRate() async {
+    final state = AppScope.read(context);
+    final a = state.accountById(_accountId);
+    final b = state.accountById(_toAccountId);
+    if (a == null || b == null || a.currency == b.currency) return;
+    final r = await state.lastTransferRate(a.currency, b.currency,
+        exceptId: widget.txn?.id);
+    if (mounted && r != null) setState(() => _lastRate = r);
+  }
+
 
   Future<void> _pickDate() async {
     final d = await showDatePicker(
@@ -687,8 +848,6 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     final account = state.accountById(_accountId);
     final toAccount = state.accountById(_toAccountId);
     final differ = _type == TxType.transfer && _currenciesDiffer(state);
-    final rate =
-        differ ? state.rate(account!.currency, toAccount!.currency) : null;
     final typeLocked = _mode == _Mode.editPlan || _mode == _Mode.confirm;
 
     return Scaffold(
@@ -734,6 +893,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                   }
                   if (_type != TxType.expense) _installments = false;
                   _recalcToAmount();
+                  if (_type == TxType.transfer) _loadLastRate();
                 }),
               ),
             const SizedBox(height: 16),
@@ -786,7 +946,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               value: _accountId,
               onChanged: (v) => setState(() {
                 _accountId = v;
-                _recalcToAmount();
+                _resetRate();
               }),
             ),
             if (_type == TxType.transfer) ...[
@@ -805,11 +965,13 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                   errorText: field.errorText,
                   onChanged: (v) => setState(() {
                     _toAccountId = v;
-                    _recalcToAmount();
+                    _resetRate();
                   }),
                 ),
               ),
               if (differ) ...[
+                const SizedBox(height: 16),
+                ..._rateSection(state, account!, toAccount!),
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _toAmount,
@@ -818,33 +980,16 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                   keyboardType: TextInputType.text,
                   onTap: _sysKeyboard
                       ? null
-                      : () => _openPad(_toAmount, toAccount?.currency,
+                      : () => _openPad(_toAmount, toAccount.currency,
                           received: true),
                   onFieldSubmitted: (_) => _settleExpression(_toAmount),
                   onTapOutside: (_) => _settleExpression(_toAmount),
                   decoration: InputDecoration(
                     labelText: tr('Amount Received'),
-                    suffixText: currencyUnit(toAccount!.currency),
-                    helperText: rate == null
-                        ? tr('No rate available — enter manually')
-                        : (isGold(toAccount.currency) && rate > 0
-                            // Buying gold: price per gram reads better.
-                            ? '1 ${currencyUnit(toAccount.currency)} = ${fmtRate(1 / rate)} ${account!.currency}'
-                            : '1 ${currencyUnit(account!.currency)} = ${fmtRate(rate)} ${currencyUnit(toAccount.currency)}') +
-                            (_toAmountEdited ? tr(' (edited)') : ''),
+                    suffixText: currencyUnit(toAccount.currency),
                     border: const OutlineInputBorder(),
-                    suffixIcon: _toAmountEdited
-                        ? IconButton(
-                            tooltip: tr('Recalculate from Rate'),
-                            icon: const Icon(Icons.refresh),
-                            onPressed: () => setState(() {
-                              _toAmountEdited = false;
-                              _recalcToAmount();
-                            }),
-                          )
-                        : null,
                   ),
-                  onChanged: (_) => setState(() => _toAmountEdited = true),
+                  onChanged: (_) => setState(_rateFromReceived),
                 ),
               ],
             ],

@@ -509,6 +509,26 @@ class AppDb {
       'sms_inbox', {'status': status},
       where: 'id = ?', whereArgs: [id]);
 
+  /// Units of [to] per 1 [from] in the latest transfer between the two
+  /// currencies (a transfer the other way is turned around).
+  Future<double?> lastTransferRate(String from, String to, {int? exceptId}) async {
+    final rows = await db.rawQuery('''
+      SELECT t.amount AS amount, t.to_amount AS to_amount, a.currency AS fc
+      FROM transactions t
+      JOIN accounts a ON a.id = t.account_id
+      JOIN accounts b ON b.id = t.to_account_id
+      WHERE t.type = 'transfer' AND t.to_amount IS NOT NULL
+        AND t.amount != 0 AND t.to_amount != 0 AND t.id != ?
+        AND ((a.currency = ? AND b.currency = ?) OR (a.currency = ? AND b.currency = ?))
+      ORDER BY t.date DESC, t.id DESC LIMIT 1
+    ''', [exceptId ?? -1, from, to, to, from]);
+    if (rows.isEmpty) return null;
+    final amount = (rows.first['amount'] as num).toDouble().abs();
+    final received = (rows.first['to_amount'] as num).toDouble().abs();
+    final r = received / amount;
+    return rows.first['fc'] == from ? r : 1 / r;
+  }
+
   /// Category last used with this payee, to suggest it again.
   Future<int?> lastCategoryForPayee(String payee, TxType type) async {
     if (payee.trim().isEmpty) return null;

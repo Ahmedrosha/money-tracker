@@ -3,6 +3,14 @@
 // ignore_for_file: prefer_single_quotes
 
 const Map<String, String> kArabic = {
+  "Exchange Rate": "سعر الصرف",
+  "Flip the rate": "عكس السعر",
+  "Online": "أونلاين",
+  "My rate": "سعري",
+  "Last used": "آخر سعر",
+  "Same as the market rate ({0})": "نفس سعر السوق ({0})",
+  "Market rate {0}: you get {1}% less (≈ {2})": "سعر السوق {0}: تحصل على أقل بنسبة {1}% (≈ {2})",
+  "Market rate {0}: you get {1}% more (≈ {2})": "سعر السوق {0}: تحصل على أكثر بنسبة {1}% (≈ {2})",
   "Choose a category": "اختر تصنيفًا",
   "Choose a category, or No category if you're not sure": "اختر تصنيفًا، أو بدون تصنيف إذا لم تكن متأكدًا",
   "Archive ({0})": "الأرشيف ({0})",
@@ -53,7 +61,7 @@ const Map<String, String> kArabic = {
   "Dismiss": "تجاهل",
   "{0} bank messages to add": "{0} رسالة بنك بانتظار الإضافة",
   "Add transactions from bank SMS": "أضف المعاملات من رسائل البنك",
-  "Version 0.35 — Add Bank Message for Shortcuts": "الإصدار 0.35 — إضافة رسائل البنك من الاختصارات",
+  "Version 0.36 — exchange rate options for transfers": "الإصدار 0.36 — خيارات سعر الصرف للتحويلات",
   "SMS Sender Name": "اسم مرسل الرسائل",
   "e.g. ADCB Egypt": "مثلًا ADCB Egypt",
   "Exactly as it shows in Messages. Only messages from this sender are read for this account.": "كما يظهر بالضبط في الرسائل. تُقرأ رسائل هذا المرسل فقط لهذا الحساب.",

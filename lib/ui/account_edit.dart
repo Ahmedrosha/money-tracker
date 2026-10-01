@@ -5,6 +5,7 @@ import '../state/app_state.dart';
 import '../util/currencies.dart';
 import '../util/format.dart';
 import 'widgets.dart';
+import '../services/secure_store.dart';
 import '../l10n/l10n.dart';
 
 class AccountEditScreen extends StatefulWidget {
@@ -75,6 +76,18 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
   late final TextEditingController _minPct;
 
   bool get _isNew => widget.account == null;
+
+  // Account details.
+  final _last4 = TextEditingController();
+  final _expiry = TextEditingController();
+  final _phone = TextEditingController();
+  final _customerNo = TextEditingController();
+  final _iban = TextEditingController();
+  final _notes = TextEditingController();
+  final _cardNumber = TextEditingController();
+  bool _hasCardNumber = false;
+  bool _removeCardNumber = false;
+  bool _showDetails = false;
 
   // Property / car / other asset value.
   final _assetValue = TextEditingController();
@@ -169,6 +182,19 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
     _investMode = a?.investMode ?? (a == null ? 'holdings' : null);
     if (a?.assetValue != null) _assetValue.text = _trimNum(a!.assetValue!);
     if (a?.assetShare != null) _assetShare.text = _trimNum(a!.assetShare!);
+    if (a?.id != null) {
+      final d = AppScope.read(context).detailsOf(a!.id);
+      _last4.text = d.last4;
+      _expiry.text = d.expiry;
+      _phone.text = d.phone;
+      _customerNo.text = d.customerNo;
+      _iban.text = d.iban;
+      _notes.text = d.notes;
+      _showDetails = !d.isEmpty;
+      SecureStore.hasCardNumber(a.id!).then((v) {
+        if (mounted && v) setState(() => _hasCardNumber = _showDetails = true);
+      });
+    }
     final n = DateTime.now();
     final l = a?.loan;
     _loanFirstDue = l?.firstDue ?? DateTime(n.year, n.month + 1, n.day);
@@ -202,7 +228,8 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
     _statementDay.dispose();
     _dueDay.dispose();
     _minPct.dispose();
-    for (final c in [_loanPayment, _loanMonths, _loanPrincipal, _loanRate, _loanReceived, _assetValue, _assetShare]) {
+    for (final c in [_loanPayment, _loanMonths, _loanPrincipal, _loanRate, _loanReceived, _assetValue, _assetShare,
+        _last4, _expiry, _phone, _customerNo, _iban, _notes, _cardNumber]) {
       c.dispose();
     }
     super.dispose();
@@ -260,14 +287,33 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
       dueDay: card ? int.tryParse(_dueDay.text.trim()) : null,
       minPayPct: card ? parseAmount(_minPct.text)?.abs() : null,
     );
+    int id;
     if (_isNew && loan != null) {
       final received = _loanMode == LoanMode.interest
           ? loan.principal
           : (parseAmount(_loanReceived.text)?.abs() ?? 0);
       await state.createLoan(a,
           receivedInto: _loanReceivedInto, received: received);
+      id = state.accounts.map((x) => x.id ?? 0).fold(0, (m, v) => v > m ? v : m);
     } else {
-      await state.saveAccount(a);
+      id = await state.saveAccount(a);
+    }
+    final details = AccountDetails(
+      last4: _last4.text.trim(),
+      expiry: _expiry.text.trim(),
+      phone: _phone.text.trim(),
+      customerNo: _customerNo.text.trim(),
+      iban: _iban.text.trim().toUpperCase(),
+      notes: _notes.text.trim(),
+    );
+    if (!(details.isEmpty && state.detailsOf(id).isEmpty)) {
+      await state.saveAccountDetails(id, details);
+    }
+    final number = _cardNumber.text.replaceAll(RegExp(r'\D'), '');
+    if (number.isNotEmpty) {
+      await SecureStore.setCardNumber(id, number);
+    } else if (_removeCardNumber) {
+      await SecureStore.setCardNumber(id, null);
     }
     if (!mounted) return;
     Navigator.pop(context);
@@ -438,6 +484,98 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
         ],
       ],
     ];
+  }
+
+  Widget _detailsSection(BuildContext context) {
+    final cardLike = _type.hasBank;
+    InputDecoration deco(String label, {String? hint, String? helper}) =>
+        InputDecoration(
+          labelText: label,
+          hintText: hint,
+          helperText: helper,
+          helperMaxLines: 3,
+          border: const OutlineInputBorder(),
+        );
+    const gap = SizedBox(height: 12);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.badge_outlined),
+          title: Text(tr('Account Details')),
+          subtitle: Text(tr('Last digits, expiry, bank phone, IBAN, notes')),
+          trailing: CollapseArrow(collapsed: !_showDetails),
+          onTap: () => setState(() => _showDetails = !_showDetails),
+        ),
+        if (_showDetails) ...[
+          const SizedBox(height: 4),
+          TextFormField(
+            controller: _last4,
+            keyboardType: TextInputType.text,
+            decoration: deco(tr('Last 4 Digits'),
+                hint: tr('e.g. 8397'),
+                helper: tr('Card and account endings, separated by commas. Used to match bank messages.')),
+          ),
+          if (cardLike) ...[
+            gap,
+            TextFormField(
+              controller: _cardNumber,
+              keyboardType: TextInputType.number,
+              obscureText: true,
+              autocorrect: false,
+              enableSuggestions: false,
+              decoration: deco(
+                  _hasCardNumber
+                      ? tr('Full Card Number (saved — type to replace)')
+                      : tr('Full Card Number'),
+                  helper: tr('Kept only in this phone\'s secure storage, shown with Face ID / fingerprint. Not in backups or Dropbox.')),
+            ),
+            if (_hasCardNumber)
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _removeCardNumber,
+                onChanged: (v) => setState(() => _removeCardNumber = v ?? false),
+                title: Text(tr('Remove the saved card number')),
+                controlAffinity: ListTileControlAffinity.leading,
+              ),
+            gap,
+            TextFormField(
+              controller: _expiry,
+              keyboardType: TextInputType.datetime,
+              decoration: deco(tr('Card Expiry'), hint: 'MM/YY'),
+            ),
+          ],
+          gap,
+          TextFormField(
+            controller: _phone,
+            keyboardType: TextInputType.phone,
+            decoration: deco(tr('Bank Phone Number'), hint: tr('e.g. 16862')),
+          ),
+          gap,
+          TextFormField(
+            controller: _customerNo,
+            decoration: deco(tr('Customer Number')),
+          ),
+          gap,
+          TextFormField(
+            controller: _iban,
+            textCapitalization: TextCapitalization.characters,
+            autocorrect: false,
+            decoration: deco('IBAN', hint: 'EG00 0000 …'),
+          ),
+          gap,
+          TextFormField(
+            controller: _notes,
+            minLines: 2,
+            maxLines: 6,
+            decoration: deco(tr('Notes'),
+                helper: tr('Don\'t keep the CVV or passwords here: notes are included in backups and Dropbox.')),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ],
+    );
   }
 
   @override
@@ -722,6 +860,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
               ),
             ],
             const SizedBox(height: 8),
+            _detailsSection(context),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: Text(tr('Exclude from Net Worth')),

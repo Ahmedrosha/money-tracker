@@ -12,6 +12,7 @@ import '../services/notifications.dart';
 import '../util/format.dart';
 import '../services/rates.dart';
 import '../services/stocks.dart';
+import '../services/secure_store.dart';
 
 class AppState extends ChangeNotifier {
   AppState(this.db) {
@@ -256,6 +257,7 @@ class AppState extends ChangeNotifier {
     rules = await db.recurringRules();
     plans = await db.allPlans();
     budgets = await db.budgets();
+    accountDetails = await db.accountDetails();
     bankNames = await db.bankNames();
     await _computeProjection();
     await _computeCards();
@@ -426,6 +428,7 @@ class AppState extends ChangeNotifier {
         if (await f.exists()) await f.delete();
       }
       db = await AppDb.open();
+      await SecureStore.clearAll();
       setupStep = 0;
       await load();
     } else {
@@ -444,6 +447,7 @@ class AppState extends ChangeNotifier {
         await tx.delete('settings',
             where: "key IN ('sample_accounts', 'sample_budgets', 'last_backup', 'collapsed') OR key LIKE 'budget_alert_%'");
       });
+      await SecureStore.clearAll();
       _sampleAccounts = [];
       _sampleBudgets = [];
       lastBackup = null;
@@ -1145,12 +1149,27 @@ class AppState extends ChangeNotifier {
 
   // ---------------- Accounts ----------------
 
-  Future<void> saveAccount(Account a) async {
+  /// Saves and returns the account's id.
+  Future<int> saveAccount(Account a) async {
+    int id;
     if (a.id == null) {
-      await db.insertAccount(a);
+      id = await db.insertAccount(a);
     } else {
       await db.updateAccount(a);
+      id = a.id!;
     }
+    await _reloadAll();
+    return id;
+  }
+
+  /// Account details (last digits, expiry, phone, IBAN…), by account id.
+  Map<int, AccountDetails> accountDetails = {};
+
+  AccountDetails detailsOf(int? id) =>
+      id == null ? AccountDetails.empty : (accountDetails[id] ?? AccountDetails.empty);
+
+  Future<void> saveAccountDetails(int accountId, AccountDetails d) async {
+    await db.saveAccountDetails(accountId, d);
     await _reloadAll();
   }
 
@@ -1607,6 +1626,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> deleteAccount(int id) async {
     await db.deleteAccount(id);
+    await SecureStore.setCardNumber(id, null);
     await _reloadAll();
   }
 

@@ -10,6 +10,7 @@ import 'invest_panel.dart';
 import 'loan_panel.dart';
 import 'search_screen.dart';
 import 'account_edit.dart';
+import 'account_details_sheet.dart';
 import 'calendar_screen.dart';
 import 'card_panel.dart';
 import 'transaction_edit.dart';
@@ -82,6 +83,8 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                   MaterialPageRoute(
                       builder: (_) => AccountEditScreen(account: account)),
                 );
+              } else if (v == 'details') {
+                showAccountDetails(context, account);
               } else if (v == 'balance') {
                 _setBalance(context, state, account);
               } else if (v == 'grams') {
@@ -89,6 +92,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
               }
             },
             itemBuilder: (_) => [
+              PopupMenuItem(value: 'details', child: Text(tr('Account Details'))),
               PopupMenuItem(value: 'edit', child: Text(tr('Edit Account'))),
               PopupMenuItem(
                   value: 'balance', child: Text(tr('Set Current Balance'))),

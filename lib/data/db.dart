@@ -39,7 +39,7 @@ class AppDb {
 
   final Database db;
 
-  static const int schemaVersion = 11;
+  static const int schemaVersion = 12;
 
   static Future<String> dbPath() async =>
       p.join(await getDatabasesPath(), 'money_tracker.db');
@@ -117,6 +117,7 @@ class AppDb {
         await _migrateToV9(db);
         await _migrateToV10(db);
         await _migrateToV11(db);
+        await _migrateToV12(db);
         await _seed(db);
       },
       onUpgrade: (db, oldV, newV) async {
@@ -130,6 +131,7 @@ class AppDb {
         if (oldV < 9) await _migrateToV9(db);
         if (oldV < 10) await _migrateToV10(db);
         if (oldV < 11) await _migrateToV11(db);
+        if (oldV < 12) await _migrateToV12(db);
       },
     );
     return AppDb._(db);
@@ -336,6 +338,23 @@ class AppDb {
     }
   }
 
+  /// Account details: last digits (to match bank SMS), expiry, bank phone,
+  /// customer number, IBAN and notes. The full card number is not here; it
+  /// is kept in the phone's secure storage.
+  static Future<void> _migrateToV12(Database db) async {
+    await db.execute('''
+      CREATE TABLE account_details (
+        account_id INTEGER PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+        last4 TEXT NOT NULL DEFAULT '',
+        expiry TEXT NOT NULL DEFAULT '',
+        phone TEXT NOT NULL DEFAULT '',
+        customer_no TEXT NOT NULL DEFAULT '',
+        iban TEXT NOT NULL DEFAULT '',
+        notes TEXT NOT NULL DEFAULT ''
+      )
+    ''');
+  }
+
   static Future<void> _seed(Database db) async {
     const expense = [
       ['Food & Dining', 'food', 0xFFFB8C00],
@@ -415,6 +434,24 @@ class AppDb {
   }
 
   Future<int> insertAccount(Account a) => db.insert('accounts', a.toMap());
+
+  Future<Map<int, AccountDetails>> accountDetails() async {
+    final rows = await db.query('account_details');
+    return {
+      for (final r in rows)
+        r['account_id'] as int: AccountDetails.fromMap(r),
+    };
+  }
+
+  Future<void> saveAccountDetails(int accountId, AccountDetails d) async {
+    if (d.isEmpty) {
+      await db.delete('account_details',
+          where: 'account_id = ?', whereArgs: [accountId]);
+    } else {
+      await db.insert('account_details', {'account_id': accountId, ...d.toMap()},
+          conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+  }
 
   /// Saves a manual order: account id -> position.
   Future<void> setSortOrders(Map<int, int> order) async {

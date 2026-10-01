@@ -332,6 +332,62 @@ class Account {
       );
 }
 
+/// Extra details kept for an account (all optional).
+class AccountDetails {
+  /// Last digits of the card / account, comma-separated when there are
+  /// several (e.g. "8397, 1234"). Used to match bank messages.
+  final String last4;
+  final String expiry; // MM/YY
+  final String phone;
+  final String customerNo;
+  final String iban;
+  final String notes;
+
+  const AccountDetails({
+    this.last4 = '',
+    this.expiry = '',
+    this.phone = '',
+    this.customerNo = '',
+    this.iban = '',
+    this.notes = '',
+  });
+
+  static const empty = AccountDetails();
+
+  bool get isEmpty =>
+      last4.isEmpty &&
+      expiry.isEmpty &&
+      phone.isEmpty &&
+      customerNo.isEmpty &&
+      iban.isEmpty &&
+      notes.isEmpty;
+
+  /// Each set of digits entered in [last4].
+  List<String> get digits => last4
+      .split(RegExp(r'[,\s/]+'))
+      .map((s) => s.replaceAll(RegExp(r'\D'), ''))
+      .where((s) => s.isNotEmpty)
+      .toList();
+
+  Map<String, Object?> toMap() => {
+        'last4': last4,
+        'expiry': expiry,
+        'phone': phone,
+        'customer_no': customerNo,
+        'iban': iban,
+        'notes': notes,
+      };
+
+  factory AccountDetails.fromMap(Map<String, Object?> m) => AccountDetails(
+        last4: (m['last4'] as String?) ?? '',
+        expiry: (m['expiry'] as String?) ?? '',
+        phone: (m['phone'] as String?) ?? '',
+        customerNo: (m['customer_no'] as String?) ?? '',
+        iban: (m['iban'] as String?) ?? '',
+        notes: (m['notes'] as String?) ?? '',
+      );
+}
+
 /// One statement cycle of a credit card.
 class CardStatement {
   /// Closing moment (end of the closing day).

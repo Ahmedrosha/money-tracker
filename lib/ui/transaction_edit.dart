@@ -987,6 +987,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                   decoration: InputDecoration(
                     labelText: tr('Amount Received'),
                     suffixText: currencyUnit(toAccount.currency),
+                    helperText: _receivedHelper(state, toAccount),
                     border: const OutlineInputBorder(),
                   ),
                   onChanged: (_) => setState(_rateFromReceived),
@@ -1105,6 +1106,17 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     );
   }
 
+  /// Main-currency equivalent of the amount received (transfers).
+  String? _receivedHelper(AppState state, Account to) {
+    final base = state.baseCurrency;
+    final amt = parseAmount(_toAmount.text);
+    if (to.currency == base || amt == null || amt == 0) return null;
+    final v = state.convert(amt, to.currency, base);
+    return v == null
+        ? tr('No $base rate for ${to.currency} yet')
+        : '≈ ${fmtMoneyRaw(v, base)}';
+  }
+
   /// Small line under the amount: the EGP (main currency) equivalent for
   /// foreign-currency expenses and income, and a refund hint.
   String? _amountHelper(AppState state, Account? account) {
@@ -1115,7 +1127,6 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     }
     final base = state.baseCurrency;
     if (account != null &&
-        _type != TxType.transfer &&
         account.currency != base &&
         amt != null &&
         amt != 0) {

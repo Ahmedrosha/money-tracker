@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../data/models.dart';
 import '../state/app_state.dart';
@@ -545,8 +546,16 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
             gap,
             TextFormField(
               controller: _expiry,
-              keyboardType: TextInputType.datetime,
+              keyboardType: TextInputType.number,
+              inputFormatters: [_ExpiryFormatter()],
               decoration: deco(tr('Card Expiry'), hint: 'MM/YY'),
+              validator: (v) {
+                final t = (v ?? '').trim();
+                if (t.isEmpty) return null;
+                final m = RegExp(r'^(\d{2})/(\d{2})$').firstMatch(t);
+                final month = m == null ? 0 : int.parse(m.group(1)!);
+                return month >= 1 && month <= 12 ? null : tr('Use MM/YY, e.g. 09/28');
+              },
             ),
           ],
           gap,
@@ -948,4 +957,29 @@ Future<AccountType?> _pickType(BuildContext context, AccountType current) {
       ),
     ),
   );
+}
+
+/// Card expiry as MM/YY: digits only, the "/" is added after the month.
+class _ExpiryFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    var digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    // Deleting the "/" also removes the digit before it.
+    if (oldValue.text.endsWith('/') &&
+        newValue.text.length < oldValue.text.length &&
+        digits.length == 2) {
+      digits = digits.substring(0, 1);
+    }
+    // "9" → "09/" (no month starts with 2–9 as a first digit).
+    if (digits.length == 1 && int.parse(digits) > 1) digits = '0$digits';
+    if (digits.length > 4) digits = digits.substring(0, 4);
+    final text = digits.length >= 2
+        ? '${digits.substring(0, 2)}/${digits.substring(2)}'
+        : digits;
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
 }

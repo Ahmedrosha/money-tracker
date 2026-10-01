@@ -5,6 +5,7 @@ import '../state/app_state.dart';
 import '../util/format.dart';
 import '../util/currencies.dart';
 import 'calendar_screen.dart';
+import 'due_screen.dart';
 import 'search_screen.dart';
 import 'transaction_edit.dart';
 import 'widgets.dart';
@@ -213,6 +214,26 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 onNext: () => _shiftMonth(1),
                 onTap: _pickMonth,
               ),
+              if (state.dueOccurrences.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Card(
+                    color: Theme.of(context).colorScheme.tertiaryContainer,
+                    child: ListTile(
+                      leading: Badge.count(
+                        count: state.dueOccurrences.length,
+                        child: const Icon(Icons.notifications_active_outlined),
+                      ),
+                      title: Text(tr(
+                          '${state.dueOccurrences.length} recurring item${state.dueOccurrences.length == 1 ? '' : 's'} to confirm')),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const DueScreen()),
+                      ),
+                    ),
+                  ),
+                ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(

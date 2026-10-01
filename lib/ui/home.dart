@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../state/app_state.dart';
 import 'accounts_screen.dart';
 import 'budgets_screen.dart';
 import 'reports_screen.dart';
@@ -33,7 +34,10 @@ class HomeScreen extends StatelessWidget {
     ];
     return ValueListenableBuilder<int>(
       valueListenable: homeTab,
-      builder: (context, index, _) => Scaffold(
+      builder: (context, index, _) {
+        // Recurring items whose date has come, waiting to be confirmed.
+        final due = AppScope.of(context).dueOccurrences.length;
+        return Scaffold(
         body: IndexedStack(index: index, children: pages),
         // Transactions and Budgets have their own add buttons.
         floatingActionButton: index != HomeTabs.accounts
@@ -56,8 +60,14 @@ class HomeScreen extends StatelessWidget {
                 selectedIcon: Icon(Icons.account_balance_wallet),
                 label: tr('Accounts')),
             NavigationDestination(
-                icon: Icon(Icons.receipt_long_outlined),
-                selectedIcon: Icon(Icons.receipt_long),
+                icon: Badge.count(
+                    count: due,
+                    isLabelVisible: due > 0,
+                    child: const Icon(Icons.receipt_long_outlined)),
+                selectedIcon: Badge.count(
+                    count: due,
+                    isLabelVisible: due > 0,
+                    child: const Icon(Icons.receipt_long)),
                 label: tr('Transactions')),
             NavigationDestination(
                 icon: Icon(Icons.savings_outlined),
@@ -73,7 +83,8 @@ class HomeScreen extends StatelessWidget {
                 label: tr('Settings')),
           ],
         ),
-      ),
+      );
+      },
     );
   }
 }

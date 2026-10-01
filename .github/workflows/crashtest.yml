@@ -16,6 +16,7 @@ jobs:
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - uses: actions/checkout@v4
       - name: Download latest APK
         env:
           GH_TOKEN: ${{ github.token }}
@@ -30,15 +31,7 @@ jobs:
           arch: x86_64
           target: google_apis
           disable-animations: true
-          script: |
-            adb install -r $(ls *.apk | head -1)
-            adb logcat -c
-            adb shell monkey -p com.rashad.moneytracker -c android.intent.category.LAUNCHER 1
-            sleep 25
-            adb logcat -d > logcat.txt || true
-            adb shell pidof com.rashad.moneytracker && echo RUNNING || echo NOT_RUNNING
-            grep -n -E "FATAL|AndroidRuntime|E flutter|Exception|Error" logcat.txt | head -150 > crash.txt || true
-            adb exec-out screencap -p > screen.png || true
+          script: bash ci/launch_test.sh
       - name: Publish log
         if: always()
         uses: softprops/action-gh-release@v2
@@ -47,6 +40,7 @@ jobs:
           name: Emulator launch test
           prerelease: true
           files: |
+            run.txt
             logcat.txt
             crash.txt
             screen.png

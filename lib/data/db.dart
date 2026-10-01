@@ -39,7 +39,7 @@ class AppDb {
 
   final Database db;
 
-  static const int schemaVersion = 12;
+  static const int schemaVersion = 13;
 
   static Future<String> dbPath() async =>
       p.join(await getDatabasesPath(), 'money_tracker.db');
@@ -118,6 +118,7 @@ class AppDb {
         await _migrateToV10(db);
         await _migrateToV11(db);
         await _migrateToV12(db);
+        await _migrateToV13(db);
         await _seed(db);
       },
       onUpgrade: (db, oldV, newV) async {
@@ -132,6 +133,7 @@ class AppDb {
         if (oldV < 10) await _migrateToV10(db);
         if (oldV < 11) await _migrateToV11(db);
         if (oldV < 12) await _migrateToV12(db);
+        if (oldV < 13) await _migrateToV13(db);
       },
     );
     return AppDb._(db);
@@ -353,6 +355,12 @@ class AppDb {
         notes TEXT NOT NULL DEFAULT ''
       )
     ''');
+  }
+
+  /// SMS sender name of the bank (e.g. "ADCB Egypt").
+  static Future<void> _migrateToV13(Database db) async {
+    await db.execute(
+        "ALTER TABLE account_details ADD COLUMN sender TEXT NOT NULL DEFAULT ''");
   }
 
   static Future<void> _seed(Database db) async {

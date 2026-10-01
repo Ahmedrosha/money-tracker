@@ -115,6 +115,8 @@ class _DetailsSheetState extends State<_DetailsSheet> {
               ),
           ],
         ),
+      if (d.sender.isNotEmpty)
+        row(Icons.sms_outlined, tr('SMS Sender Name'), d.sender),
       if (d.expiry.isNotEmpty)
         row(Icons.event_outlined, tr('Card Expiry'), d.expiry),
       if (d.phone.isNotEmpty)

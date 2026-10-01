@@ -84,6 +84,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
   final _customerNo = TextEditingController();
   final _iban = TextEditingController();
   final _notes = TextEditingController();
+  final _sender = TextEditingController();
   final _cardNumber = TextEditingController();
   bool _hasCardNumber = false;
   bool _removeCardNumber = false;
@@ -190,6 +191,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
       _customerNo.text = d.customerNo;
       _iban.text = d.iban;
       _notes.text = d.notes;
+      _sender.text = d.sender;
       _showDetails = !d.isEmpty;
       SecureStore.hasCardNumber(a.id!).then((v) {
         if (mounted && v) setState(() => _hasCardNumber = _showDetails = true);
@@ -229,7 +231,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
     _dueDay.dispose();
     _minPct.dispose();
     for (final c in [_loanPayment, _loanMonths, _loanPrincipal, _loanRate, _loanReceived, _assetValue, _assetShare,
-        _last4, _expiry, _phone, _customerNo, _iban, _notes, _cardNumber]) {
+        _last4, _expiry, _phone, _customerNo, _iban, _notes, _sender, _cardNumber]) {
       c.dispose();
     }
     super.dispose();
@@ -305,6 +307,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
       customerNo: _customerNo.text.trim(),
       iban: _iban.text.trim().toUpperCase(),
       notes: _notes.text.trim(),
+      sender: _sender.text.trim(),
     );
     if (!(details.isEmpty && state.detailsOf(id).isEmpty)) {
       await state.saveAccountDetails(id, details);
@@ -504,7 +507,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.badge_outlined),
           title: Text(tr('Account Details')),
-          subtitle: Text(tr('Last digits, expiry, bank phone, IBAN, notes')),
+          subtitle: Text(tr('Last digits, SMS sender, expiry, bank phone, IBAN, notes')),
           trailing: CollapseArrow(collapsed: !_showDetails),
           onTap: () => setState(() => _showDetails = !_showDetails),
         ),
@@ -546,6 +549,13 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
               decoration: deco(tr('Card Expiry'), hint: 'MM/YY'),
             ),
           ],
+          gap,
+          TextFormField(
+            controller: _sender,
+            decoration: deco(tr('SMS Sender Name'),
+                hint: tr('e.g. ADCB Egypt'),
+                helper: tr('Exactly as it shows in Messages. Only messages from this sender are read for this account.')),
+          ),
           gap,
           TextFormField(
             controller: _phone,

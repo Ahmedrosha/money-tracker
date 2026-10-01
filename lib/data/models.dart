@@ -343,7 +343,11 @@ class AccountDetails {
   final String iban;
   final String notes;
 
+  /// Name the bank's SMS come from, as shown in Messages.
+  final String sender;
+
   const AccountDetails({
+    this.sender = '',
     this.last4 = '',
     this.expiry = '',
     this.phone = '',
@@ -360,7 +364,8 @@ class AccountDetails {
       phone.isEmpty &&
       customerNo.isEmpty &&
       iban.isEmpty &&
-      notes.isEmpty;
+      notes.isEmpty &&
+      sender.isEmpty;
 
   /// Each set of digits entered in [last4].
   List<String> get digits => last4
@@ -376,6 +381,7 @@ class AccountDetails {
         'customer_no': customerNo,
         'iban': iban,
         'notes': notes,
+        'sender': sender,
       };
 
   factory AccountDetails.fromMap(Map<String, Object?> m) => AccountDetails(
@@ -385,6 +391,7 @@ class AccountDetails {
         customerNo: (m['customer_no'] as String?) ?? '',
         iban: (m['iban'] as String?) ?? '',
         notes: (m['notes'] as String?) ?? '',
+        sender: (m['sender'] as String?) ?? '',
       );
 }
 

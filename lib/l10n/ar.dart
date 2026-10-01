@@ -3,9 +3,13 @@
 // ignore_for_file: prefer_single_quotes
 
 const Map<String, String> kArabic = {
+  "SMS Sender Name": "اسم مرسل الرسائل",
+  "e.g. ADCB Egypt": "مثلًا ADCB Egypt",
+  "Exactly as it shows in Messages. Only messages from this sender are read for this account.": "كما يظهر بالضبط في الرسائل. تُقرأ رسائل هذا المرسل فقط لهذا الحساب.",
+  "Last digits, SMS sender, expiry, bank phone, IBAN, notes": "آخر الأرقام، مرسل الرسائل، تاريخ الانتهاء، هاتف البنك، IBAN، ملاحظات",
+  "Version 0.33 — SMS sender name": "الإصدار 0.33 — اسم مرسل الرسائل",
   "Notes": "ملاحظات",
   "Account Details": "تفاصيل الحساب",
-  "Last digits, expiry, bank phone, IBAN, notes": "آخر الأرقام، تاريخ الانتهاء، هاتف البنك، IBAN، ملاحظات",
   "Last 4 Digits": "آخر 4 أرقام",
   "e.g. 8397": "مثلًا 8397",
   "Card and account endings, separated by commas. Used to match bank messages.": "نهايات أرقام البطاقة والحساب، مفصولة بفواصل. تُستخدم لمطابقة رسائل البنك.",
@@ -27,7 +31,6 @@ const Map<String, String> kArabic = {
   "Customer number": "رقم العميل",
   "No details yet. Add the last digits, expiry, bank phone, IBAN and notes in Edit Account.": "لا توجد تفاصيل بعد. أضف آخر الأرقام وتاريخ الانتهاء وهاتف البنك وIBAN والملاحظات من تعديل الحساب.",
   "Edit Details": "تعديل التفاصيل",
-  "Version 0.32 — account details": "الإصدار 0.32 — تفاصيل الحساب",
   "Reset App": "إعادة ضبط التطبيق",
   "Delete your data or start over like a new install": "احذف بياناتك أو ابدأ من جديد كأنه تثبيت جديد",
   "What should be deleted?": "ما الذي تريد حذفه؟",

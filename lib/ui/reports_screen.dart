@@ -9,6 +9,8 @@ import 'budgets_screen.dart';
 import 'home.dart';
 import 'pay_card.dart';
 import 'reports_extra.dart';
+import 'reports_budget.dart';
+import 'charts.dart';
 import 'reports_more.dart';
 import 'transaction_edit.dart';
 import 'widgets.dart';
@@ -50,7 +52,7 @@ class ReportsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 9,
+      length: 10,
       child: Scaffold(
         appBar: AppBar(
           title: Text(tr('Reports')),
@@ -61,6 +63,7 @@ class ReportsScreen extends StatelessWidget {
             tabs: [
               Tab(text: tr('Dashboard')),
               Tab(text: tr('By Category')),
+              Tab(text: tr('Budget vs Actual')),
               Tab(text: tr('Trend')),
               Tab(text: tr('Outlook')),
               Tab(text: tr('Compare')),
@@ -72,15 +75,46 @@ class ReportsScreen extends StatelessWidget {
           ),
         ),
         body: const TabBarView(children: [
-          _Dashboard(),
-          _ByCategory(),
-          TrendTab(),
-          OutlookTab(),
-          CompareTab(),
-          NetWorthTab(),
-          AllocationTab(),
-          CardsTab(),
-          LoansTab(),
+          ReportExplained(
+              id: 'dash',
+              text: 'A quick look at this month: income, spending and what you saved, your budgets, cards due and the last 6 months of spending.',
+              child: _Dashboard()),
+          ReportExplained(
+              id: 'cat',
+              text: 'Where your money went (or came from) in the chosen period, by category group. The ring shows each group\'s share; tap a group to see its categories and transactions.',
+              child: _ByCategory()),
+          ReportExplained(
+              id: 'bva',
+              text: 'Each budget against what you actually spent. Green is under budget, red is over. The pace line estimates where the current month will end if you keep spending at the same rate.',
+              child: BudgetVsActualTab()),
+          ReportExplained(
+              id: 'trend',
+              text: 'Income and spending month by month (or year by year), and how much you saved each time. Use it to spot months that were unusually high.',
+              child: TrendTab()),
+          ReportExplained(
+              id: 'outlook',
+              text: 'Your cash and bank balance day by day for the coming weeks, including recurring items, installments and card payments due. The lowest point is the one to watch.',
+              child: OutlookTab()),
+          ReportExplained(
+              id: 'compare',
+              text: 'This period against the one before, per category: what went up and what went down. Switch to Payees to see the shops and people you pay the most.',
+              child: CompareTab()),
+          ReportExplained(
+              id: 'networth',
+              text: 'What you own minus what you owe, at the end of each month. Foreign currencies and gold use today\'s rates.',
+              child: NetWorthTab()),
+          ReportExplained(
+              id: 'alloc',
+              text: 'Where your money sits right now: by account type, by bank or by currency. The ring shows each part\'s share of what you own.',
+              child: AllocationTab()),
+          ReportExplained(
+              id: 'cards',
+              text: 'Each credit card\'s statements: amount, what was paid and what is still due, with future installments.',
+              child: CardsTab()),
+          ReportExplained(
+              id: 'loans',
+              text: 'Your loans: how much is paid, what is left and the next installment. Tap a loan for its full schedule.',
+              child: LoansTab()),
         ]),
       ),
     );
@@ -734,6 +768,22 @@ class _ByCategoryState extends State<_ByCategory> {
               Padding(
                 padding: EdgeInsets.all(40),
                 child: Center(child: Text(tr('Nothing in this period'))),
+              ),
+            if (ranked.isNotEmpty)
+              DonutChart(
+                currency: cur,
+                slices: [
+                  for (final g in ranked)
+                    Slice(g.key, sum(g.value),
+                        onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => _GroupScreen(
+                                    title: g.key, cats: g.value, from: from, to: to,
+                                    periodLabel: _label),
+                              ),
+                            )),
+                ],
               ),
             for (final g in ranked)
               _BarRow(

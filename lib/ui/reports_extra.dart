@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'charts.dart';
 import 'package:intl/intl.dart' show DateFormat;
 
 import '../data/models.dart';
@@ -554,6 +556,14 @@ class _AllocationTabState extends State<AllocationTab> {
           ),
         ),
         _heading(context, tr('What You Own'), sub: tr('$cur · tap to see accounts')),
+        DonutChart(
+          currency: cur,
+          slices: [
+            for (final g in assets)
+              Slice(_split == _Split.currency ? currencyName(g.name) : g.name,
+                  g.total),
+          ],
+        ),
         for (final g in assets) group(g, totalA, null),
         if (debts.isNotEmpty) ...[
           _heading(context, tr('What You Owe'), sub: cur),
@@ -867,6 +877,10 @@ class _CompareTabState extends State<CompareTab> {
             children: [
               _heading(context, tr('${list.length} payees · ${fmtMoney(total, cur)}'),
                   sub: list.length > 40 ? tr('Top 40 shown · tap for transactions') : tr('Tap for transactions')),
+              DonutChart(
+                currency: cur,
+                slices: [for (final p in top) Slice(p.$1, p.$2)],
+              ),
               for (final p in top)
                 _ShareRow(
                   label: p.$1,

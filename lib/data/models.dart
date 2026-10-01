@@ -395,6 +395,23 @@ class AccountDetails {
       );
 }
 
+/// A bank message waiting in "Bank Messages".
+class SmsItem {
+  final int id;
+  final String sender;
+  final String body;
+  final DateTime receivedAt;
+
+  const SmsItem(this.id, this.sender, this.body, this.receivedAt);
+
+  factory SmsItem.fromMap(Map<String, Object?> m) => SmsItem(
+        m['id'] as int,
+        (m['sender'] as String?) ?? '',
+        (m['body'] as String?) ?? '',
+        DateTime.fromMillisecondsSinceEpoch(m['received_at'] as int),
+      );
+}
+
 /// One statement cycle of a credit card.
 class CardStatement {
   /// Closing moment (end of the closing day).

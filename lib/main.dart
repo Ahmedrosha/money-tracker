@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -9,6 +12,7 @@ import 'services/app_lock.dart';
 import 'state/app_state.dart';
 import 'ui/home.dart';
 import 'ui/setup_screen.dart';
+import 'ui/sms_inbox_screen.dart';
 import 'l10n/l10n.dart';
 
 Future<void> main() async {
@@ -129,6 +133,29 @@ class _MoneyAppState extends State<MoneyApp> with WidgetsBindingObserver {
     if (_locked) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _unlock());
     }
+    // Bank messages: Android reads new SMS; iPhone Shortcuts send them in
+    // as ewtracker://sms?from=…&text=…
+    state.readAndroidSms();
+    _linkSub = AppLinks().uriLinkStream.listen(_onLink, onError: (_) {});
+  }
+
+  StreamSubscription<Uri>? _linkSub;
+
+  Future<void> _onLink(Uri uri) async {
+    if (uri.scheme != 'ewtracker') return;
+    final text = uri.queryParameters['text'] ?? uri.queryParameters['body'] ?? '';
+    if (text.trim().isEmpty) return;
+    final from = uri.queryParameters['from'] ?? '';
+    final added = await state.addSms(from, text);
+    final nav = _navKey.currentState;
+    final ctx = _navKey.currentContext;
+    if (nav == null || ctx == null) return;
+    if (!added) {
+      ScaffoldMessenger.maybeOf(ctx)?.showSnackBar(SnackBar(
+          content: Text(tr('Not a new bank transaction (already added, or a code / declined message)'))));
+      return;
+    }
+    nav.push(MaterialPageRoute(builder: (_) => const SmsInboxScreen()));
   }
 
   Future<void> _unlock() async {
@@ -146,6 +173,7 @@ class _MoneyAppState extends State<MoneyApp> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     state.dropbox.removeListener(_onDropbox);
+    _linkSub?.cancel();
     super.dispose();
   }
 
@@ -178,6 +206,7 @@ class _MoneyAppState extends State<MoneyApp> with WidgetsBindingObserver {
       // Leaving the app: send any change that is still waiting.
       dbx.flush();
     } else if (s == AppLifecycleState.resumed) {
+      state.readAndroidSms();
       // Coming back to the app: pick up changes from the other phone
       // (at most once a minute) or send waiting ones.
       if (DateTime.now().difference(_lastResume).inSeconds >= 60 || dbx.pending) {

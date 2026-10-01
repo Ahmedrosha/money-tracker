@@ -74,6 +74,9 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
+          # The GitHub APK may read bank SMS; the Play bundle does not.
+          sed -i 's#<application#<uses-permission android:name="android.permission.READ_SMS"/>\n    <application#' android/app/src/main/AndroidManifest.xml
+          grep -c READ_SMS android/app/src/main/AndroidManifest.xml
           flutter build apk --release --build-name=$APP_VERSION --build-number=${{ github.run_number }} 2>&1 | tee ../build.log
 
       - name: Check APK is signed with the fixed key
@@ -92,6 +95,8 @@ jobs:
           PLAY_UPLOAD: "1"
         run: |
           set -o pipefail
+          sed -i '/android.permission.READ_SMS/d' android/app/src/main/AndroidManifest.xml
+          if grep -q READ_SMS android/app/src/main/AndroidManifest.xml; then exit 1; fi
           flutter build appbundle --release --build-name=$APP_VERSION --build-number=${{ github.run_number }} 2>&1 | tee ../build.log
 
       - name: Rename APK and bundle

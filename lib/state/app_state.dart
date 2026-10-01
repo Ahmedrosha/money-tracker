@@ -13,6 +13,8 @@ import '../util/format.dart';
 import '../services/rates.dart';
 import '../services/stocks.dart';
 import '../services/secure_store.dart';
+import '../services/sms_parser.dart';
+import '../services/sms_reader.dart';
 
 class AppState extends ChangeNotifier {
   AppState(this.db) {
@@ -227,6 +229,7 @@ class AppState extends ChangeNotifier {
         DateTime.saturday;
     amountsHidden = await db.getSetting('hide_amounts') == '1';
     lockEnabled = await db.getSetting('lock_enabled') == '1';
+    smsAuto = await db.getSetting('sms_auto') == '1';
     collapsed = (await db.getSetting('collapsed') ?? '')
         .split('\n')
         .where((s) => s.isNotEmpty)
@@ -258,6 +261,7 @@ class AppState extends ChangeNotifier {
     plans = await db.allPlans();
     budgets = await db.budgets();
     accountDetails = await db.accountDetails();
+    smsPending = await db.pendingSms();
     bankNames = await db.bankNames();
     await _computeProjection();
     await _computeCards();
@@ -405,6 +409,108 @@ class AppState extends ChangeNotifier {
     } catch (_) {}
   }
 
+  // ---------------- Bank messages (SMS) ----------------
+
+  /// Messages waiting to be added as transactions.
+  List<SmsItem> smsPending = [];
+
+  /// Android: read bank SMS automatically when the app opens.
+  bool smsAuto = false;
+
+  static String _normSender(String s) =>
+      s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9؀-ۿ]'), '');
+
+  /// Sender names entered in account details.
+  Set<String> get smsSenders => {
+        for (final d in accountDetails.values)
+          if (d.sender.trim().isNotEmpty) _normSender(d.sender)
+      };
+
+  /// Adds a bank message to the list. Returns false when it is not a
+  /// transaction (OTP, declined…) or was already added.
+  Future<bool> addSms(String sender, String body, {DateTime? at}) async {
+    final when = at ?? DateTime.now();
+    if (!SmsParser.parse(body, received: when).usable) return false;
+    final added = await db.insertSms(sender, body, when);
+    if (added) await _reloadAll();
+    return added;
+  }
+
+  Future<void> setSmsStatus(int id, String status) async {
+    await db.setSmsStatus(id, status);
+    await _reloadAll();
+  }
+
+  Future<void> setSmsAuto(bool v) async {
+    smsAuto = v;
+    await db.setSetting('sms_auto', v ? '1' : '0');
+    if (v && await db.getSetting('sms_since') == null) {
+      // First time: look back two weeks.
+      final from = DateTime.now().subtract(const Duration(days: 14));
+      await db.setSetting('sms_since', '${from.millisecondsSinceEpoch}');
+    }
+    notifyListeners();
+    if (v) await readAndroidSms();
+  }
+
+  bool _readingSms = false;
+
+  /// Android: picks up new SMS from the senders set in account details.
+  Future<int> readAndroidSms() async {
+    if (!Platform.isAndroid || !smsAuto || _readingSms) return 0;
+    final senders = smsSenders;
+    if (senders.isEmpty || !await SmsReader.granted()) return 0;
+    _readingSms = true;
+    var added = 0;
+    try {
+      final sinceMs = int.tryParse(await db.getSetting('sms_since') ?? '') ??
+          DateTime.now()
+              .subtract(const Duration(days: 14))
+              .millisecondsSinceEpoch;
+      var latest = sinceMs;
+      for (final (sender, body, at) in await SmsReader.inbox(
+          DateTime.fromMillisecondsSinceEpoch(sinceMs))) {
+        if (at.millisecondsSinceEpoch > latest) {
+          latest = at.millisecondsSinceEpoch;
+        }
+        if (!senders.contains(_normSender(sender))) continue;
+        if (!SmsParser.parse(body, received: at).usable) continue;
+        if (await db.insertSms(sender, body, at)) added++;
+      }
+      await db.setSetting('sms_since', '$latest');
+    } finally {
+      _readingSms = false;
+    }
+    if (added > 0) await _reloadAll();
+    return added;
+  }
+
+  /// The account a message belongs to: by its last digits (among accounts
+  /// with that sender, when known), else the only account with that sender.
+  int? smsAccountFor(ParsedSms p, String sender) {
+    final ns = _normSender(sender);
+    final active = accounts.where((a) => !a.archived).toList();
+    final bySender = ns.isEmpty
+        ? <Account>[]
+        : active
+            .where((a) => _normSender(detailsOf(a.id).sender) == ns)
+            .toList();
+    if (p.last4.isNotEmpty) {
+      final pool = bySender.isNotEmpty ? bySender : active;
+      final hits = pool
+          .where((a) => detailsOf(a.id)
+              .digits
+              .any((d) => d.endsWith(p.last4) || p.last4.endsWith(d)))
+          .toList();
+      if (hits.isNotEmpty) return hits.first.id;
+    }
+    if (bySender.length == 1) return bySender.first.id;
+    return null;
+  }
+
+  Future<int?> suggestCategory(String payee, TxType type) =>
+      db.lastCategoryForPayee(payee, type);
+
   // ---------------- Reset ----------------
 
   /// Deletes data on this phone. [everything]: like a fresh install
@@ -441,6 +547,7 @@ class AppState extends ChangeNotifier {
           'transactions',
           'plans',
           'accounts',
+          'sms_inbox',
         ]) {
           await tx.delete(t);
         }

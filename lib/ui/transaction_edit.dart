@@ -31,6 +31,8 @@ class TransactionEditScreen extends StatefulWidget {
     this.initialToAccountId,
     this.initialAmount,
     this.initialNote,
+    this.initialPayee,
+    this.initialCategoryId,
   });
 
   final Txn? txn;
@@ -45,6 +47,8 @@ class TransactionEditScreen extends StatefulWidget {
   final int? initialToAccountId;
   final double? initialAmount;
   final String? initialNote;
+  final String? initialPayee;
+  final int? initialCategoryId;
 
   @override
   State<TransactionEditScreen> createState() => _TransactionEditScreenState();
@@ -220,6 +224,8 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
         _amount.text = widget.initialAmount!.toStringAsFixed(2);
       }
       _note.text = widget.initialNote ?? '';
+      _payee.text = widget.initialPayee ?? '';
+      _categoryId = widget.initialCategoryId;
     }
     _startMonth = DateTime(_date.year, _date.month + 1);
   }
@@ -552,7 +558,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       }
     }
     if (!mounted) return;
-    Navigator.pop(context);
+    Navigator.pop(context, true);
   }
 
   Future<void> _delete() async {

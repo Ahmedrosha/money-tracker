@@ -56,6 +56,13 @@ p.setdefault("NSLocationWhenInUseUsageDescription",
              "Not used by Expense & Wealth Tracker.")
 p.setdefault("NSAppleMusicUsageDescription",
              "Not used by Expense & Wealth Tracker.")
+# Bank messages sent in by a Shortcuts automation: ewtracker://sms?text=…
+p["CFBundleURLTypes"] = [{
+    "CFBundleURLName": "com.rashad.moneytracker.sms",
+    "CFBundleURLSchemes": ["ewtracker"],
+}]
+# Links are handled by the app (app_links), not Flutter's router.
+p["FlutterDeepLinkingEnabled"] = False
 with open(plist_path, "wb") as f:
     plistlib.dump(p, f)
 

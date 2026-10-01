@@ -13,6 +13,7 @@ import 'due_screen.dart';
 import 'pay_card.dart';
 import 'statement_detail.dart';
 import 'widgets.dart';
+import 'sms_inbox_screen.dart';
 import '../l10n/l10n.dart';
 
 class AccountsScreen extends StatelessWidget {
@@ -123,6 +124,22 @@ class AccountsScreen extends StatelessWidget {
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const DueScreen()),
+                  ),
+                ),
+              ),
+            ),
+          if (state.smsPending.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Card(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                child: ListTile(
+                  leading: const Icon(Icons.sms_outlined),
+                  title: Text(tr('${state.smsPending.length} bank messages to add')),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SmsInboxScreen()),
                   ),
                 ),
               ),

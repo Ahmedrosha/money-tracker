@@ -146,3 +146,97 @@ for styles in glob.glob("build_app/android/app/src/main/res/values*/styles.xml")
     open(styles, "w").write(x)
     print("Patched", styles)
 print("Patched app lock setup")
+
+# ---- Bank SMS (Android) ----
+# MainActivity gets a channel that reads the SMS inbox. The READ_SMS
+# permission itself is only added for the GitHub APK (see build.yml); the
+# Play bundle leaves it out, and the app then hides automatic reading.
+SMS_ACTIVITY = '''
+import android.Manifest
+import android.content.pm.PackageManager
+import android.net.Uri
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import io.flutter.embedding.android.FlutterFragmentActivity
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodChannel
+
+class MainActivity : FlutterFragmentActivity() {
+    private var pending: MethodChannel.Result? = null
+
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "ewt/sms")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "available" -> result.success(declared())
+                    "granted" -> result.success(granted())
+                    "request" -> {
+                        if (!declared()) {
+                            result.success(false)
+                        } else if (granted()) {
+                            result.success(true)
+                        } else {
+                            pending?.success(false)
+                            pending = result
+                            ActivityCompat.requestPermissions(
+                                this, arrayOf(Manifest.permission.READ_SMS), 7701)
+                        }
+                    }
+                    "inbox" -> {
+                        val out = ArrayList<Map<String, Any>>()
+                        if (granted()) {
+                            val since = (call.argument<Number>("since") ?: 0).toLong()
+                            try {
+                                contentResolver.query(
+                                    Uri.parse("content://sms/inbox"),
+                                    arrayOf("address", "body", "date"),
+                                    "date > ?", arrayOf(since.toString()), "date ASC"
+                                )?.use { c ->
+                                    while (c.moveToNext() && out.size < 500) {
+                                        out.add(mapOf(
+                                            "address" to (c.getString(0) ?: ""),
+                                            "body" to (c.getString(1) ?: ""),
+                                            "date" to c.getLong(2)))
+                                    }
+                                }
+                            } catch (e: Exception) {
+                            }
+                        }
+                        result.success(out)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    private fun declared(): Boolean = try {
+        packageManager.getPackageInfo(packageName, PackageManager.GET_PERMISSIONS)
+            .requestedPermissions?.contains(Manifest.permission.READ_SMS) == true
+    } catch (e: Exception) {
+        false
+    }
+
+    private fun granted(): Boolean = declared() &&
+        ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) ==
+        PackageManager.PERMISSION_GRANTED
+
+    @Deprecated("Deprecated in Java")
+    override fun onRequestPermissionsResult(
+        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 7701) {
+            pending?.success(granted())
+            pending = null
+        }
+    }
+}
+'''
+for act in acts:
+    a = open(act).read()
+    pkg = re.search(r'^package\s+\S+', a, re.M)
+    if not pkg:
+        sys.exit("No package line in MainActivity.kt")
+    open(act, "w").write(pkg.group(0) + "\n" + SMS_ACTIVITY)
+    print("Wrote SMS channel into", act)

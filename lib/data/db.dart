@@ -39,7 +39,7 @@ class AppDb {
 
   final Database db;
 
-  static const int schemaVersion = 13;
+  static const int schemaVersion = 14;
 
   static Future<String> dbPath() async =>
       p.join(await getDatabasesPath(), 'money_tracker.db');
@@ -119,6 +119,7 @@ class AppDb {
         await _migrateToV11(db);
         await _migrateToV12(db);
         await _migrateToV13(db);
+        await _migrateToV14(db);
         await _seed(db);
       },
       onUpgrade: (db, oldV, newV) async {
@@ -134,6 +135,7 @@ class AppDb {
         if (oldV < 11) await _migrateToV11(db);
         if (oldV < 12) await _migrateToV12(db);
         if (oldV < 13) await _migrateToV13(db);
+        if (oldV < 14) await _migrateToV14(db);
       },
     );
     return AppDb._(db);
@@ -363,6 +365,20 @@ class AppDb {
         "ALTER TABLE account_details ADD COLUMN sender TEXT NOT NULL DEFAULT ''");
   }
 
+  /// Bank messages waiting to be turned into transactions.
+  static Future<void> _migrateToV14(Database db) async {
+    await db.execute('''
+      CREATE TABLE sms_inbox (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sender TEXT NOT NULL DEFAULT '',
+        body TEXT NOT NULL,
+        received_at INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        hash TEXT NOT NULL UNIQUE
+      )
+    ''');
+  }
+
   static Future<void> _seed(Database db) async {
     const expense = [
       ['Food & Dining', 'food', 0xFFFB8C00],
@@ -442,6 +458,53 @@ class AppDb {
   }
 
   Future<int> insertAccount(Account a) => db.insert('accounts', a.toMap());
+
+  /// Adds a bank message; false when it was already there.
+  Future<bool> insertSms(String sender, String body, DateTime at) async {
+    final hash = '${sender.trim().toLowerCase()}|${body.trim()}';
+    final seen = await db.query('sms_inbox',
+        columns: ['id'], where: 'hash = ?', whereArgs: [hash], limit: 1);
+    if (seen.isNotEmpty) return false;
+    final id = await db.insert(
+        'sms_inbox',
+        {
+          'sender': sender.trim(),
+          'body': body.trim(),
+          'received_at': at.millisecondsSinceEpoch,
+          'status': 'pending',
+          'hash': hash,
+        },
+        conflictAlgorithm: ConflictAlgorithm.ignore);
+    return id > 0;
+  }
+
+  Future<List<SmsItem>> pendingSms() async {
+    // Old handled ones are no longer needed to spot duplicates.
+    final cutoff = DateTime.now()
+        .subtract(const Duration(days: 120))
+        .millisecondsSinceEpoch;
+    await db.delete('sms_inbox',
+        where: "status != 'pending' AND received_at < ?", whereArgs: [cutoff]);
+    final rows = await db.query('sms_inbox',
+        where: "status = 'pending'", orderBy: 'received_at DESC');
+    return rows.map(SmsItem.fromMap).toList();
+  }
+
+  Future<void> setSmsStatus(int id, String status) => db.update(
+      'sms_inbox', {'status': status},
+      where: 'id = ?', whereArgs: [id]);
+
+  /// Category last used with this payee, to suggest it again.
+  Future<int?> lastCategoryForPayee(String payee, TxType type) async {
+    if (payee.trim().isEmpty) return null;
+    final rows = await db.query('transactions',
+        columns: ['category_id'],
+        where: 'LOWER(payee) = ? AND type = ? AND category_id IS NOT NULL',
+        whereArgs: [payee.trim().toLowerCase(), type.name],
+        orderBy: 'date DESC',
+        limit: 1);
+    return rows.isEmpty ? null : rows.first['category_id'] as int?;
+  }
 
   Future<Map<int, AccountDetails>> accountDetails() async {
     final rows = await db.query('account_details');

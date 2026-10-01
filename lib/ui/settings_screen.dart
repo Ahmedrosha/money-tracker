@@ -10,6 +10,7 @@ import 'notification_settings.dart';
 import 'currencies_screen.dart';
 import 'recurring_screen.dart';
 import 'reset_screen.dart';
+import 'sms_inbox_screen.dart';
 import 'widgets.dart';
 import '../l10n/l10n.dart';
 
@@ -68,6 +69,15 @@ class SettingsScreen extends StatelessWidget {
                   await pickCurrency(context, current: state.baseCurrency);
               if (c != null) await state.setBaseCurrency(c);
             },
+          ),
+          ListTile(
+            leading: const Icon(Icons.sms_outlined),
+            title: Text(tr('Bank Messages')),
+            subtitle: Text(state.smsPending.isEmpty
+                ? tr('Add transactions from bank SMS')
+                : tr('${state.smsPending.length} bank messages to add')),
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const SmsInboxScreen())),
           ),
           ListTile(
             leading: const Icon(Icons.currency_exchange),
@@ -186,7 +196,7 @@ class SettingsScreen extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.info_outline),
             title: const Text('Expense & Wealth Tracker'),
-            subtitle: Text(tr('Version 0.33 — SMS sender name')),
+            subtitle: Text(tr('Version 0.34 — bank messages')),
           ),
         ],
       ),

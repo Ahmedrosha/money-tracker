@@ -178,6 +178,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             rows.addAll(_groupedRows(context, state, list));
           }
           DateTime? day;
+          final shownSplits = <int>{};
           for (final (date, item) in byCategory ? const <(DateTime, Object)>[] : items) {
             final d = DateTime(date.year, date.month, date.day);
             if (day == null || d != day) {
@@ -191,7 +192,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 ),
               ));
             }
-            if (item is Txn) {
+            if (item is Txn && item.splitId != null) {
+              // A split payment: one row, its parts inside.
+              if (!shownSplits.add(item.splitId!)) continue;
+              rows.add(SplitTile(
+                  parts: list
+                      .where((t) => t.splitId == item.splitId)
+                      .toList()));
+            } else if (item is Txn) {
               rows.add(TxnTile(
                 txn: item,
                 onTap: () => Navigator.push(

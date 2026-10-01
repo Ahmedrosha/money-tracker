@@ -1848,6 +1848,29 @@ class AppState extends ChangeNotifier {
     return id;
   }
 
+  /// Saves one payment split across categories as entries sharing a
+  /// split id. Returns the first entry's id.
+  Future<int> saveSplit(Txn base, List<(int?, double)> parts) async {
+    final splitId = DateTime.now().millisecondsSinceEpoch;
+    int? first;
+    for (final (cat, amount) in parts) {
+      final id = await db.insertTxn(Txn(
+        type: base.type,
+        date: base.date,
+        amount: amount,
+        accountId: base.accountId,
+        categoryId: cat,
+        payee: base.payee,
+        note: base.note,
+        postDate: base.postDate,
+        splitId: splitId,
+      ));
+      first ??= id;
+    }
+    await _reloadAll();
+    return first!;
+  }
+
   Future<void> deleteTxn(int id) async {
     await db.deleteTxn(id);
     await _reloadAll();

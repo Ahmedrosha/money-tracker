@@ -3,6 +3,18 @@
 // ignore_for_file: prefer_single_quotes
 
 const Map<String, String> kArabic = {
+  "Choose a category for each part": "اختر تصنيفًا لكل جزء",
+  "Enter an amount for each part": "أدخل مبلغًا لكل جزء",
+  "The parts must add up to the total ({0} left)": "يجب أن يساوي مجموع الأجزاء الإجمالي (متبقي {0})",
+  "Split into several categories": "تقسيم على عدة تصنيفات",
+  "Split Between Categories": "تقسيم على التصنيفات",
+  "Cancel Split": "إلغاء التقسيم",
+  "Remove": "حذف",
+  "Adds up to the total": "المجموع مطابق للإجمالي",
+  "{0} left to assign": "متبقي {0} للتوزيع",
+  "{0} over the total": "أكثر من الإجمالي بـ {0}",
+  "Split payment": "دفعة مقسمة",
+  "Version 0.38 — split payments, compact entry screen": "الإصدار 0.38 — تقسيم الدفعات وشاشة إدخال أصغر",
   "Budget {0}%": "الميزانية {0}%",
   "due": "مستحق",
   "Updated": "آخر تحديث",
@@ -66,7 +78,6 @@ const Map<String, String> kArabic = {
   "Dismiss": "تجاهل",
   "{0} bank messages to add": "{0} رسالة بنك بانتظار الإضافة",
   "Add transactions from bank SMS": "أضف المعاملات من رسائل البنك",
-  "Version 0.37 — home screen widgets": "الإصدار 0.37 — ويدجت الشاشة الرئيسية",
   "SMS Sender Name": "اسم مرسل الرسائل",
   "e.g. ADCB Egypt": "مثلًا ADCB Egypt",
   "Exactly as it shows in Messages. Only messages from this sender are read for this account.": "كما يظهر بالضبط في الرسائل. تُقرأ رسائل هذا المرسل فقط لهذا الحساب.",

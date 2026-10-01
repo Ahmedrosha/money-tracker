@@ -79,6 +79,34 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
 
   // Installments
   bool _installments = false;
+
+  // One payment split across several categories (new entries only).
+  bool _split = false;
+  final List<_SplitRow> _rows = [];
+
+  bool get _canSplit =>
+      _mode == _Mode.newTxn &&
+      _type != TxType.transfer &&
+      !_installments &&
+      !_repeat;
+
+  double get _splitAssigned => _rows.fold(
+      0.0, (sum, r) => sum + (parseAmount(r.amount.text) ?? 0));
+
+  void _startSplit() {
+    final total = parseAmount(_amount.text) ?? 0;
+    _rows
+      ..clear()
+      ..add(_SplitRow(_categoryChosen ? _categoryId : null,
+          _categoryChosen, total == 0 ? '' : _plain(total)))
+      ..add(_SplitRow(null, false, ''));
+    _split = true;
+  }
+
+  void _addSplitRow() {
+    final left = (parseAmount(_amount.text) ?? 0) - _splitAssigned;
+    _rows.add(_SplitRow(null, false, left > 0.004 ? _plain(left) : ''));
+  }
   int _months = 12;
   late DateTime _startMonth;
 
@@ -423,6 +451,9 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     _amount.dispose();
     _toAmount.dispose();
     _rateCtl.dispose();
+    for (final r in _rows) {
+      r.amount.dispose();
+    }
     _payee.dispose();
     _note.dispose();
     _fee.dispose();
@@ -624,7 +655,21 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     }
     // Every expense / income needs a category — or "No category", chosen
     // on purpose.
-    if (_type != TxType.transfer && !_categoryChosen) {
+    if (_split && _type != TxType.transfer) {
+      if (_rows.any((r) => !r.chosen)) {
+        showSnack(context, tr('Choose a category for each part'));
+        return;
+      }
+      if (_rows.any((r) => (parseAmount(r.amount.text) ?? 0) == 0)) {
+        showSnack(context, tr('Enter an amount for each part'));
+        return;
+      }
+      final left = raw - _splitAssigned;
+      if (left.abs() > 0.004) {
+        showSnack(context, tr('The parts must add up to the total (${fmtAmountRaw(left)} left)'));
+        return;
+      }
+    } else if (_type != TxType.transfer && !_categoryChosen) {
       showSnack(context, tr('Choose a category, or No category if you\'re not sure'));
       return;
     }
@@ -652,6 +697,8 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
           : (widget.txn != null && widget.txn!.date == _date
               ? widget.txn!.postDate
               : null),
+      feeFor: widget.txn?.feeFor,
+      splitId: widget.txn?.splitId,
       toPostDate: isTransfer &&
               widget.txn != null &&
               widget.txn!.date == _date &&
@@ -713,6 +760,10 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       final int mainId;
       if (_mode == _Mode.confirm) {
         mainId = await state.confirmOccurrence(widget.occurrence!, template);
+      } else if (_split && !isTransfer) {
+        mainId = await state.saveSplit(template, [
+          for (final r in _rows) (r.categoryId, parseAmount(r.amount.text)!),
+        ]);
       } else {
         mainId = await state.saveTxn(template);
       }
@@ -850,6 +901,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     final differ = _type == TxType.transfer && _currenciesDiffer(state);
     final typeLocked = _mode == _Mode.editPlan || _mode == _Mode.confirm;
 
+    const gap = SizedBox(height: 10);
     return Scaffold(
       appBar: AppBar(
         title: Text(_title),
@@ -861,10 +913,28 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
           ),
         ],
       ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+          child: FilledButton(
+            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+            onPressed: _saving || _accountId == null ? null : _save,
+            child: Text(_mode == _Mode.confirm ? tr('Confirm') : tr('Save')),
+          ),
+        ),
+      ),
       body: Form(
         key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
+        child: Theme(
+          data: Theme.of(context).copyWith(
+            inputDecorationTheme: Theme.of(context).inputDecorationTheme.copyWith(
+                  isDense: true,
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                ),
+          ),
+          child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           children: [
             ..._banners(state),
             if (!typeLocked)
@@ -892,11 +962,19 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                     _categoryChosen = false;
                   }
                   if (_type != TxType.expense) _installments = false;
+                  if (_type == TxType.transfer) _split = false;
+                  for (final r in _rows) {
+                    final rc = state.categoryById(r.categoryId);
+                    if (rc != null && rc.kind != _type) {
+                      r.categoryId = null;
+                      r.chosen = false;
+                    }
+                  }
                   _recalcToAmount();
                   if (_type == TxType.transfer) _loadLastRate();
                 }),
               ),
-            const SizedBox(height: 16),
+            gap,
             TextFormField(
               controller: _amount,
               readOnly: !_sysKeyboard,
@@ -940,7 +1018,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               },
               onChanged: (_) => setState(_recalcToAmount),
             ),
-            const SizedBox(height: 16),
+            gap,
             AccountField(
               label: _type == TxType.transfer ? tr('From account') : tr('Account'),
               value: _accountId,
@@ -950,7 +1028,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               }),
             ),
             if (_type == TxType.transfer) ...[
-              const SizedBox(height: 16),
+              gap,
               FormField<int>(
                 validator: (_) {
                   if (_toAccountId == null) return tr('Choose destination');
@@ -970,9 +1048,9 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                 ),
               ),
               if (differ) ...[
-                const SizedBox(height: 16),
+                gap,
                 ..._rateSection(state, account!, toAccount!),
-                const SizedBox(height: 16),
+                gap,
                 TextFormField(
                   controller: _toAmount,
                   readOnly: !_sysKeyboard,
@@ -995,17 +1073,35 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               ],
             ],
             if (_type != TxType.transfer) ...[
-              const SizedBox(height: 16),
-              CategoryField(
-                kind: _type,
-                value: _categoryId,
-                noneChosen: _categoryChosen,
-                onChanged: (v) => setState(() {
-                  _categoryId = v;
-                  _categoryChosen = true;
-                }),
-              ),
-              const SizedBox(height: 16),
+              gap,
+              if (_split)
+                ..._splitEditor(state, account)
+              else
+                Row(
+                  children: [
+                    Expanded(
+                      child: CategoryField(
+                        kind: _type,
+                        value: _categoryId,
+                        noneChosen: _categoryChosen,
+                        onChanged: (v) => setState(() {
+                          _categoryId = v;
+                          _categoryChosen = true;
+                        }),
+                      ),
+                    ),
+                    if (_canSplit)
+                      Padding(
+                        padding: const EdgeInsetsDirectional.only(start: 6),
+                        child: IconButton.outlined(
+                          tooltip: tr('Split into several categories'),
+                          icon: const Icon(Icons.call_split),
+                          onPressed: () => setState(_startSplit),
+                        ),
+                      ),
+                  ],
+                ),
+              gap,
               TextFormField(
                 controller: _payee,
                 textCapitalization: TextCapitalization.words,
@@ -1016,7 +1112,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                 ),
               ),
             ],
-            const SizedBox(height: 16),
+            gap,
             InkWell(
               borderRadius: BorderRadius.circular(4),
               onTap: _pickDate,
@@ -1031,7 +1127,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               ),
             ),
             if (_showPostDate(state)) ...[
-              const SizedBox(height: 16),
+              gap,
               InkWell(
                 borderRadius: BorderRadius.circular(4),
                 onTap: _pickPostDate,
@@ -1059,10 +1155,11 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                 ),
               ),
             ],
-            const SizedBox(height: 16),
+            gap,
             TextFormField(
               controller: _note,
-              maxLines: 2,
+              minLines: 1,
+              maxLines: 3,
               textCapitalization: TextCapitalization.sentences,
               decoration: InputDecoration(
                 labelText: tr('Note'),
@@ -1072,14 +1169,6 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
             ..._feeSection(),
             ..._installmentSection(account),
             ..._repeatSection(),
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: _saving || _accountId == null ? null : _save,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text(_mode == _Mode.confirm ? tr('Confirm') : tr('Save')),
-              ),
-            ),
             if (_canDelete) ...[
               const SizedBox(height: 32),
               const Divider(),
@@ -1098,12 +1187,111 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                         : tr('Delete Transaction')),
                 onPressed: _delete,
               ),
-              const SizedBox(height: 16),
+              gap,
             ],
           ],
         ),
+        ),
       ),
     );
+  }
+
+  /// Category + amount rows for a payment split across categories.
+  List<Widget> _splitEditor(AppState state, Account? account) {
+    final theme = Theme.of(context);
+    final total = parseAmount(_amount.text) ?? 0;
+    final left = total - _splitAssigned;
+    final ok = left.abs() < 0.005;
+    final unit = account == null ? '' : currencyUnit(account.currency);
+    return [
+      Row(
+        children: [
+          Icon(Icons.call_split, size: 18, color: theme.colorScheme.primary),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(tr('Split Between Categories'),
+                style: theme.textTheme.titleSmall),
+          ),
+          TextButton(
+            onPressed: () => setState(() {
+              // Back to one category: keep the first part's choice.
+              final first = _rows.isEmpty ? null : _rows.first;
+              _categoryId = first?.categoryId;
+              _categoryChosen = first?.chosen ?? false;
+              _split = false;
+            }),
+            child: Text(tr('Cancel Split')),
+          ),
+        ],
+      ),
+      for (var i = 0; i < _rows.length; i++)
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 3,
+                child: CategoryField(
+                  kind: _type,
+                  value: _rows[i].categoryId,
+                  noneChosen: _rows[i].chosen,
+                  onChanged: (v) => setState(() {
+                    _rows[i].categoryId = v;
+                    _rows[i].chosen = true;
+                  }),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 2,
+                child: TextField(
+                  controller: _rows[i].amount,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    labelText: tr('Amount'),
+                    suffixText: unit,
+                    border: const OutlineInputBorder(),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              if (_rows.length > 2)
+                IconButton(
+                  tooltip: tr('Remove'),
+                  icon: const Icon(Icons.close),
+                  onPressed: () => setState(() {
+                    _rows.removeAt(i).amount.dispose();
+                  }),
+                ),
+            ],
+          ),
+        ),
+      Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Row(
+          children: [
+            TextButton.icon(
+              icon: const Icon(Icons.add),
+              label: Text(tr('Add Category')),
+              onPressed: () => setState(_addSplitRow),
+            ),
+            const Spacer(),
+            Text(
+              ok
+                  ? tr('Adds up to the total')
+                  : (left > 0
+                      ? tr('${fmtAmountRaw(left)} left to assign')
+                      : tr('${fmtAmountRaw(-left)} over the total')),
+              style: theme.textTheme.bodySmall?.copyWith(
+                  color: ok ? Colors.green.shade600 : theme.colorScheme.error,
+                  fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      ),
+    ];
   }
 
   /// Main-currency equivalent of the amount received (transfers).
@@ -1215,7 +1403,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
   }
 
   List<Widget> _installmentSection(Account? account) {
-    if (_type != TxType.expense) return const [];
+    if (_type != TxType.expense || _split) return const [];
     if (_mode != _Mode.newTxn && _mode != _Mode.editPlan) return const [];
     final total = parseAmount(_amount.text)?.abs();
     final parts =
@@ -1285,6 +1473,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
 
   List<Widget> _repeatSection() {
     if (_mode != _Mode.newTxn && _mode != _Mode.editRule) return const [];
+    if (_split) return const [];
     final interval = int.tryParse(_interval.text) ?? 1;
     return [
       if (_mode == _Mode.newTxn)
@@ -1385,4 +1574,14 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       ],
     ];
   }
+}
+
+/// One part of a split payment.
+class _SplitRow {
+  _SplitRow(this.categoryId, this.chosen, String amount)
+      : amount = TextEditingController(text: amount);
+
+  int? categoryId;
+  bool chosen;
+  final TextEditingController amount;
 }

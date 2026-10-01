@@ -940,3 +940,76 @@ class CollapseArrow extends StatelessWidget {
             size: 20, color: color ?? Theme.of(context).colorScheme.primary),
       );
 }
+
+/// A payment split across categories: one row with the total, opening to
+/// show (and edit) each part.
+class SplitTile extends StatefulWidget {
+  const SplitTile({super.key, required this.parts});
+
+  final List<Txn> parts;
+
+  @override
+  State<SplitTile> createState() => _SplitTileState();
+}
+
+class _SplitTileState extends State<SplitTile> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final parts = widget.parts;
+    final first = parts.first;
+    final account = state.accountById(first.accountId);
+    final total = parts.fold<double>(0, (s, t) => s + t.amount);
+    final signed = first.type == TxType.income ? total : -total;
+    final scheme = Theme.of(context).colorScheme;
+    final title = first.payee.isNotEmpty ? first.payee : tr('Split payment');
+    return Column(
+      children: [
+        ListTile(
+          onTap: () => setState(() => _open = !_open),
+          leading: CircleAvatar(
+            backgroundColor: scheme.secondaryContainer,
+            child: Icon(Icons.call_split, color: scheme.onSecondaryContainer),
+          ),
+          title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+          subtitle: Text(
+            '${tr('${parts.length} categories')} · ${account?.fullName ?? '?'}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${signed > 0 ? '+' : ''}${fmtAmount(signed)} ${account == null ? '' : currencyUnit(account.currency)}',
+                style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: amountColor(context, signed)),
+              ),
+              CollapseArrow(collapsed: !_open),
+            ],
+          ),
+        ),
+        if (_open)
+          Padding(
+            padding: const EdgeInsetsDirectional.only(start: 24),
+            child: Column(
+              children: [
+                for (final t in parts)
+                  TxnTile(
+                    txn: t,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => TransactionEditScreen(txn: t)),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}

@@ -603,6 +603,10 @@ class Txn {
   /// A fee entry (e.g. InstaPay): the transaction it belongs to.
   final int? feeFor;
 
+  /// One payment split across several categories: entries with the same
+  /// id were paid together.
+  final int? splitId;
+
   const Txn({
     this.id,
     required this.type,
@@ -620,6 +624,7 @@ class Txn {
     this.postDate,
     this.toPostDate,
     this.feeFor,
+    this.splitId,
   });
 
   bool get isFuture => date.isAfter(DateTime.now());
@@ -653,6 +658,7 @@ class Txn {
         'post_date': postDate?.millisecondsSinceEpoch,
         'to_post_date': toPostDate?.millisecondsSinceEpoch,
         'fee_for': feeFor,
+        'split_id': splitId,
       };
 
   factory Txn.fromMap(Map<String, Object?> m) => Txn(
@@ -676,6 +682,7 @@ class Txn {
             ? null
             : DateTime.fromMillisecondsSinceEpoch(m['to_post_date'] as int),
         feeFor: m['fee_for'] as int?,
+        splitId: m['split_id'] as int?,
       );
 }
 

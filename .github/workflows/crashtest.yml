@@ -2,6 +2,11 @@ name: Launch test (emulator)
 
 on:
   workflow_dispatch:
+    inputs:
+      old:
+        description: Older release to update from
+        required: false
+        default: ''
   push:
     branches: [crashtest]
   workflow_run:
@@ -27,6 +32,8 @@ jobs:
           gh release download --repo ${{ github.repository }} --pattern '*.apk' --dir . || \
           gh release download "$(gh release list --repo ${{ github.repository }} --exclude-drafts --limit 5 | grep -m1 '^Money\|v0' | awk -F'\t' '{print $3}')" --repo ${{ github.repository }} --pattern '*.apk' --dir .
           ls -la *.apk
+          mkdir -p old new; cp *.apk new/
+          if [ -n "${{ inputs.old }}" ]; then gh release download "${{ inputs.old }}" --repo ${{ github.repository }} --pattern '*.apk' --dir old; fi
       - name: Run on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -34,7 +41,7 @@ jobs:
           arch: x86_64
           target: google_apis
           disable-animations: true
-          script: bash ci/launch_test.sh
+          script: if [ -n "${{ inputs.old }}" ]; then bash ci/upgrade_test.sh; else bash ci/launch_test.sh; fi
       - name: Publish log
         if: always()
         uses: softprops/action-gh-release@v2

@@ -3,6 +3,8 @@
 // ignore_for_file: prefer_single_quotes
 
 const Map<String, String> kArabic = {
+  "Account Number": "رقم الحساب",
+  "Account number": "رقم الحساب",
   "Use MM/YY, e.g. 09/28": "استخدم الصيغة MM/YY، مثلًا 09/28",
   "Copy a bank message first, then tap Paste": "انسخ رسالة البنك أولًا، ثم اضغط لصق",
   "Not a new bank transaction (already added, or a code / declined message)": "ليست معاملة بنكية جديدة (مضافة من قبل، أو رسالة رمز / عملية مرفوضة)",

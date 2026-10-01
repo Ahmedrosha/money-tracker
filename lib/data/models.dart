@@ -340,6 +340,7 @@ class AccountDetails {
   final String expiry; // MM/YY
   final String phone;
   final String customerNo;
+  final String accountNo;
   final String iban;
   final String notes;
 
@@ -352,6 +353,7 @@ class AccountDetails {
     this.expiry = '',
     this.phone = '',
     this.customerNo = '',
+    this.accountNo = '',
     this.iban = '',
     this.notes = '',
   });
@@ -363,6 +365,7 @@ class AccountDetails {
       expiry.isEmpty &&
       phone.isEmpty &&
       customerNo.isEmpty &&
+      accountNo.isEmpty &&
       iban.isEmpty &&
       notes.isEmpty &&
       sender.isEmpty;
@@ -379,6 +382,7 @@ class AccountDetails {
         'expiry': expiry,
         'phone': phone,
         'customer_no': customerNo,
+        'account_no': accountNo,
         'iban': iban,
         'notes': notes,
         'sender': sender,
@@ -389,6 +393,7 @@ class AccountDetails {
         expiry: (m['expiry'] as String?) ?? '',
         phone: (m['phone'] as String?) ?? '',
         customerNo: (m['customer_no'] as String?) ?? '',
+        accountNo: (m['account_no'] as String?) ?? '',
         iban: (m['iban'] as String?) ?? '',
         notes: (m['notes'] as String?) ?? '',
         sender: (m['sender'] as String?) ?? '',

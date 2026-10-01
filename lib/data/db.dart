@@ -39,7 +39,7 @@ class AppDb {
 
   final Database db;
 
-  static const int schemaVersion = 14;
+  static const int schemaVersion = 15;
 
   static Future<String> dbPath() async =>
       p.join(await getDatabasesPath(), 'money_tracker.db');
@@ -120,6 +120,7 @@ class AppDb {
         await _migrateToV12(db);
         await _migrateToV13(db);
         await _migrateToV14(db);
+        await _migrateToV15(db);
         await _seed(db);
       },
       onUpgrade: (db, oldV, newV) async {
@@ -136,6 +137,7 @@ class AppDb {
         if (oldV < 12) await _migrateToV12(db);
         if (oldV < 13) await _migrateToV13(db);
         if (oldV < 14) await _migrateToV14(db);
+        if (oldV < 15) await _migrateToV15(db);
       },
     );
     return AppDb._(db);
@@ -377,6 +379,12 @@ class AppDb {
         hash TEXT NOT NULL UNIQUE
       )
     ''');
+  }
+
+  /// Account number in account details.
+  static Future<void> _migrateToV15(Database db) async {
+    await db.execute(
+        "ALTER TABLE account_details ADD COLUMN account_no TEXT NOT NULL DEFAULT ''");
   }
 
   static Future<void> _seed(Database db) async {

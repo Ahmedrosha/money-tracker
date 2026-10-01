@@ -83,6 +83,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
   final _expiry = TextEditingController();
   final _phone = TextEditingController();
   final _customerNo = TextEditingController();
+  final _accountNo = TextEditingController();
   final _iban = TextEditingController();
   final _notes = TextEditingController();
   final _sender = TextEditingController();
@@ -190,6 +191,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
       _expiry.text = d.expiry;
       _phone.text = d.phone;
       _customerNo.text = d.customerNo;
+      _accountNo.text = d.accountNo;
       _iban.text = d.iban;
       _notes.text = d.notes;
       _sender.text = d.sender;
@@ -232,7 +234,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
     _dueDay.dispose();
     _minPct.dispose();
     for (final c in [_loanPayment, _loanMonths, _loanPrincipal, _loanRate, _loanReceived, _assetValue, _assetShare,
-        _last4, _expiry, _phone, _customerNo, _iban, _notes, _sender, _cardNumber]) {
+        _last4, _expiry, _phone, _customerNo, _accountNo, _iban, _notes, _sender, _cardNumber]) {
       c.dispose();
     }
     super.dispose();
@@ -306,6 +308,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
       expiry: _expiry.text.trim(),
       phone: _phone.text.trim(),
       customerNo: _customerNo.text.trim(),
+      accountNo: _accountNo.text.trim(),
       iban: _iban.text.trim().toUpperCase(),
       notes: _notes.text.trim(),
       sender: _sender.text.trim(),
@@ -575,6 +578,13 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
           TextFormField(
             controller: _customerNo,
             decoration: deco(tr('Customer Number')),
+          ),
+          gap,
+          TextFormField(
+            controller: _accountNo,
+            keyboardType: TextInputType.text,
+            autocorrect: false,
+            decoration: deco(tr('Account Number')),
           ),
           gap,
           TextFormField(

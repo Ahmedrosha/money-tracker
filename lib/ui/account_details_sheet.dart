@@ -140,6 +140,14 @@ class _DetailsSheetState extends State<_DetailsSheet> {
                 onPressed: () => _copy(d.customerNo, tr('Customer number')),
               ),
             ]),
+      if (d.accountNo.isNotEmpty)
+        row(Icons.numbers, tr('Account Number'), d.accountNo, actions: [
+          IconButton(
+            tooltip: tr('Copy'),
+            icon: const Icon(Icons.copy),
+            onPressed: () => _copy(d.accountNo, tr('Account number')),
+          ),
+        ]),
       if (d.iban.isNotEmpty)
         row(Icons.account_balance_outlined, 'IBAN', d.iban, actions: [
           IconButton(

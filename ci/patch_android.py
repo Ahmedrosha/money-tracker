@@ -288,11 +288,11 @@ shutil.copy("ci/proguard-rules.pro", "build_app/android/app/proguard-rules.pro")
 s = open(path).read()
 if path.endswith(".kts"):
     s, n = re.subn(r'(\n\s*release\s*\{)',
-                   r'\1\n            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")',
+                   r'\1\n            isMinifyEnabled = false\n            isShrinkResources = false\n            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")',
                    s, count=1)
 else:
     s, n = re.subn(r'(\n\s*release\s*\{)',
-                   r"\1\n            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'",
+                   r"\1\n            minifyEnabled false\n            shrinkResources false\n            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'",
                    s, count=1)
 if n != 1:
     sys.exit("Could not add proguard rules")

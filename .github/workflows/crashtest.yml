@@ -1,0 +1,49 @@
+name: Launch test (emulator)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [crashtest]
+
+jobs:
+  launch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - name: Download latest APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download --repo ${{ github.repository }} --pattern '*.apk' --dir . || \
+          gh release download "$(gh release list --repo ${{ github.repository }} --exclude-drafts --limit 5 | grep -m1 '^Money\|v0' | awk -F'\t' '{print $3}')" --repo ${{ github.repository }} --pattern '*.apk' --dir .
+          ls -la *.apk
+      - name: Run on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: |
+            adb install -r $(ls *.apk | head -1)
+            adb logcat -c
+            adb shell monkey -p com.rashad.moneytracker -c android.intent.category.LAUNCHER 1
+            sleep 25
+            adb logcat -d > logcat.txt || true
+            adb shell pidof com.rashad.moneytracker && echo RUNNING || echo NOT_RUNNING
+            grep -n -E "FATAL|AndroidRuntime|E flutter|Exception|Error" logcat.txt | head -150 > crash.txt || true
+            adb exec-out screencap -p > screen.png || true
+      - name: Publish log
+        if: always()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ci-crashtest
+          name: Emulator launch test
+          prerelease: true
+          files: |
+            logcat.txt
+            crash.txt
+            screen.png

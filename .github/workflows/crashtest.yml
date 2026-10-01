@@ -4,6 +4,9 @@ on:
   workflow_dispatch:
   push:
     branches: [crashtest]
+  workflow_run:
+    workflows: ["Build APK"]
+    types: [completed]
 
 permissions:
   contents: write

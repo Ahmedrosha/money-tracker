@@ -282,3 +282,19 @@ if "</activity>" not in m:
 m = m.replace("</activity>", link_filter.lstrip("\n"), 1)
 open(manifest, "w").write(m)
 print("Added home screen widgets")
+
+# ---- Keep rules for release shrinking (R8) ----
+shutil.copy("ci/proguard-rules.pro", "build_app/android/app/proguard-rules.pro")
+s = open(path).read()
+if path.endswith(".kts"):
+    s, n = re.subn(r'(\n\s*release\s*\{)',
+                   r'\1\n            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")',
+                   s, count=1)
+else:
+    s, n = re.subn(r'(\n\s*release\s*\{)',
+                   r"\1\n            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'",
+                   s, count=1)
+if n != 1:
+    sys.exit("Could not add proguard rules")
+open(path, "w").write(s)
+print("Added keep rules")

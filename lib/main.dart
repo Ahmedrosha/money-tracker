@@ -13,6 +13,10 @@ import 'state/app_state.dart';
 import 'ui/home.dart';
 import 'ui/setup_screen.dart';
 import 'ui/sms_inbox_screen.dart';
+import 'ui/due_screen.dart';
+import 'ui/transaction_edit.dart';
+import 'data/models.dart';
+import 'services/home_widgets.dart';
 import 'l10n/l10n.dart';
 
 Future<void> main() async {
@@ -137,13 +141,45 @@ class _MoneyAppState extends State<MoneyApp> with WidgetsBindingObserver {
     // as ewtracker://sms?from=…&text=…
     state.readAndroidSms();
     state.readIncomingSmsFile();
+    HomeWidgets.update(state);
     _linkSub = AppLinks().uriLinkStream.listen(_onLink, onError: (_) {});
   }
 
   StreamSubscription<Uri>? _linkSub;
 
+  /// Widgets open the app with ewtracker://add?type=expense,
+  /// ewtracker://open?to=accounts|transactions|due.
+  Future<void> _onWidgetLink(Uri uri) async {
+    NavigatorState? nav;
+    for (var i = 0; i < 20 && (nav = _navKey.currentState) == null; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+    }
+    if (nav == null || state.needsSetup) return;
+    nav.popUntil((r) => r.isFirst);
+    if (uri.host == 'add') {
+      final type = uri.queryParameters['type'] == 'income'
+          ? TxType.income
+          : TxType.expense;
+      nav.push(MaterialPageRoute(
+          builder: (_) => TransactionEditScreen(initialType: type)));
+    } else if (uri.host == 'open') {
+      switch (uri.queryParameters['to']) {
+        case 'transactions':
+          homeTab.value = HomeTabs.transactions;
+        case 'due':
+          homeTab.value = HomeTabs.transactions;
+          if (state.dueOccurrences.isNotEmpty) {
+            nav.push(MaterialPageRoute(builder: (_) => const DueScreen()));
+          }
+        default:
+          homeTab.value = HomeTabs.accounts;
+      }
+    }
+  }
+
   Future<void> _onLink(Uri uri) async {
     if (uri.scheme != 'ewtracker') return;
+    if (uri.host == 'add' || uri.host == 'open') return _onWidgetLink(uri);
     final text = uri.queryParameters['text'] ?? uri.queryParameters['body'] ?? '';
     if (text.trim().isEmpty) return;
     final from = uri.queryParameters['from'] ?? '';

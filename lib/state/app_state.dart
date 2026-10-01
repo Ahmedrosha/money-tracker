@@ -14,6 +14,7 @@ import '../util/format.dart';
 import '../services/rates.dart';
 import '../services/stocks.dart';
 import '../services/secure_store.dart';
+import '../services/home_widgets.dart';
 import '../services/sms_parser.dart';
 import '../services/sms_reader.dart';
 
@@ -154,6 +155,7 @@ class AppState extends ChangeNotifier {
     await db.setSetting('hide_amounts', v ? '1' : '0');
     version++;
     notifyListeners();
+    HomeWidgets.schedule(this);
   }
 
   /// 'system' (follow the phone), 'en' or 'ar'.
@@ -188,6 +190,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     // Reminder texts are written when scheduled.
     await rescheduleReminders();
+    HomeWidgets.schedule(this);
   }
 
   /// Collapsed list sections, e.g. 'acc:Bank' (remembered).
@@ -284,6 +287,7 @@ class AppState extends ChangeNotifier {
       _checkBudgetAlerts();
     }
     rescheduleReminders();
+    HomeWidgets.schedule(this);
   }
 
   // ---------------- Budgets ----------------

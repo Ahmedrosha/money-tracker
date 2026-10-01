@@ -240,3 +240,45 @@ for act in acts:
         sys.exit("No package line in MainActivity.kt")
     open(act, "w").write(pkg.group(0) + "\n" + SMS_ACTIVITY)
     print("Wrote SMS channel into", act)
+
+# ---- Home screen widgets ----
+import shutil
+src = "ci/android_widgets"
+res = "build_app/android/app/src/main/res"
+for sub in ("layout", "xml", "drawable", "values"):
+    os.makedirs(os.path.join(res, sub), exist_ok=True)
+    for f in os.listdir(os.path.join(src, sub)):
+        shutil.copy(os.path.join(src, sub, f), os.path.join(res, sub, f))
+kdir = os.path.dirname(acts[0])
+shutil.copy(os.path.join(src, "kotlin", "HomeWidgets.kt"), os.path.join(kdir, "HomeWidgets.kt"))
+
+m = open(manifest).read()
+receivers = ""
+for cls, info, label in [
+    ("AddExpenseWidget", "widget_add_info", "Add Expense"),
+    ("NetWorthWidget", "widget_networth_info", "Net Worth"),
+    ("MonthWidget", "widget_month_info", "This Month"),
+    ("DueWidget", "widget_due_info", "Due Soon"),
+]:
+    receivers += f'''
+        <receiver android:name=".{cls}" android:exported="false" android:label="{label}">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/{info}"/>
+        </receiver>'''
+m = m.replace("</application>", receivers + "\n    </application>", 1)
+# Widgets (and Shortcuts on iPhone) open the app with ewtracker:// links.
+link_filter = '''
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="ewtracker"/>
+            </intent-filter>
+        </activity>'''
+if "</activity>" not in m:
+    sys.exit("No </activity> in manifest")
+m = m.replace("</activity>", link_filter.lstrip("\n"), 1)
+open(manifest, "w").write(m)
+print("Added home screen widgets")

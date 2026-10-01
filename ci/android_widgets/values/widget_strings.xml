@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="w_add_desc">Add an expense in one tap</string>
+    <string name="w_networth_desc">Your net worth</string>
+    <string name="w_month_desc">Spending, income and budget this month</string>
+    <string name="w_due_desc">Next card payment and items to confirm</string>
+</resources>

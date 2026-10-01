@@ -3,6 +3,11 @@
 // ignore_for_file: prefer_single_quotes
 
 const Map<String, String> kArabic = {
+  "Budget {0}%": "الميزانية {0}%",
+  "due": "مستحق",
+  "Updated": "آخر تحديث",
+  "Add Expense": "إضافة مصروف",
+  "Due Soon": "المستحقات",
   "Exchange Rate": "سعر الصرف",
   "Flip the rate": "عكس السعر",
   "Online": "أونلاين",
@@ -61,7 +66,7 @@ const Map<String, String> kArabic = {
   "Dismiss": "تجاهل",
   "{0} bank messages to add": "{0} رسالة بنك بانتظار الإضافة",
   "Add transactions from bank SMS": "أضف المعاملات من رسائل البنك",
-  "Version 0.36 — exchange rate options for transfers": "الإصدار 0.36 — خيارات سعر الصرف للتحويلات",
+  "Version 0.37 — home screen widgets": "الإصدار 0.37 — ويدجت الشاشة الرئيسية",
   "SMS Sender Name": "اسم مرسل الرسائل",
   "e.g. ADCB Egypt": "مثلًا ADCB Egypt",
   "Exactly as it shows in Messages. Only messages from this sender are read for this account.": "كما يظهر بالضبط في الرسائل. تُقرأ رسائل هذا المرسل فقط لهذا الحساب.",

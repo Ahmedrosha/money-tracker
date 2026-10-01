@@ -947,7 +947,11 @@ class Occurrence {
   const Occurrence(this.rule, this.index, this.date);
 
   /// Due = date has arrived and it still needs confirming.
-  bool get isDue => !date.isAfter(DateTime.now());
+  /// Due from the start of its day (the time of day doesn't matter).
+  bool get isDue {
+    final n = DateTime.now();
+    return date.isBefore(DateTime(n.year, n.month, n.day + 1));
+  }
 }
 
 DateTime _clampedDate(int year, int month, int day, int hour, int minute) {

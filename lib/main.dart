@@ -206,6 +206,7 @@ class _MoneyAppState extends State<MoneyApp> with WidgetsBindingObserver {
       // Leaving the app: send any change that is still waiting.
       dbx.flush();
     } else if (s == AppLifecycleState.resumed) {
+      state.refreshForToday();
       state.readAndroidSms();
       // Coming back to the app: pick up changes from the other phone
       // (at most once a minute) or send waiting ones.

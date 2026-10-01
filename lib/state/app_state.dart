@@ -1811,8 +1811,15 @@ class AppState extends ChangeNotifier {
       ruleById(o.rule.id)?.nextIndex == o.index;
 
   /// Occurrences whose date has arrived and need confirming.
-  List<Occurrence> get dueOccurrences =>
-      pendingOccurrences(DateTime(1970), DateTime.now().add(const Duration(seconds: 1)));
+  /// Redraws screens that depend on today's date (due badge) — e.g. when
+  /// the app comes back after midnight.
+  void refreshForToday() => notifyListeners();
+
+  /// Recurring items dated today or earlier, still to confirm.
+  List<Occurrence> get dueOccurrences {
+    final n = DateTime.now();
+    return pendingOccurrences(DateTime(1970), DateTime(n.year, n.month, n.day + 1));
+  }
 
   /// Creates a rule. If its first date has already arrived, that first
   /// occurrence is recorded straight away (the user just entered it).

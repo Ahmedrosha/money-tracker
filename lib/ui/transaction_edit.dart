@@ -456,6 +456,13 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       showSnack(context, tr('Pick an end date'));
       return;
     }
+    // Settings → Category Required (on by default).
+    if (state.requireCategory &&
+        _type != TxType.transfer &&
+        _categoryId == null) {
+      showSnack(context, tr('Choose a category'));
+      return;
+    }
     setState(() => _saving = true);
 
     final isTransfer = _type == TxType.transfer;

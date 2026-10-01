@@ -3,6 +3,9 @@
 // ignore_for_file: prefer_single_quotes
 
 const Map<String, String> kArabic = {
+  "Choose a category": "اختر تصنيفًا",
+  "Category Required": "التصنيف إلزامي",
+  "Expenses and income can't be saved without a category. Transfers don't need one.": "لا يمكن حفظ المصروفات والدخل بدون تصنيف. التحويلات لا تحتاج تصنيفًا.",
   "Archive ({0})": "الأرشيف ({0})",
   "Move to Archive": "نقل إلى الأرشيف",
   "Open the Shortcuts app → Automation → + → Message.": "افتح تطبيق الاختصارات ← أتمتة ← + ← رسالة.",

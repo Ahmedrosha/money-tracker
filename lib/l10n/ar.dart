@@ -3,6 +3,12 @@
 // ignore_for_file: prefer_single_quotes
 
 const Map<String, String> kArabic = {
+  "Delete Split Payment": "حذف الدفعة المقسمة",
+  "Delete only this part, or the whole payment with all its categories?": "حذف هذا الجزء فقط، أم الدفعة كاملة بكل تصنيفاتها؟",
+  "This Part": "هذا الجزء",
+  "Whole Payment": "الدفعة كاملة",
+  "Delete whole payment?": "حذف الدفعة كاملة؟",
+  "All {0} parts of this split payment will be deleted.": "سيتم حذف كل أجزاء هذه الدفعة المقسمة ({0}).",
   "A quick look at this month: income, spending and what you saved, your budgets, cards due and the last 6 months of spending.": "نظرة سريعة على هذا الشهر: الدخل والإنفاق وما ادخرته، وميزانياتك، والبطاقات المستحقة، وإنفاق آخر 6 شهور.",
   "Where your money went (or came from) in the chosen period, by category group. The ring shows each group's share; tap a group to see its categories and transactions.": "أين ذهبت أموالك (أو من أين جاءت) في الفترة المختارة حسب مجموعة التصنيف. توضح الحلقة نصيب كل مجموعة؛ اضغط على مجموعة لرؤية تصنيفاتها ومعاملاتها.",
   "Each budget against what you actually spent. Green is under budget, red is over. The pace line estimates where the current month will end if you keep spending at the same rate.": "كل ميزانية مقابل ما أنفقته فعلًا. الأخضر أقل من الميزانية والأحمر تجاوزها. سطر الوتيرة يقدّر أين سينتهي الشهر الحالي إذا استمر الإنفاق بنفس المعدل.",

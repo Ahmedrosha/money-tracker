@@ -830,6 +830,31 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
           } else {
             await state.deleteTxn(t.id!);
           }
+        } else if (t.splitId != null) {
+          final choice = await showDialog<String>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: Text(tr('Delete Split Payment')),
+              content: Text(tr('Delete only this part, or the whole payment with all its categories?')),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: Text(tr('Cancel'))),
+                TextButton(
+                    onPressed: () => Navigator.pop(ctx, 'one'),
+                    child: Text(tr('This Part'))),
+                FilledButton(
+                    onPressed: () => Navigator.pop(ctx, 'all'),
+                    child: Text(tr('Whole Payment'))),
+              ],
+            ),
+          );
+          if (choice == null) return;
+          if (choice == 'all') {
+            await state.deleteSplit(t.splitId!);
+          } else {
+            await state.deleteTxn(t.id!);
+          }
         } else {
           final ok = await confirmDialog(context,
               title: tr('Delete transaction?'), message: tr('This cannot be undone.'));

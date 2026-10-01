@@ -969,6 +969,12 @@ class _SplitTileState extends State<SplitTile> {
       children: [
         ListTile(
           onTap: () => setState(() => _open = !_open),
+          onLongPress: () async {
+            final ok = await confirmDialog(context,
+                title: 'Delete whole payment?',
+                message: 'All ${parts.length} parts of this split payment will be deleted.');
+            if (ok) await state.deleteSplit(first.splitId!);
+          },
           leading: CircleAvatar(
             backgroundColor: scheme.secondaryContainer,
             child: Icon(Icons.call_split, color: scheme.onSecondaryContainer),

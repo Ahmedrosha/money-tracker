@@ -1871,6 +1871,16 @@ class AppState extends ChangeNotifier {
     return first!;
   }
 
+  /// Deletes every part of a split payment (and their fees).
+  Future<void> deleteSplit(int splitId) async {
+    final rows = await db.db.query('transactions',
+        columns: ['id'], where: 'split_id = ?', whereArgs: [splitId]);
+    for (final r in rows) {
+      await db.deleteTxn(r['id'] as int);
+    }
+    await _reloadAll();
+  }
+
   Future<void> deleteTxn(int id) async {
     await db.deleteTxn(id);
     await _reloadAll();

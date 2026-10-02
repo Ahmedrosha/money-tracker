@@ -33,6 +33,9 @@ class TransactionEditScreen extends StatefulWidget {
     this.initialNote,
     this.initialPayee,
     this.initialCategoryId,
+    this.initialForeignCurrency,
+    this.initialForeignAmount,
+    this.initialFeeSeparate,
     this.onSaved,
   });
 
@@ -51,8 +54,17 @@ class TransactionEditScreen extends StatefulWidget {
   final String? initialPayee;
   final int? initialCategoryId;
 
-  /// Called with the entry as saved (e.g. to remember a merchant's choices).
-  final void Function(Txn saved)? onSaved;
+  /// Paid in another currency than the account's (e.g. from a bank
+  /// message): the amount paid in that currency.
+  final String? initialForeignCurrency;
+  final double? initialForeignAmount;
+
+  /// Foreign fee charged as its own entry (remembered for the merchant).
+  final bool? initialFeeSeparate;
+
+  /// Called with the entry as saved (e.g. to remember a merchant's
+  /// choices) and, for foreign purchases, whether the fee was separate.
+  final void Function(Txn saved, bool? feeSeparate)? onSaved;
 
   @override
   State<TransactionEditScreen> createState() => _TransactionEditScreenState();
@@ -120,6 +132,232 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
   EndType _endType = EndType.never;
   DateTime? _endDate;
 
+  // Paid in another currency than the account's.
+  String? _fxCur;
+  final _fxAmount = TextEditingController();
+
+  /// The charged amount was typed (not worked out from the rate).
+  bool _fxChargedEdited = false;
+
+  /// Expenses: the bank's foreign fee comes as its own entry.
+  bool _fxSeparate = false;
+  bool _fxSepTouched = false;
+  final _fxFeeCtl = TextEditingController();
+  bool _fxFeeEdited = false;
+
+  bool _fxActive(AppState state) {
+    final a = state.accountById(_accountId);
+    return _fxCur != null &&
+        a != null &&
+        a.currency != _fxCur &&
+        _type != TxType.transfer &&
+        !_installments &&
+        !_repeat &&
+        (_mode == _Mode.newTxn || _mode == _Mode.editTxn || _mode == _Mode.confirm);
+  }
+
+  double _fxPct(AppState state) =>
+      _type == TxType.expense ? state.detailsOf(_accountId).fxFeePct : 0;
+
+  bool get _fxSep => _fxSeparate && _type == TxType.expense;
+
+  double? _fxMarket(AppState state) {
+    final a = state.accountById(_accountId);
+    if (a == null || _fxCur == null) return null;
+    // An existing entry keeps the market rate of the day it was saved.
+    final t = widget.txn;
+    if (t != null &&
+        t.marketRate != null &&
+        t.origCurrency == _fxCur &&
+        t.accountId == _accountId) {
+      return t.marketRate;
+    }
+    return state.rate(_fxCur!, a.currency);
+  }
+
+  /// Charged amount (and separate fee) from the amount paid, the market
+  /// rate and the card's fee — unless typed by hand.
+  void _fxRecalc() {
+    final state = AppScope.read(context);
+    if (!_fxActive(state)) return;
+    final paid = parseAmount(_fxAmount.text)?.abs();
+    final m = _fxMarket(state);
+    if (paid == null || m == null) return;
+    final base = paid * m;
+    final pct = _fxPct(state);
+    if (!_fxChargedEdited) {
+      _amount.text = (_fxSep ? base : base * (1 + pct / 100)).toStringAsFixed(2);
+    }
+    if (_fxSep && !_fxFeeEdited) {
+      final charged = parseAmount(_amount.text)?.abs() ?? base;
+      _fxFeeCtl.text = (charged * pct / 100).toStringAsFixed(2);
+    }
+  }
+
+  /// Fee separate or included: as last time for this payee.
+  Future<void> _fxLookup() async {
+    if (_fxSepTouched || _type != TxType.expense) return;
+    final state = AppScope.read(context);
+    final payee = _payee.text.trim();
+    bool? sep;
+    if (widget.initialFeeSeparate != null &&
+        payee == (widget.initialPayee ?? '').trim()) {
+      sep = widget.initialFeeSeparate;
+    } else {
+      sep = await state.db.lastFeeSeparate(payee);
+    }
+    if (!mounted || _fxSepTouched) return;
+    setState(() {
+      _fxSeparate = sep ?? false;
+      _fxRecalc();
+    });
+  }
+
+  Future<void> _pickFxCurrency() async {
+    final state = AppScope.read(context);
+    final acc = state.accountById(_accountId);
+    final c = await pickCurrency(context,
+        current: _fxCur ?? (acc?.currency == 'USD' ? 'EUR' : 'USD'));
+    if (c == null || !mounted) return;
+    setState(() {
+      if (c == acc?.currency) {
+        _fxCur = null;
+        return;
+      }
+      // Starting: what was typed so far is the amount paid.
+      if (_fxCur == null) {
+        _fxAmount.text = _amount.text;
+        _fxChargedEdited = false;
+      }
+      _fxCur = c;
+      _fxRecalc();
+    });
+    _fxLookup();
+  }
+
+  /// Bank rate vs. market, the fee and the total extra.
+  String? _fxHelper(AppState state, Account acc) {
+    final paid = parseAmount(_fxAmount.text)?.abs();
+    final charged = parseAmount(_amount.text)?.abs();
+    final m = _fxMarket(state);
+    if (paid == null || paid == 0 || charged == null || charged == 0) {
+      return m == null
+          ? tr('No ${acc.currency} rate for $_fxCur yet — enter the amount charged')
+          : null;
+    }
+    final pct = _fxPct(state);
+    final sep = _fxSep;
+    final purchase = sep ? charged : charged / (1 + pct / 100);
+    final fee = sep ? (parseAmount(_fxFeeCtl.text)?.abs() ?? 0) : charged - purchase;
+    final bank = purchase / paid;
+    final cur = acc.currency;
+    final lines = <String>[];
+    if (m == null) {
+      lines.add(tr('Bank rate ${_rateText(bank)}'));
+    } else {
+      final over = (bank / m - 1) * 100;
+      final p = over.abs().toStringAsFixed(over.abs() < 10 ? 1 : 0);
+      if (over.abs() < 0.05) {
+        lines.add(tr('Bank rate ${_rateText(bank)} · same as market'));
+      } else if (over > 0) {
+        lines.add(tr('Bank rate ${_rateText(bank)} · market ${_rateText(m)} · +$p% over market'));
+      } else {
+        lines.add(tr('Bank rate ${_rateText(bank)} · market ${_rateText(m)} · $p% under market'));
+      }
+      final diff = purchase - paid * m;
+      if (_type == TxType.expense && (fee > 0.004 || diff.abs() > 0.004)) {
+        final pctText = pct == pct.roundToDouble() ? pct.toStringAsFixed(0) : pct.toString();
+        lines.add(tr('Fee $pctText% (${fmtMoney(fee, cur)}) · rate difference ${fmtMoney(diff, cur)} · total extra ${fmtMoney(fee + diff, cur)}'));
+      }
+    }
+    return lines.join('\n');
+  }
+
+  /// The "Paid" field, fee switch and fee amount for foreign purchases.
+  Widget _fxPaidField(AppState state) => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: TextFormField(
+              controller: _fxAmount,
+              readOnly: !_sysKeyboard,
+              showCursor: true,
+              keyboardType: TextInputType.text,
+              onTap: _sysKeyboard ? null : () => _openPad(_fxAmount, _fxCur),
+              onFieldSubmitted: (_) => _settleExpression(_fxAmount),
+              onTapOutside: (_) => _settleExpression(_fxAmount),
+              style: Theme.of(context).textTheme.headlineSmall,
+              decoration: InputDecoration(
+                labelText: tr('Paid'),
+                suffixText: currencyUnit(_fxCur!),
+                border: const OutlineInputBorder(),
+              ),
+              validator: (v) {
+                final a = parseAmount(v ?? '');
+                return a == null || a == 0 ? tr('Enter the amount paid') : null;
+              },
+              onChanged: (_) => setState(_fxRecalc),
+            ),
+          ),
+          IconButton(
+            tooltip: tr('Change currency'),
+            icon: const Icon(Icons.currency_exchange),
+            onPressed: _pickFxCurrency,
+          ),
+          IconButton(
+            tooltip: tr('Paid in the account\'s currency'),
+            icon: const Icon(Icons.close),
+            onPressed: () => setState(() => _fxCur = null),
+          ),
+        ],
+      );
+
+  List<Widget> _fxFeeSection(AppState state, Account acc) {
+    if (_type != TxType.expense) return const [];
+    final pct = _fxPct(state);
+    return [
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        dense: true,
+        title: Text(tr('Fee charged separately')),
+        subtitle: Text(pct > 0
+            ? tr('Card fee ${pct.toString().replaceFirst(RegExp(r'\.0$'), '')}% — saved as its own expense')
+            : tr('Set the card\'s foreign fee % in account details')),
+        value: _fxSeparate,
+        onChanged: (v) => setState(() {
+          _fxSeparate = v;
+          _fxSepTouched = true;
+          _fxFeeEdited = false;
+          _fxRecalc();
+        }),
+      ),
+      if (_fxSeparate)
+        TextFormField(
+          controller: _fxFeeCtl,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          onChanged: (_) => setState(() => _fxFeeEdited = true),
+          decoration: InputDecoration(
+            labelText: tr('Foreign Fee'),
+            suffixText: currencyUnit(acc.currency),
+            border: const OutlineInputBorder(),
+            helperText: _fxFeeEdited
+                ? tr('Edited')
+                : tr('Worked out from the amount; you can change it'),
+            suffixIcon: _fxFeeEdited
+                ? IconButton(
+                    tooltip: tr('Recalculate'),
+                    icon: const Icon(Icons.refresh),
+                    onPressed: () => setState(() {
+                      _fxFeeEdited = false;
+                      _fxRecalc();
+                    }),
+                  )
+                : null,
+          ),
+        ),
+    ];
+  }
+
   // InstaPay fee (new expenses and transfers only).
   bool _instaPay = false;
   final _fee = TextEditingController();
@@ -136,11 +374,22 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               widget.txn?.feeFor == null)) &&
       (_type == TxType.expense || _type == TxType.transfer) &&
       !_installments &&
-      !_repeat;
+      !_repeat &&
+      _fxCur == null;
 
   Future<void> _loadFee(int txnId) async {
     final f = await AppScope.read(context).db.feeOf(txnId);
     if (f == null || !mounted) return;
+    if (widget.txn?.isForeign ?? false) {
+      // A foreign purchase's fee charged separately.
+      setState(() {
+        _existingFee = f;
+        _fxSeparate = true;
+        _fxFeeEdited = true;
+        _fxFeeCtl.text = f.amount.toStringAsFixed(2);
+      });
+      return;
+    }
     setState(() {
       _existingFee = f;
       _instaPay = true;
@@ -273,6 +522,11 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       _payee.text = widget.initialPayee ?? '';
       _categoryId = widget.initialCategoryId;
       _categoryChosen = widget.initialCategoryId != null;
+      if (widget.initialForeignCurrency != null &&
+          widget.initialForeignAmount != null) {
+        _fxCur = widget.initialForeignCurrency;
+        _fxAmount.text = widget.initialForeignAmount!.toStringAsFixed(2);
+      }
     }
     _startMonth = DateTime(_date.year, _date.month + 1);
   }
@@ -291,6 +545,12 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     _categoryId = t.categoryId;
     _date = t.date;
     if (t.postedLater) _postDate = t.postDate;
+    if (t.isForeign) {
+      _fxCur = t.origCurrency;
+      _fxAmount.text = _plain(t.origAmount!.abs());
+      _fxChargedEdited = true;
+      _fxSepTouched = true;
+    }
     if (t.id != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadFee(t.id!));
     }
@@ -389,7 +649,15 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       setState(() {
         if (received) {
           _rateFromReceived();
+        } else if (c == _fxAmount) {
+          _fxRecalc();
         } else {
+          if (c == _amount && _fxCur != null) {
+            _fxChargedEdited = true;
+            if (!_fxFeeEdited) {
+              _fxRecalc();
+            }
+          }
           _recalcToAmount();
         }
       });
@@ -408,7 +676,9 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_initialized) return;
-    if (_mode == _Mode.newTxn && widget.initialAmount == null) {
+    if (_mode == _Mode.newTxn &&
+        widget.initialAmount == null &&
+        widget.initialForeignAmount == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         final cur = AppScope.read(context).accountById(_accountId)?.currency;
@@ -448,6 +718,10 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       _recalcToAmount();
       _loadLastRate();
     }
+    if (_fxCur != null && _mode == _Mode.newTxn) {
+      _fxRecalc();
+      WidgetsBinding.instance.addPostFrameCallback((_) => _fxLookup());
+    }
   }
 
   @override
@@ -461,6 +735,8 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     _payee.dispose();
     _note.dispose();
     _fee.dispose();
+    _fxAmount.dispose();
+    _fxFeeCtl.dispose();
     _interval.dispose();
     _endCount.dispose();
     super.dispose();
@@ -680,6 +956,10 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     setState(() => _saving = true);
 
     final isTransfer = _type == TxType.transfer;
+    final fxOn = _fxActive(state);
+    final fxPaid = fxOn ? parseAmount(_fxAmount.text)?.abs() : null;
+    final fxPct = fxOn ? _fxPct(state) : 0.0;
+    final fxSep = fxOn && _fxSep;
     final template = Txn(
       id: widget.txn?.id,
       type: _type,
@@ -703,6 +983,12 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               : null),
       feeFor: widget.txn?.feeFor,
       splitId: widget.txn?.splitId,
+      origAmount: fxPaid == null ? null : (amount < 0 ? -fxPaid : fxPaid),
+      origCurrency: fxPaid == null ? null : _fxCur,
+      marketRate: fxPaid == null ? null : _fxMarket(state),
+      fxFee: fxPaid == null || fxSep || fxPct <= 0
+          ? null
+          : amount.abs() - amount.abs() / (1 + fxPct / 100),
       toPostDate: isTransfer &&
               widget.txn != null &&
               widget.txn!.date == _date &&
@@ -783,8 +1069,19 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
         await state.setInstaPayFee(mainId, _accountId!, _date, fee,
             note: 'Fee for $what (${fmtAmountRaw(amount.abs())})');
       }
+      // Foreign purchase: its fee as a linked expense when charged
+      // separately (removed when no longer separate).
+      if (fxOn && (fxSep || _existingFee != null)) {
+        final fee = fxSep ? (parseAmount(_fxFeeCtl.text)?.abs() ?? 0) : 0.0;
+        final what = template.payee.isNotEmpty
+            ? template.payee
+            : (state.categoryById(_categoryId)?.name ?? 'Expense');
+        await state.setInstaPayFee(mainId, _accountId!, _date, fee,
+            note: 'Foreign fee for $what (${fmtMoneyRaw(fxPaid ?? 0, _fxCur!)})',
+            foreign: true);
+      }
     }
-    widget.onSaved?.call(template);
+    widget.onSaved?.call(template, fxOn && _type == TxType.expense ? fxSep : null);
     if (!mounted) return;
     Navigator.pop(context, true);
   }
@@ -929,6 +1226,13 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     final account = state.accountById(_accountId);
     final toAccount = state.accountById(_toAccountId);
     final differ = _type == TxType.transfer && _currenciesDiffer(state);
+    final fx = _fxActive(state);
+    final canFx = account != null &&
+        _type != TxType.transfer &&
+        !_installments &&
+        !_repeat &&
+        !_split &&
+        (_mode == _Mode.newTxn || _mode == _Mode.editTxn || _mode == _Mode.confirm);
     final typeLocked = _mode == _Mode.editPlan || _mode == _Mode.confirm;
 
     const gap = SizedBox(height: 10);
@@ -1001,10 +1305,15 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                     }
                   }
                   _recalcToAmount();
+                  _fxRecalc();
                   if (_type == TxType.transfer) _loadLastRate();
                 }),
               ),
             gap,
+            if (fx) ...[
+              _fxPaidField(state),
+              gap,
+            ],
             TextFormField(
               controller: _amount,
               readOnly: !_sysKeyboard,
@@ -1018,8 +1327,11 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               onTapOutside: (_) => _settleExpression(_amount),
               style: Theme.of(context).textTheme.headlineSmall,
               decoration: InputDecoration(
-                labelText: _installments ? tr('Total amount') : tr('Amount'),
-                helperText: _amountHelper(state, account),
+                labelText: fx
+                    ? tr('Charged to Account')
+                    : (_installments ? tr('Total amount') : tr('Amount')),
+                helperText: fx ? _fxHelper(state, account!) : _amountHelper(state, account),
+                helperMaxLines: 3,
                 helperStyle: TextStyle(
                     color: Theme.of(context).colorScheme.primary,
                     fontWeight: FontWeight.w600),
@@ -1046,8 +1358,38 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                 if (a == 0) return tr('Amount cannot be zero');
                 return null;
               },
-              onChanged: (_) => setState(_recalcToAmount),
+              onChanged: (_) => setState(() {
+                if (_fxCur != null) {
+                  _fxChargedEdited = true;
+                  _fxRecalc();
+                }
+                _recalcToAmount();
+              }),
             ),
+            if (fx) ...[
+              if (_fxChargedEdited)
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: Text(tr('Use the estimate')),
+                    onPressed: () => setState(() {
+                      _fxChargedEdited = false;
+                      _fxRecalc();
+                    }),
+                  ),
+                ),
+              ..._fxFeeSection(state, account!),
+            ] else if (canFx)
+              Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: TextButton.icon(
+                  style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                  icon: const Icon(Icons.currency_exchange, size: 18),
+                  label: Text(tr('Paid in another currency')),
+                  onPressed: _pickFxCurrency,
+                ),
+              ),
             gap,
             AccountField(
               label: _type == TxType.transfer ? tr('From account') : tr('Account'),
@@ -1055,6 +1397,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               onChanged: (v) => setState(() {
                 _accountId = v;
                 _resetRate();
+                _fxRecalc();
               }),
             ),
             if (_type == TxType.transfer) ...[
@@ -1134,6 +1477,9 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               gap,
               TextFormField(
                 controller: _payee,
+                onChanged: (_) {
+                  if (_fxCur != null) _fxLookup();
+                },
                 textCapitalization: TextCapitalization.words,
                 decoration: InputDecoration(
                   labelText:

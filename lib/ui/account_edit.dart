@@ -87,6 +87,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
   final _iban = TextEditingController();
   final _notes = TextEditingController();
   final _sender = TextEditingController();
+  final _fxFee = TextEditingController();
   final _cardNumber = TextEditingController();
   bool _hasCardNumber = false;
   bool _removeCardNumber = false;
@@ -195,6 +196,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
       _iban.text = d.iban;
       _notes.text = d.notes;
       _sender.text = d.sender;
+      _fxFee.text = d.fxFee;
       _showDetails = !d.isEmpty;
       SecureStore.hasCardNumber(a.id!).then((v) {
         if (mounted && v) setState(() => _hasCardNumber = _showDetails = true);
@@ -234,7 +236,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
     _dueDay.dispose();
     _minPct.dispose();
     for (final c in [_loanPayment, _loanMonths, _loanPrincipal, _loanRate, _loanReceived, _assetValue, _assetShare,
-        _last4, _expiry, _phone, _customerNo, _accountNo, _iban, _notes, _sender, _cardNumber]) {
+        _last4, _expiry, _phone, _customerNo, _accountNo, _iban, _notes, _sender, _fxFee, _cardNumber]) {
       c.dispose();
     }
     super.dispose();
@@ -312,6 +314,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
       iban: _iban.text.trim().toUpperCase(),
       notes: _notes.text.trim(),
       sender: _sender.text.trim(),
+      fxFee: _fxFee.text.trim(),
     );
     if (!(details.isEmpty && state.detailsOf(id).isEmpty)) {
       await state.saveAccountDetails(id, details);
@@ -567,6 +570,20 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
             decoration: deco(tr('SMS Sender Name'),
                 hint: tr('e.g. ADCB Egypt'),
                 helper: tr('Exactly as it shows in Messages. Only messages from this sender are read for this account.')),
+          ),
+          gap,
+          TextFormField(
+            controller: _fxFee,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: deco(tr('Foreign Purchase Fee %'),
+                hint: tr('e.g. 3'),
+                helper: tr('Added by the bank when you pay in another currency. Used to estimate the amount charged.')),
+            validator: (v) {
+              final t = (v ?? '').replaceAll('%', '').trim();
+              if (t.isEmpty) return null;
+              final d = double.tryParse(t.replaceAll(',', '.'));
+              return d == null || d < 0 || d > 50 ? tr('Enter a percentage, e.g. 3') : null;
+            },
           ),
           gap,
           TextFormField(

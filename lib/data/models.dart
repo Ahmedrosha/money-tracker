@@ -347,8 +347,12 @@ class AccountDetails {
   /// Name the bank's SMS come from, as shown in Messages.
   final String sender;
 
+  /// Fee the bank adds on foreign-currency purchases, in % ('' = none).
+  final String fxFee;
+
   const AccountDetails({
     this.sender = '',
+    this.fxFee = '',
     this.last4 = '',
     this.expiry = '',
     this.phone = '',
@@ -368,7 +372,12 @@ class AccountDetails {
       accountNo.isEmpty &&
       iban.isEmpty &&
       notes.isEmpty &&
-      sender.isEmpty;
+      sender.isEmpty &&
+      fxFee.isEmpty;
+
+  /// [fxFee] as a number (0 when empty).
+  double get fxFeePct =>
+      double.tryParse(fxFee.replaceAll('%', '').replaceAll(',', '.').trim()) ?? 0;
 
   /// Each set of digits entered in [last4].
   List<String> get digits => last4
@@ -386,6 +395,7 @@ class AccountDetails {
         'iban': iban,
         'notes': notes,
         'sender': sender,
+        'fx_fee': fxFee,
       };
 
   factory AccountDetails.fromMap(Map<String, Object?> m) => AccountDetails(
@@ -397,6 +407,7 @@ class AccountDetails {
         iban: (m['iban'] as String?) ?? '',
         notes: (m['notes'] as String?) ?? '',
         sender: (m['sender'] as String?) ?? '',
+        fxFee: (m['fx_fee'] as String?) ?? '',
       );
 }
 
@@ -411,11 +422,16 @@ class MerchantRule {
   final int? categoryId;
   final int? accountId;
 
+  /// Paid in a foreign currency: the fee comes as its own transaction
+  /// (true) or inside the purchase (false). Null = not known yet.
+  final bool? feeSeparate;
+
   const MerchantRule({
     required this.merchant,
     this.payee = '',
     this.categoryId,
     this.accountId,
+    this.feeSeparate,
   });
 
   /// "CARREFOUR 1234 CAIRO" and "Carrefour-cairo" → "carrefour cairo".
@@ -425,20 +441,13 @@ class MerchantRule {
       .trim()
       .replaceAll(RegExp(r'\s+'), ' ');
 
-  MerchantRule copyWith({String? payee, int? categoryId, int? accountId,
-          bool clearCategory = false, bool clearAccount = false}) =>
-      MerchantRule(
-        merchant: merchant,
-        payee: payee ?? this.payee,
-        categoryId: clearCategory ? null : (categoryId ?? this.categoryId),
-        accountId: clearAccount ? null : (accountId ?? this.accountId),
-      );
 
   Map<String, Object?> toMap() => {
         'merchant': merchant,
         'payee': payee,
         'category_id': categoryId,
         'account_id': accountId,
+        'fee_separate': feeSeparate == null ? null : (feeSeparate! ? 1 : 0),
         'updated_at': DateTime.now().millisecondsSinceEpoch,
       };
 
@@ -447,6 +456,7 @@ class MerchantRule {
         payee: (m['payee'] as String?) ?? '',
         categoryId: m['category_id'] as int?,
         accountId: m['account_id'] as int?,
+        feeSeparate: m['fee_separate'] == null ? null : m['fee_separate'] == 1,
       );
 }
 
@@ -657,6 +667,22 @@ class Txn {
   /// id were paid together.
   final int? splitId;
 
+  /// Paid in another currency than the account's: the amount and currency
+  /// actually paid (e.g. 15 USD). [amount] stays what the account was
+  /// charged.
+  final double? origAmount;
+  final String? origCurrency;
+
+  /// Market rate at the time (account currency per 1 [origCurrency]).
+  final double? marketRate;
+
+  /// Foreign-purchase fee inside [amount] (fee included in the purchase),
+  /// in the account's currency. A fee charged separately is its own
+  /// entry linked with [feeFor].
+  final double? fxFee;
+
+  bool get isForeign => origCurrency != null && origAmount != null;
+
   const Txn({
     this.id,
     required this.type,
@@ -675,6 +701,10 @@ class Txn {
     this.toPostDate,
     this.feeFor,
     this.splitId,
+    this.origAmount,
+    this.origCurrency,
+    this.marketRate,
+    this.fxFee,
   });
 
   bool get isFuture => date.isAfter(DateTime.now());
@@ -709,6 +739,10 @@ class Txn {
         'to_post_date': toPostDate?.millisecondsSinceEpoch,
         'fee_for': feeFor,
         'split_id': splitId,
+        'orig_amount': origAmount,
+        'orig_currency': origCurrency,
+        'market_rate': marketRate,
+        'fx_fee': fxFee,
       };
 
   factory Txn.fromMap(Map<String, Object?> m) => Txn(
@@ -733,6 +767,10 @@ class Txn {
             : DateTime.fromMillisecondsSinceEpoch(m['to_post_date'] as int),
         feeFor: m['fee_for'] as int?,
         splitId: m['split_id'] as int?,
+        origAmount: m['orig_amount'] == null ? null : _toDouble(m['orig_amount']),
+        origCurrency: m['orig_currency'] as String?,
+        marketRate: m['market_rate'] == null ? null : _toDouble(m['market_rate']),
+        fxFee: m['fx_fee'] == null ? null : _toDouble(m['fx_fee']),
       );
 }
 

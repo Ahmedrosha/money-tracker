@@ -45,6 +45,7 @@ class MerchantRulesScreen extends StatelessWidget {
                   state.categoryById(r.categoryId)?.name ?? tr('No category'),
                   if (state.accountById(r.accountId) != null)
                     state.accountById(r.accountId)!.name,
+                  if (r.feeSeparate == true) tr('Fee separate'),
                 ].join(' · ')),
                 trailing: const Icon(Icons.edit_outlined),
                 onTap: () => Navigator.push(
@@ -72,6 +73,7 @@ class _RuleEditState extends State<_RuleEdit> {
       TextEditingController(text: widget.rule.payee);
   late int? _category = widget.rule.categoryId;
   late int? _account = widget.rule.accountId;
+  late bool? _feeSep = widget.rule.feeSeparate;
 
   @override
   void dispose() {
@@ -130,6 +132,17 @@ class _RuleEditState extends State<_RuleEdit> {
                 child: Text(tr('Clear account')),
               ),
             ),
+          const SizedBox(height: 16),
+          LabeledDropdown<int>(
+            label: tr('Paid in Another Currency'),
+            value: _feeSep == null ? 0 : (_feeSep! ? 2 : 1),
+            items: [
+              DropdownMenuItem(value: 0, child: Text(tr('Fee: not known yet'))),
+              DropdownMenuItem(value: 1, child: Text(tr('Fee included in the purchase'))),
+              DropdownMenuItem(value: 2, child: Text(tr('Fee charged separately'))),
+            ],
+            onChanged: (v) => setState(() => _feeSep = v == null || v == 0 ? null : v == 2),
+          ),
           const SizedBox(height: 24),
           FilledButton(
             onPressed: () async {
@@ -138,6 +151,7 @@ class _RuleEditState extends State<_RuleEdit> {
                 payee: _name.text.trim(),
                 categoryId: _category,
                 accountId: _account,
+                feeSeparate: _feeSep,
               ));
               if (context.mounted) Navigator.pop(context);
             },

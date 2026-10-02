@@ -280,16 +280,23 @@ class _SmsCardState extends State<_SmsCard> {
     final acc = accountId ??
         (ruleAcc != null && state.accountById(ruleAcc) != null ? ruleAcc : null);
     if (!mounted) return;
+    // Paid in another currency than the account's (e.g. USD on an EGP
+    // card): the form shows the amount paid and estimates the charge.
+    final accCur = state.accountById(acc)?.currency;
+    final foreign = !transfer && accCur != null && accCur != p.currency;
     final saved = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (_) => TransactionEditScreen(
           initialType: type,
+          initialForeignCurrency: foreign ? p.currency : null,
+          initialForeignAmount: foreign ? p.amount : null,
+          initialFeeSeparate: rule?.feeSeparate,
           // A transfer received: this account is the destination.
           initialAccountId: transfer ? null : acc,
           initialToAccountId: transfer ? acc : null,
           initialDate: p.date,
-          initialAmount: p.amount,
+          initialAmount: foreign ? null : p.amount,
           initialPayee: transfer
               ? null
               : (rule != null && rule.payee.isNotEmpty ? rule.payee : p.payee),
@@ -299,7 +306,7 @@ class _SmsCardState extends State<_SmsCard> {
               : (p.ref.isEmpty ? null : 'Ref ${p.ref}'),
           onSaved: transfer || p.payee.isEmpty
               ? null
-              : (t) => state.rememberMerchant(p.payee, t),
+              : (t, sep) => state.rememberMerchant(p.payee, t, feeSeparate: sep),
         ),
       ),
     );

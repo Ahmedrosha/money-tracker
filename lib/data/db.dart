@@ -39,7 +39,7 @@ class AppDb {
 
   final Database db;
 
-  static const int schemaVersion = 17;
+  static const int schemaVersion = 18;
 
   static Future<String> dbPath() async =>
       p.join(await getDatabasesPath(), 'money_tracker.db');
@@ -123,6 +123,7 @@ class AppDb {
         await _migrateToV15(db);
         await _migrateToV16(db);
         await _migrateToV17(db);
+        await _migrateToV18(db);
         await _seed(db);
       },
       onUpgrade: (db, oldV, newV) async {
@@ -142,6 +143,7 @@ class AppDb {
         if (oldV < 15) await _migrateToV15(db);
         if (oldV < 16) await _migrateToV16(db);
         if (oldV < 17) await _migrateToV17(db);
+        if (oldV < 18) await _migrateToV18(db);
       },
     );
     return AppDb._(db);
@@ -409,6 +411,17 @@ class AppDb {
     ''');
   }
 
+  /// Purchases paid in another currency, and the card's foreign fee.
+  static Future<void> _migrateToV18(Database db) async {
+    await db.execute('ALTER TABLE transactions ADD COLUMN orig_amount REAL');
+    await db.execute('ALTER TABLE transactions ADD COLUMN orig_currency TEXT');
+    await db.execute('ALTER TABLE transactions ADD COLUMN market_rate REAL');
+    await db.execute('ALTER TABLE transactions ADD COLUMN fx_fee REAL');
+    await db.execute(
+        "ALTER TABLE account_details ADD COLUMN fx_fee TEXT NOT NULL DEFAULT ''");
+    await db.execute('ALTER TABLE merchant_rules ADD COLUMN fee_separate INTEGER');
+  }
+
   static Future<void> _seed(Database db) async {
     const expense = [
       ['Food & Dining', 'food', 0xFFFB8C00],
@@ -545,6 +558,22 @@ class AppDb {
         where: 'date >= ? AND date < ?',
         whereArgs: [from.millisecondsSinceEpoch, to.millisecondsSinceEpoch]);
     return rows.map(Txn.fromMap).toList();
+  }
+
+  /// Last foreign-currency purchase from [payee]: was its fee a separate
+  /// entry? Null when there is none.
+  Future<bool?> lastFeeSeparate(String payee) async {
+    if (payee.trim().isEmpty) return null;
+    final rows = await db.query('transactions',
+        columns: ['id', 'fx_fee'],
+        where: "LOWER(payee) = ? AND orig_currency IS NOT NULL AND type = 'expense' AND fee_for IS NULL",
+        whereArgs: [payee.trim().toLowerCase()],
+        orderBy: 'date DESC',
+        limit: 1);
+    if (rows.isEmpty) return null;
+    final fee = await db.query('transactions',
+        columns: ['id'], where: 'fee_for = ?', whereArgs: [rows.first['id']], limit: 1);
+    return fee.isNotEmpty;
   }
 
   Future<void> setSmsStatus(int id, String status) => db.update(

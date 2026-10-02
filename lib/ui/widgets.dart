@@ -179,14 +179,27 @@ class TxnTile extends StatelessWidget {
         ],
       ),
       subtitle: Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis),
-      trailing: Text(
-        '${signed > 0 && !isNeutralTransfer ? '+' : ''}${fmtAmount(signed)} $currency',
-        style: TextStyle(
-          fontWeight: FontWeight.w600,
-          color: isNeutralTransfer
-              ? Theme.of(context).colorScheme.onSurfaceVariant
-              : amountColor(context, signed),
-        ),
+      trailing: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            '${signed > 0 && !isNeutralTransfer ? '+' : ''}${fmtAmount(signed)} $currency',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: isNeutralTransfer
+                  ? Theme.of(context).colorScheme.onSurfaceVariant
+                  : amountColor(context, signed),
+            ),
+          ),
+          // Paid in another currency: what was actually paid.
+          if (txn.isForeign)
+            Text(
+              fmtMoney(txn.origAmount!.abs(), txn.origCurrency!),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
+        ],
       ),
       ),
     );
@@ -988,11 +1001,25 @@ class _SplitTileState extends State<SplitTile> {
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                '${signed > 0 ? '+' : ''}${fmtAmount(signed)} ${account == null ? '' : currencyUnit(account.currency)}',
-                style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: amountColor(context, signed)),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '${signed > 0 ? '+' : ''}${fmtAmount(signed)} ${account == null ? '' : currencyUnit(account.currency)}',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: amountColor(context, signed)),
+                  ),
+                  if (first.isForeign)
+                    Text(
+                      fmtMoney(
+                          parts.fold<double>(0, (s, t) => s + (t.origAmount ?? 0)).abs(),
+                          first.origCurrency!),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    ),
+                ],
               ),
               CollapseArrow(collapsed: !_open),
             ],

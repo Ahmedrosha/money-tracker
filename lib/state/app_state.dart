@@ -624,7 +624,7 @@ class AppState extends ChangeNotifier {
 
   /// After a bank message was added: remember the clean name, category
   /// and account chosen for that merchant, to fill in next time.
-  Future<void> rememberMerchant(String rawPayee, Txn t) async {
+  Future<void> rememberMerchant(String rawPayee, Txn t, {bool? feeSeparate}) async {
     if (t.type == TxType.transfer) return;
     final k = MerchantRule.keyOf(rawPayee);
     if (k.isEmpty) return;
@@ -634,6 +634,7 @@ class AppState extends ChangeNotifier {
       payee: name.toLowerCase() == rawPayee.trim().toLowerCase() ? '' : name,
       categoryId: t.categoryId,
       accountId: t.accountId,
+      feeSeparate: feeSeparate ?? ruleFor(rawPayee)?.feeSeparate,
     ));
     merchantRules = await db.merchantRules();
     notifyListeners();
@@ -695,9 +696,13 @@ class AppState extends ChangeNotifier {
     final txns = await db.txnsBetween(from, to);
     // Split payments count as one payment of their total.
     final splitTotals = <int, double>{};
+    final splitOrig = <int, double>{};
     for (final t in txns) {
       if (t.splitId != null) {
         splitTotals[t.splitId!] = (splitTotals[t.splitId!] ?? 0) + t.amount;
+        if (t.origAmount != null) {
+          splitOrig[t.splitId!] = (splitOrig[t.splitId!] ?? 0) + t.origAmount!;
+        }
       }
     }
     final used = <int>{};
@@ -724,9 +729,14 @@ class AppState extends ChangeNotifier {
         } else {
           if (t.type == TxType.expense || t.type == TxType.transfer) {
             final amt = t.splitId != null ? splitTotals[t.splitId!]! : t.amount;
+            final orig = t.splitId != null ? splitOrig[t.splitId!] : t.origAmount;
             hit = (acc == null || t.accountId == acc) &&
-                accountById(t.accountId)?.currency == p.currency &&
-                same(amt, p.amount!);
+                ((accountById(t.accountId)?.currency == p.currency &&
+                        same(amt, p.amount!)) ||
+                    // Paid in another currency: the message shows that.
+                    (t.origCurrency == p.currency &&
+                        orig != null &&
+                        same(orig, p.amount!)));
           } else {
             hit = false;
           }
@@ -1819,7 +1829,7 @@ class AppState extends ChangeNotifier {
   /// Adds, updates or removes the InstaPay fee linked to transaction
   /// [mainId]. [fee] null or 0 removes it.
   Future<void> setInstaPayFee(int mainId, int accountId, DateTime date,
-      double? fee, {String note = ''}) async {
+      double? fee, {String note = '', bool foreign = false}) async {
     final old = await db.feeOf(mainId);
     if (fee == null || fee <= 0.004) {
       if (old != null) {
@@ -1838,21 +1848,23 @@ class AppState extends ChangeNotifier {
       await _reloadAll();
       return;
     }
-    await addInstaPayFee(accountId, date, fee, note: note, feeFor: mainId);
+    await addInstaPayFee(accountId, date, fee,
+        note: note, feeFor: mainId, foreign: foreign);
   }
 
   /// Records the fee as its own expense from [accountId].
   Future<void> addInstaPayFee(int accountId, DateTime date, double fee,
-      {String note = '', int? feeFor}) async {
+      {String note = '', int? feeFor, bool foreign = false}) async {
+    final catName = foreign ? 'Bank fees' : 'InstaPay Fees';
     int? cat;
     for (final c in categories) {
-      if (c.kind == TxType.expense && c.name.toLowerCase() == 'instapay fees') {
+      if (c.kind == TxType.expense && c.name.toLowerCase() == catName.toLowerCase()) {
         cat = c.id;
         break;
       }
     }
-    cat ??= await db.insertCategory(const Category(
-        name: 'InstaPay Fees', group: 'Bank', kind: TxType.expense,
+    cat ??= await db.insertCategory(Category(
+        name: catName, group: 'Bank', kind: TxType.expense,
         icon: 'fees', color: 0xFF607D8B));
     await db.insertTxn(Txn(
       type: TxType.expense,
@@ -1860,7 +1872,7 @@ class AppState extends ChangeNotifier {
       amount: fee,
       accountId: accountId,
       categoryId: cat,
-      payee: 'InstaPay',
+      payee: foreign ? 'Foreign purchase fee' : 'InstaPay',
       note: note,
       feeFor: feeFor,
     ));
@@ -2067,6 +2079,15 @@ class AppState extends ChangeNotifier {
         note: base.note,
         postDate: base.postDate,
         splitId: splitId,
+        // Paid in another currency: each part gets its share.
+        origAmount: base.origAmount == null || base.amount == 0
+            ? null
+            : base.origAmount! * amount / base.amount,
+        origCurrency: base.origCurrency,
+        marketRate: base.marketRate,
+        fxFee: base.fxFee == null || base.amount == 0
+            ? null
+            : base.fxFee! * amount / base.amount,
       ));
       first ??= id;
     }

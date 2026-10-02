@@ -117,6 +117,8 @@ class _DetailsSheetState extends State<_DetailsSheet> {
         ),
       if (d.sender.isNotEmpty)
         row(Icons.sms_outlined, tr('SMS Sender Name'), d.sender),
+      if (d.fxFee.isNotEmpty)
+        row(Icons.currency_exchange, tr('Foreign Purchase Fee %'), '${d.fxFee.replaceAll('%', '')}%'),
       if (d.expiry.isNotEmpty)
         row(Icons.event_outlined, tr('Card Expiry'), d.expiry),
       if (d.phone.isNotEmpty)

@@ -1,7 +1,7 @@
 name: money_tracker
 description: Personal money tracker - accounts, transactions, transfers, multi-currency.
 publish_to: 'none'
-version: 0.41.0+69
+version: 0.41.1+70
 
 environment:
   sdk: '>=3.4.0 <4.0.0'

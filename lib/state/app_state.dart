@@ -139,6 +139,15 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// The Cards Due box on Accounts closed with ✕: hidden until the app is
+  /// opened again (not remembered).
+  bool cardsBoxHidden = false;
+
+  void hideCardsBox() {
+    cardsBoxHidden = true;
+    notifyListeners();
+  }
+
   /// Snoozed card reminders: card id -> hidden until (remembered).
   Map<int, DateTime> cardSnooze = {};
 
@@ -155,6 +164,19 @@ class AppState extends ChangeNotifier {
     final now = DateTime.now();
     if (!until.isAfter(now)) until = DateTime(now.year, now.month, now.day + 1);
     cardSnooze[c.card.id!] = until;
+    await _saveSnooze();
+  }
+
+  /// Shows a snoozed card again now.
+  Future<void> unsnoozeCard(CardSummary c) async {
+    cardSnooze.remove(c.card.id);
+    await _saveSnooze();
+  }
+
+  DateTime? snoozedUntil(CardSummary c) =>
+      isSnoozed(c) ? cardSnooze[c.card.id] : null;
+
+  Future<void> _saveSnooze() async {
     await db.setSetting('card_snooze',
         cardSnooze.entries.map((e) => '${e.key}:${e.value.millisecondsSinceEpoch}').join(','));
     notifyListeners();

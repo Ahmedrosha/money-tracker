@@ -41,9 +41,38 @@ class CardsDueBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
+    if (state.cardsBoxHidden) return const SizedBox.shrink();
     final cards = state.cardsToShow;
-    if (cards.isEmpty) return const SizedBox.shrink();
     final theme = Theme.of(context);
+    if (cards.isEmpty) {
+      // Everything due is snoozed: a small line to still reach them.
+      final snoozed = state.cardsDue.length;
+      if (snoozed == 0) return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const CardsDueScreen())),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: Row(
+              children: [
+                Icon(Icons.snooze, size: 18, color: theme.colorScheme.onSurfaceVariant),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    tr('$snoozed card${snoozed == 1 ? '' : 's'} snoozed · tap to view'),
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+                Icon(Icons.chevron_right, size: 18, color: theme.colorScheme.onSurfaceVariant),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     final base = state.baseCurrency;
     final total = cards.fold<double>(
         0, (t, c) => t + state.toBase(c.last!.remaining, c.card.currency));
@@ -66,7 +95,11 @@ class CardsDueBox extends StatelessWidget {
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
               subtitle: Text(tr('Next: ${shortDateFmt.format(cards.first.last!.dueDate)} · tap for all cards')),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: IconButton(
+                tooltip: tr('Hide until the app is reopened'),
+                icon: const Icon(Icons.close),
+                onPressed: state.hideCardsBox,
+              ),
               onTap: () => Navigator.push(context,
                   MaterialPageRoute(builder: (_) => const CardsDueScreen())),
             ),
@@ -301,7 +334,9 @@ class _CardDueTile extends StatelessWidget {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      snoozed ? tr('Snoozed') : _whenText(s),
+                      snoozed
+                          ? tr('Hidden until ${shortDateFmt.format(state.snoozedUntil(c)!)}')
+                          : _whenText(s),
                       style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -360,6 +395,12 @@ class _CardDueTile extends StatelessWidget {
                         }
                       },
                       label: Text(tr('Snooze')),
+                    ),
+                  if (snoozed)
+                    TextButton.icon(
+                      icon: const Icon(Icons.notifications_active_outlined, size: 18),
+                      onPressed: () => state.unsnoozeCard(c),
+                      label: Text(tr('Unsnooze')),
                     ),
                 ],
               ),

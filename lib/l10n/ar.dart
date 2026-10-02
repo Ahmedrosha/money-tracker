@@ -3,6 +3,9 @@
 // ignore_for_file: prefer_single_quotes
 
 const Map<String, String> kArabic = {
+  "{0} card{1} snoozed · tap to view": "{0} بطاقات مؤجلة · اضغط للعرض",
+  "Hidden until {0}": "مخفي حتى {0}",
+  "Unsnooze": "إلغاء التأجيل",
   "Version 0.41 — smarter bank messages": "الإصدار 0.41 — رسائل بنك أذكى",
   "Merchant Rules": "قواعد التجار",
   "When you add a bank message, the name, category and account you choose are remembered for that merchant and filled in next time. You always see the entry before it is saved.": "عند إضافة رسالة بنك، يتم تذكّر الاسم والفئة والحساب الذي تختاره لهذا التاجر وتعبئتها في المرة القادمة. سترى العملية دائمًا قبل حفظها.",

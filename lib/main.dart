@@ -140,7 +140,7 @@ class _MoneyAppState extends State<MoneyApp> with WidgetsBindingObserver {
     // Bank messages: Android reads new SMS; iPhone Shortcuts send them in
     // as ewtracker://sms?from=…&text=…
     state.readAndroidSms();
-    state.readIncomingSmsFile();
+    _readIncoming();
     HomeWidgets.update(state);
     _linkSub = AppLinks().uriLinkStream.listen(_onLink, onError: (_) {});
   }
@@ -175,6 +175,26 @@ class _MoneyAppState extends State<MoneyApp> with WidgetsBindingObserver {
           homeTab.value = HomeTabs.accounts;
       }
     }
+  }
+
+  /// iPhone: messages saved by the Shortcut while the app was closed.
+  /// Offer to review them (the notification's tap lands here too).
+  Future<void> _readIncoming() async {
+    final n = await state.readIncomingSmsFile();
+    if (n == 0) return;
+    BuildContext? ctx;
+    for (var i = 0; i < 20 && (ctx = _navKey.currentContext) == null; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+    }
+    if (ctx == null || !ctx.mounted) return;
+    ScaffoldMessenger.maybeOf(ctx)?.showSnackBar(SnackBar(
+      content: Text(n == 1 ? tr('1 new bank message') : tr('$n new bank messages')),
+      action: SnackBarAction(
+        label: tr('Review'),
+        onPressed: () => _navKey.currentState?.push(
+            MaterialPageRoute(builder: (_) => const SmsInboxScreen())),
+      ),
+    ));
   }
 
   Future<void> _onLink(Uri uri) async {
@@ -245,7 +265,7 @@ class _MoneyAppState extends State<MoneyApp> with WidgetsBindingObserver {
     } else if (s == AppLifecycleState.resumed) {
       state.refreshForToday();
       state.readAndroidSms();
-      state.readIncomingSmsFile();
+      _readIncoming();
       // Coming back to the app: pick up changes from the other phone
       // (at most once a minute) or send waiting ones.
       if (DateTime.now().difference(_lastResume).inSeconds >= 60 || dbx.pending) {

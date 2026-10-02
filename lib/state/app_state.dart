@@ -307,6 +307,8 @@ class AppState extends ChangeNotifier {
     accountDetails = await db.accountDetails();
     smsPending = await db.pendingSms();
     smsDismissed = await db.dismissedSms();
+    merchantRules = await db.merchantRules();
+    await _matchSms();
     bankNames = await db.bankNames();
     await _computeProjection();
     await _computeCards();
@@ -479,7 +481,7 @@ class AppState extends ChangeNotifier {
   /// transaction (OTP, declined…) or was already added.
   Future<bool> addSms(String sender, String body, {DateTime? at}) async {
     final when = at ?? DateTime.now();
-    if (!SmsParser.parse(body, received: when).usable) return false;
+    if (!SmsParser.parse(body, received: when).keep) return false;
     final added = await db.insertSms(sender, body, when);
     if (added) await _reloadAll();
     return added;
@@ -523,7 +525,7 @@ class AppState extends ChangeNotifier {
           latest = at.millisecondsSinceEpoch;
         }
         if (!senders.contains(_normSender(sender))) continue;
-        if (!SmsParser.parse(body, received: at).usable) continue;
+        if (!SmsParser.parse(body, received: at).keep) continue;
         if (await db.insertSms(sender, body, at)) added++;
       }
       await db.setSetting('sms_since', '$latest');
@@ -553,7 +555,7 @@ class AppState extends ChangeNotifier {
               ? DateTime.fromMillisecondsSinceEpoch((m['at'] as num).toInt())
               : DateTime.now();
           if (text.trim().isEmpty) continue;
-          if (!SmsParser.parse(text, received: at).usable) continue;
+          if (!SmsParser.parse(text, received: at).keep) continue;
           if (await db.insertSms((m['from'] as String?) ?? '', text, at)) added++;
         } catch (_) {}
       }
@@ -587,6 +589,153 @@ class AppState extends ChangeNotifier {
 
   Future<int?> suggestCategory(String payee, TxType type) =>
       db.lastCategoryForPayee(payee, type);
+
+  // ---------------- Merchant rules ----------------
+
+  List<MerchantRule> merchantRules = [];
+
+  MerchantRule? ruleFor(String rawPayee) {
+    final k = MerchantRule.keyOf(rawPayee);
+    if (k.isEmpty) return null;
+    return merchantRules.where((r) => r.merchant == k).firstOrNull;
+  }
+
+  /// After a bank message was added: remember the clean name, category
+  /// and account chosen for that merchant, to fill in next time.
+  Future<void> rememberMerchant(String rawPayee, Txn t) async {
+    if (t.type == TxType.transfer) return;
+    final k = MerchantRule.keyOf(rawPayee);
+    if (k.isEmpty) return;
+    final name = t.payee.trim();
+    await db.saveMerchantRule(MerchantRule(
+      merchant: k,
+      payee: name.toLowerCase() == rawPayee.trim().toLowerCase() ? '' : name,
+      categoryId: t.categoryId,
+      accountId: t.accountId,
+    ));
+    merchantRules = await db.merchantRules();
+    notifyListeners();
+  }
+
+  Future<void> saveMerchantRule(MerchantRule r) async {
+    await db.saveMerchantRule(r);
+    merchantRules = await db.merchantRules();
+    notifyListeners();
+  }
+
+  Future<void> deleteMerchantRule(String merchant) async {
+    await db.deleteMerchantRule(merchant);
+    merchantRules = await db.merchantRules();
+    notifyListeners();
+  }
+
+  // ---------------- Matching bank messages ----------------
+
+  /// Money out of one of your accounts and the same amount into another on
+  /// the same day: message id → the other message's id.
+  Map<int, int> smsPair = {};
+
+  /// Messages that look already added: message id → the transaction.
+  Map<int, Txn> smsDuplicate = {};
+
+  static DateTime _day(DateTime d) => DateTime(d.year, d.month, d.day);
+
+  Future<void> _matchSms() async {
+    smsPair = {};
+    smsDuplicate = {};
+    final items = <(SmsItem, ParsedSms, int?)>[];
+    for (final m in smsPending) {
+      final p = SmsParser.parse(m.body, received: m.receivedAt);
+      if (!p.usable) continue;
+      items.add((m, p, smsAccountFor(p, m.sender)));
+    }
+    if (items.isEmpty) return;
+    items.sort((a, b) => a.$2.date!.compareTo(b.$2.date!));
+    bool same(double a, double b) => (a - b).abs() < 0.005;
+
+    // 1. Pairs between two of your accounts, same day.
+    for (final (out, po, ao) in items) {
+      if (po.credit || ao == null || smsPair.containsKey(out.id)) continue;
+      for (final (inn, pi, ai) in items) {
+        if (!pi.credit || ai == null || ai == ao) continue;
+        if (smsPair.containsKey(inn.id)) continue;
+        if (pi.currency != po.currency || !same(pi.amount!, po.amount!)) continue;
+        if (_day(pi.date!) != _day(po.date!)) continue;
+        smsPair[out.id] = inn.id;
+        smsPair[inn.id] = out.id;
+        break;
+      }
+    }
+
+    // 2. Already in the app: same account, amount, direction and day.
+    final from = _day(items.first.$2.date!);
+    final to = _day(items.last.$2.date!).add(const Duration(days: 1));
+    final txns = await db.txnsBetween(from, to);
+    // Split payments count as one payment of their total.
+    final splitTotals = <int, double>{};
+    for (final t in txns) {
+      if (t.splitId != null) {
+        splitTotals[t.splitId!] = (splitTotals[t.splitId!] ?? 0) + t.amount;
+      }
+    }
+    final used = <int>{};
+    final usedSplits = <int>{};
+    for (final (m, p, acc) in items) {
+      final day = _day(p.date!);
+      for (final t in txns) {
+        if (used.contains(t.id) || _day(t.date) != day) continue;
+        if (t.splitId != null && usedSplits.contains(t.splitId)) continue;
+        bool hit;
+        if (p.credit) {
+          if (t.type == TxType.income) {
+            hit = (acc == null || t.accountId == acc) &&
+                accountById(t.accountId)?.currency == p.currency &&
+                same(t.amount, p.amount!);
+          } else if (t.type == TxType.transfer) {
+            hit = t.toAccountId != null &&
+                (acc == null || t.toAccountId == acc) &&
+                accountById(t.toAccountId)?.currency == p.currency &&
+                same(t.toAmount ?? t.amount, p.amount!);
+          } else {
+            hit = false;
+          }
+        } else {
+          if (t.type == TxType.expense || t.type == TxType.transfer) {
+            final amt = t.splitId != null ? splitTotals[t.splitId!]! : t.amount;
+            hit = (acc == null || t.accountId == acc) &&
+                accountById(t.accountId)?.currency == p.currency &&
+                same(amt, p.amount!);
+          } else {
+            hit = false;
+          }
+        }
+        if (hit) {
+          smsDuplicate[m.id] = t;
+          used.add(t.id!);
+          if (t.splitId != null) usedSplits.add(t.splitId!);
+          break;
+        }
+      }
+    }
+    // A pair already added as a transfer: both look added.
+    for (final e in smsPair.entries) {
+      final t = smsDuplicate[e.key];
+      if (t != null && t.type == TxType.transfer) {
+        smsDuplicate.putIfAbsent(e.value, () => t);
+      }
+    }
+  }
+
+  /// Bank statement message vs. the app's last statement of that card.
+  CardStatement? statementFor(int? cardId, DateTime? bankDue) {
+    final c = cards[cardId];
+    final last = c?.last;
+    if (last == null) return null;
+    if (bankDue != null && _day(last.dueDate).difference(bankDue).inDays.abs() > 5) {
+      return null;
+    }
+    return last;
+  }
 
   // ---------------- Reset ----------------
 
@@ -625,6 +774,7 @@ class AppState extends ChangeNotifier {
           'plans',
           'accounts',
           'sms_inbox',
+          'merchant_rules',
         ]) {
           await tx.delete(t);
         }

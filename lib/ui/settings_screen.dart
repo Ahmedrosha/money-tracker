@@ -196,7 +196,7 @@ class SettingsScreen extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.info_outline),
             title: const Text('Expense & Wealth Tracker'),
-            subtitle: Text(tr('Version 0.40 — cards due')),
+            subtitle: Text(tr('Version 0.41 — smarter bank messages')),
           ),
         ],
       ),

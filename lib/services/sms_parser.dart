@@ -20,6 +20,9 @@ class ParsedSms {
     this.availableLimit,
     this.instaPay = false,
     this.ref = '',
+    this.statement = false,
+    this.minimumDue,
+    this.dueDate,
   });
 
   /// OTP, declined payment, promotion… nothing to record.
@@ -45,7 +48,18 @@ class ParsedSms {
   final bool instaPay;
   final String ref;
 
-  bool get usable => !ignore && amount != null && amount! > 0;
+  /// A credit card statement summary ("monthly statement has a balance of
+  /// … minimum due … due date …"). Not a transaction: [amount] is the
+  /// statement balance. Only used to compare with the app.
+  final bool statement;
+  final double? minimumDue;
+  final DateTime? dueDate;
+
+  /// A transaction that can be added.
+  bool get usable => !ignore && !statement && amount != null && amount! > 0;
+
+  /// Worth keeping in Bank Messages: a transaction or a card statement.
+  bool get keep => usable || (statement && amount != null);
 }
 
 class SmsParser {
@@ -59,8 +73,19 @@ class SmsParser {
   static final _ignore = RegExp(
       r'\bOTP\b|one[- ]time|password|passcode|verification|activation code|'
       r'\bcode is\b|declined|rejected|unsuccessful|failed|not completed|'
-      r'insufficient|رمز|كلمة (?:السر|المرور)|مرفوض|لم تتم|غير ناجحة|'
-      r'monthly statement|statement (?:has a )?balance|minimum due|كشف حساب|الحد الأدنى للسداد',
+      r'insufficient|رمز|كلمة (?:السر|المرور)|مرفوض|لم تتم|غير ناجحة',
+      caseSensitive: false);
+
+  static final _statementWords = RegExp(
+      r'monthly statement|statement (?:has a )?balance|minimum (?:due|payment)|'
+      r'كشف حساب|الحد الأدنى للسداد',
+      caseSensitive: false);
+  static final _minDue = RegExp(
+      '(?:minimum (?:due )?(?:payment|amount|due)(?: payment)?|الحد الأدنى للسداد)'
+      '\\s*(?:is|of|:|=)?\\s*(?:$_cur\\s*)?$_num',
+      caseSensitive: false);
+  static final _dueDate = RegExp(
+      r'(?:due date|before|by|تاريخ الاستحقاق|قبل)\s*(?:is|:)?\s*(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})',
       caseSensitive: false);
 
   static final _creditWords = RegExp(
@@ -171,6 +196,29 @@ class SmsParser {
 
     if (_ignore.hasMatch(text) || amount == null) {
       return ParsedSms(ignore: true, amount: amount, currency: currency);
+    }
+
+    // Card statement summary: balance, minimum and due date.
+    if (_statementWords.hasMatch(text)) {
+      final l = _last4.firstMatch(text);
+      final md = _minDue.firstMatch(text);
+      final dd = _dueDate.firstMatch(text);
+      DateTime? due;
+      if (dd != null) {
+        var y = int.parse(dd.group(3)!);
+        if (y < 100) y += 2000;
+        final mo = int.parse(dd.group(2)!), da = int.parse(dd.group(1)!);
+        if (mo >= 1 && mo <= 12 && da >= 1 && da <= 31) due = DateTime(y, mo, da);
+      }
+      return ParsedSms(
+        statement: true,
+        amount: amount,
+        currency: currency,
+        last4: l == null ? '' : (l.group(1) ?? l.group(2) ?? ''),
+        date: when,
+        minimumDue: md == null ? null : _toDouble(md.group(md.groupCount)!),
+        dueDate: due,
+      );
     }
 
     // Direction: whichever kind of word comes first.

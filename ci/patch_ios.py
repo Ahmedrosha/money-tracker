@@ -87,6 +87,8 @@ d = open(delegate).read()
 if "AddBankMessageIntent" not in d:
     if "import AppIntents" not in d:
         d = d.replace("import UIKit", "import UIKit\nimport AppIntents", 1)
+    if "import UserNotifications" not in d:
+        d = d.replace("import UIKit", "import UIKit\nimport UserNotifications", 1)
     d += '''
 
 @available(iOS 16.0, *)
@@ -120,7 +122,52 @@ struct AddBankMessageIntent: AppIntent {
     } else {
       try line.write(to: file)
     }
+    await Self.notify(message)
     return .result()
+  }
+
+  /// A short notification ("6,030.00 EGP at MY FAWRY · tap to review"),
+  /// shown only when notifications are allowed for the app.
+  static func notify(_ raw: String) async {
+    let text = raw.replacingOccurrences(of: "\\\\s+", with: " ", options: .regularExpression)
+    let lower = text.lowercased()
+    for w in ["otp", "one-time", "password", "passcode", "verification", "code is",
+              "declined", "rejected", "unsuccessful", "failed", "رمز", "مرفوض"] {
+      if lower.contains(w) { return }
+    }
+    let cur = "(EGP|USD|EUR|GBP|SAR|AED|KWD|QAR|LE|L\\\\.E\\\\.?|جم|جنيه|ج\\\\.م)"
+    let num = "([0-9][0-9 ,]*(?:\\\\.[0-9]+)?)"
+    func first(_ pattern: String) -> [String]? {
+      guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]),
+            let m = re.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) else { return nil }
+      return (0..<m.numberOfRanges).map { i in
+        guard let r = Range(m.range(at: i), in: text) else { return "" }
+        return String(text[r])
+      }
+    }
+    var amount = ""
+    if let a = first(cur + "\\\\s*" + num) { amount = a[2].trimmingCharacters(in: .whitespaces) + " " + a[1] }
+    else if let a = first(num + "\\\\s*" + cur) { amount = a[1].trimmingCharacters(in: .whitespaces) + " " + a[2] }
+    if amount.isEmpty { return }
+    let arabic = UserDefaults(suiteName: "group.com.rashad.moneytracker")?.string(forKey: "rtl") == "1"
+    let statement = lower.contains("statement") || text.contains("كشف حساب")
+    var where_ = ""
+    if !statement, let m = first("\\\\s(?:at|@)\\\\s+(.+?)(?=\\\\s+on\\\\s|\\\\.\\\\s|,|\\\\s+and\\\\s|\\\\s+Available|$)") {
+      where_ = m[1]
+    }
+    let content = UNMutableNotificationContent()
+    if statement {
+      content.title = arabic ? "كشف حساب البطاقة" : "Card statement"
+      content.body = amount + (arabic ? " · اضغط للمراجعة" : " · tap to compare with the app")
+    } else {
+      content.title = arabic ? "رسالة بنك جديدة" : "New bank message"
+      content.body = amount + (where_.isEmpty ? "" : (arabic ? " لدى " : " at ") + where_)
+        + (arabic ? " · اضغط للمراجعة" : " · tap to review")
+    }
+    content.sound = nil
+    content.userInfo = ["ewt": "sms"]
+    let req = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+    try? await UNUserNotificationCenter.current().add(req)
   }
 }
 '''

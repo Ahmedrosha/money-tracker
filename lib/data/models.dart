@@ -400,6 +400,56 @@ class AccountDetails {
       );
 }
 
+/// Remembered choices for a merchant seen in bank messages: a clean name,
+/// category and account to fill in next time (always shown before saving).
+class MerchantRule {
+  /// The merchant as the bank writes it, simplified (see [keyOf]).
+  final String merchant;
+
+  /// Name to use as the payee ('' = keep the bank's text).
+  final String payee;
+  final int? categoryId;
+  final int? accountId;
+
+  const MerchantRule({
+    required this.merchant,
+    this.payee = '',
+    this.categoryId,
+    this.accountId,
+  });
+
+  /// "CARREFOUR 1234 CAIRO" and "Carrefour-cairo" → "carrefour cairo".
+  static String keyOf(String raw) => raw
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z\u0600-\u06ff]+'), ' ')
+      .trim()
+      .replaceAll(RegExp(r'\s+'), ' ');
+
+  MerchantRule copyWith({String? payee, int? categoryId, int? accountId,
+          bool clearCategory = false, bool clearAccount = false}) =>
+      MerchantRule(
+        merchant: merchant,
+        payee: payee ?? this.payee,
+        categoryId: clearCategory ? null : (categoryId ?? this.categoryId),
+        accountId: clearAccount ? null : (accountId ?? this.accountId),
+      );
+
+  Map<String, Object?> toMap() => {
+        'merchant': merchant,
+        'payee': payee,
+        'category_id': categoryId,
+        'account_id': accountId,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      };
+
+  factory MerchantRule.fromMap(Map<String, Object?> m) => MerchantRule(
+        merchant: m['merchant'] as String,
+        payee: (m['payee'] as String?) ?? '',
+        categoryId: m['category_id'] as int?,
+        accountId: m['account_id'] as int?,
+      );
+}
+
 /// A bank message waiting in "Bank Messages".
 class SmsItem {
   final int id;

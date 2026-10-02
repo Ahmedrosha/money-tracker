@@ -39,7 +39,7 @@ class AppDb {
 
   final Database db;
 
-  static const int schemaVersion = 16;
+  static const int schemaVersion = 17;
 
   static Future<String> dbPath() async =>
       p.join(await getDatabasesPath(), 'money_tracker.db');
@@ -122,6 +122,7 @@ class AppDb {
         await _migrateToV14(db);
         await _migrateToV15(db);
         await _migrateToV16(db);
+        await _migrateToV17(db);
         await _seed(db);
       },
       onUpgrade: (db, oldV, newV) async {
@@ -140,6 +141,7 @@ class AppDb {
         if (oldV < 14) await _migrateToV14(db);
         if (oldV < 15) await _migrateToV15(db);
         if (oldV < 16) await _migrateToV16(db);
+        if (oldV < 17) await _migrateToV17(db);
       },
     );
     return AppDb._(db);
@@ -394,6 +396,19 @@ class AppDb {
     await db.execute('ALTER TABLE transactions ADD COLUMN split_id INTEGER');
   }
 
+  /// What to fill in for a merchant seen in bank messages.
+  static Future<void> _migrateToV17(Database db) async {
+    await db.execute('''
+      CREATE TABLE merchant_rules (
+        merchant TEXT PRIMARY KEY,
+        payee TEXT NOT NULL DEFAULT '',
+        category_id INTEGER,
+        account_id INTEGER,
+        updated_at INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+  }
+
   static Future<void> _seed(Database db) async {
     const expense = [
       ['Food & Dining', 'food', 0xFFFB8C00],
@@ -510,6 +525,26 @@ class AppDb {
     final rows = await db.query('sms_inbox',
         where: "status = 'dismissed'", orderBy: 'received_at DESC', limit: 300);
     return rows.map(SmsItem.fromMap).toList();
+  }
+
+  Future<List<MerchantRule>> merchantRules() async {
+    final rows = await db.query('merchant_rules', orderBy: 'merchant');
+    return rows.map(MerchantRule.fromMap).toList();
+  }
+
+  Future<void> saveMerchantRule(MerchantRule r) => db.insert(
+      'merchant_rules', r.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace);
+
+  Future<void> deleteMerchantRule(String merchant) => db.delete(
+      'merchant_rules', where: 'merchant = ?', whereArgs: [merchant]);
+
+  /// Transactions dated from [from] (inclusive) to [to] (exclusive).
+  Future<List<Txn>> txnsBetween(DateTime from, DateTime to) async {
+    final rows = await db.query('transactions',
+        where: 'date >= ? AND date < ?',
+        whereArgs: [from.millisecondsSinceEpoch, to.millisecondsSinceEpoch]);
+    return rows.map(Txn.fromMap).toList();
   }
 
   Future<void> setSmsStatus(int id, String status) => db.update(

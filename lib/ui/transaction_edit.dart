@@ -33,6 +33,7 @@ class TransactionEditScreen extends StatefulWidget {
     this.initialNote,
     this.initialPayee,
     this.initialCategoryId,
+    this.onSaved,
   });
 
   final Txn? txn;
@@ -49,6 +50,9 @@ class TransactionEditScreen extends StatefulWidget {
   final String? initialNote;
   final String? initialPayee;
   final int? initialCategoryId;
+
+  /// Called with the entry as saved (e.g. to remember a merchant's choices).
+  final void Function(Txn saved)? onSaved;
 
   @override
   State<TransactionEditScreen> createState() => _TransactionEditScreenState();
@@ -780,6 +784,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
             note: 'Fee for $what (${fmtAmountRaw(amount.abs())})');
       }
     }
+    widget.onSaved?.call(template);
     if (!mounted) return;
     Navigator.pop(context, true);
   }

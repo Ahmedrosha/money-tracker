@@ -9,6 +9,7 @@ import '../services/sms_parser.dart';
 import '../services/sms_reader.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
+import 'merchant_rules_screen.dart';
 import 'transaction_edit.dart';
 import 'widgets.dart';
 
@@ -100,6 +101,12 @@ class _SmsInboxScreenState extends State<SmsInboxScreen> {
                   : const Icon(Icons.refresh),
               onPressed: _busy ? null : _readNow,
             ),
+          IconButton(
+            tooltip: tr('Merchant Rules'),
+            icon: const Icon(Icons.storefront_outlined),
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const MerchantRulesScreen())),
+          ),
           IconButton(
             tooltip: tr('Paste a bank message'),
             icon: const Icon(Icons.content_paste),
@@ -262,7 +269,16 @@ class _SmsCardState extends State<_SmsCard> {
     final type = transfer
         ? TxType.transfer
         : (p.credit ? TxType.income : TxType.expense);
-    final cat = transfer ? null : await state.suggestCategory(p.payee, type);
+    // Choices remembered for this merchant fill the form; nothing is saved
+    // until Save.
+    final rule = transfer ? null : state.ruleFor(p.payee);
+    var cat = rule?.categoryId;
+    if (cat != null && state.categoryById(cat)?.kind != type) cat = null;
+    cat ??= transfer ? null : await state.suggestCategory(
+        rule != null && rule.payee.isNotEmpty ? rule.payee : p.payee, type);
+    final ruleAcc = rule?.accountId;
+    final acc = accountId ??
+        (ruleAcc != null && state.accountById(ruleAcc) != null ? ruleAcc : null);
     if (!mounted) return;
     final saved = await Navigator.push<bool>(
       context,
@@ -270,19 +286,51 @@ class _SmsCardState extends State<_SmsCard> {
         builder: (_) => TransactionEditScreen(
           initialType: type,
           // A transfer received: this account is the destination.
-          initialAccountId: transfer ? null : accountId,
-          initialToAccountId: transfer ? accountId : null,
+          initialAccountId: transfer ? null : acc,
+          initialToAccountId: transfer ? acc : null,
           initialDate: p.date,
           initialAmount: p.amount,
-          initialPayee: transfer ? null : p.payee,
+          initialPayee: transfer
+              ? null
+              : (rule != null && rule.payee.isNotEmpty ? rule.payee : p.payee),
           initialCategoryId: cat,
           initialNote: p.instaPay
               ? 'InstaPay${p.ref.isEmpty ? '' : ' · Ref ${p.ref}'}${transfer && p.payee.isNotEmpty ? ' · ${p.payee}' : ''}'
               : (p.ref.isEmpty ? null : 'Ref ${p.ref}'),
+          onSaved: transfer || p.payee.isEmpty
+              ? null
+              : (t) => state.rememberMerchant(p.payee, t),
         ),
       ),
     );
     if (saved == true) await state.setSmsStatus(widget.item.id, 'added');
+  }
+
+  /// Two messages for one movement between your accounts: one transfer.
+  Future<void> _addPair(AppState state, SmsItem other, ParsedSms p,
+      int fromId, int toId) async {
+    final o = SmsParser.parse(other.body, received: other.receivedAt);
+    final ref = p.ref.isNotEmpty ? p.ref : o.ref;
+    final saved = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TransactionEditScreen(
+          initialType: TxType.transfer,
+          initialAccountId: fromId,
+          initialToAccountId: toId,
+          initialDate: p.credit ? o.date : p.date,
+          initialAmount: p.amount,
+          initialNote: [
+            if (p.instaPay || o.instaPay) 'InstaPay',
+            if (ref.isNotEmpty) 'Ref $ref',
+          ].join(' · '),
+        ),
+      ),
+    );
+    if (saved == true) {
+      await state.setSmsStatus(other.id, 'added');
+      await state.setSmsStatus(widget.item.id, 'added');
+    }
   }
 
   @override
@@ -294,6 +342,8 @@ class _SmsCardState extends State<_SmsCard> {
     final p = SmsParser.parse(m.body, received: m.receivedAt);
     final accountId = state.smsAccountFor(p, m.sender);
     final account = state.accountById(accountId);
+
+    if (p.statement) return _statement(context, state, p, account);
 
     // Does the bank's balance match the app once this is added?
     String? check;
@@ -308,6 +358,23 @@ class _SmsCardState extends State<_SmsCard> {
         }
       }
     }
+
+    // Same amount out of one of your accounts and into another today.
+    final pairId = widget.archived ? null : state.smsPair[m.id];
+    final pair = pairId == null
+        ? null
+        : state.smsPending.where((x) => x.id == pairId).firstOrNull;
+    int? fromId, toId;
+    if (pair != null) {
+      final otherAcc = state.smsAccountFor(
+          SmsParser.parse(pair.body, received: pair.receivedAt), pair.sender);
+      fromId = p.credit ? otherAcc : accountId;
+      toId = p.credit ? accountId : otherAcc;
+    }
+    final dup = widget.archived ? null : state.smsDuplicate[m.id];
+    final rule = state.ruleFor(p.payee);
+    final shownPayee =
+        rule != null && rule.payee.isNotEmpty ? rule.payee : p.payee;
 
     final color = p.credit ? Colors.green.shade700 : scheme.error;
     return Card(
@@ -327,8 +394,8 @@ class _SmsCardState extends State<_SmsCard> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        p.payee.isNotEmpty
-                            ? p.payee
+                        shownPayee.isNotEmpty
+                            ? shownPayee
                             : (p.credit ? tr('Money in') : tr('Money out')),
                         style: theme.textTheme.titleMedium,
                       ),
@@ -357,18 +424,49 @@ class _SmsCardState extends State<_SmsCard> {
                 ),
               ],
             ),
-            if (check != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8, right: 6),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(Icons.warning_amber_rounded, size: 18, color: scheme.tertiary),
-                    const SizedBox(width: 6),
-                    Expanded(child: Text(check, style: theme.textTheme.bodySmall)),
-                  ],
-                ),
+            if (dup != null)
+              _note(
+                context,
+                Icons.content_copy_outlined,
+                tr('Looks already added: ${_txnLabel(state, dup)}'),
+                [
+                  TextButton(
+                    onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => TransactionEditScreen(txn: dup))),
+                    child: Text(tr('View')),
+                  ),
+                  TextButton(
+                    onPressed: () async {
+                      await state.setSmsStatus(m.id, 'added');
+                      if (pair != null &&
+                          dup.type == TxType.transfer &&
+                          state.smsDuplicate[pair.id]?.id == dup.id) {
+                        await state.setSmsStatus(pair.id, 'added');
+                      }
+                    },
+                    child: Text(tr('Already Added')),
+                  ),
+                ],
+                scheme.tertiary,
+              )
+            else if (pair != null && fromId != null && toId != null)
+              _note(
+                context,
+                Icons.swap_horiz,
+                tr('Looks like a transfer between your accounts: ${state.accountById(fromId)?.name ?? ''} → ${state.accountById(toId)?.name ?? ''} (same amount, same day)'),
+                [
+                  FilledButton.tonal(
+                    onPressed: () => _addPair(state, pair, p, fromId!, toId!),
+                    child: Text(tr('Add as One Transfer')),
+                  ),
+                ],
+                scheme.primary,
               ),
+            if (check != null)
+              _note(context, Icons.warning_amber_rounded, check, const [],
+                  scheme.tertiary),
             if (_showText)
               Padding(
                 padding: const EdgeInsets.only(top: 8, right: 6),
@@ -381,18 +479,7 @@ class _SmsCardState extends State<_SmsCard> {
                   child: Text(_showText ? tr('Hide Message') : tr('Show Message')),
                 ),
                 const Spacer(),
-                if (widget.archived)
-                  IconButton(
-                    tooltip: tr('Restore'),
-                    icon: const Icon(Icons.unarchive_outlined),
-                    onPressed: () => state.setSmsStatus(m.id, 'pending'),
-                  )
-                else
-                  IconButton(
-                    tooltip: tr('Move to Archive'),
-                    icon: const Icon(Icons.archive_outlined),
-                    onPressed: () => state.setSmsStatus(m.id, 'dismissed'),
-                  ),
+                _archiveButton(state),
                 // Money into a credit card is a payment: a transfer.
                 if (p.credit && account?.type == AccountType.creditCard)
                   FilledButton(
@@ -410,6 +497,187 @@ class _SmsCardState extends State<_SmsCard> {
                     child: Text(tr('Add')),
                   ),
                 ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _archiveButton(AppState state) => widget.archived
+      ? IconButton(
+          tooltip: tr('Restore'),
+          icon: const Icon(Icons.unarchive_outlined),
+          onPressed: () => state.setSmsStatus(widget.item.id, 'pending'),
+        )
+      : IconButton(
+          tooltip: tr('Move to Archive'),
+          icon: const Icon(Icons.archive_outlined),
+          onPressed: () => state.setSmsStatus(widget.item.id, 'dismissed'),
+        );
+
+  String _txnLabel(AppState state, Txn t) {
+    final what = t.type == TxType.transfer
+        ? '${state.accountById(t.accountId)?.name ?? ''} → ${state.accountById(t.toAccountId)?.name ?? ''}'
+        : (t.payee.isNotEmpty
+            ? t.payee
+            : (state.categoryById(t.categoryId)?.name ?? tr(t.type == TxType.income ? 'Income' : 'Expense')));
+    final h = t.date.hour.toString().padLeft(2, '0');
+    final mi = t.date.minute.toString().padLeft(2, '0');
+    return '$what · ${dayFmt.format(t.date)} $h:$mi';
+  }
+
+  Widget _note(BuildContext context, IconData icon, String text,
+      List<Widget> actions, Color color) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, right: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, size: 18, color: color),
+              const SizedBox(width: 6),
+              Expanded(child: Text(text, style: theme.textTheme.bodySmall)),
+            ],
+          ),
+          if (actions.isNotEmpty)
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: Wrap(spacing: 4, children: actions),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// A card's monthly statement message: compared with the app, never
+  /// changes anything.
+  Widget _statement(BuildContext context, AppState state, ParsedSms p,
+      Account? card) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final isCard = card?.type == AccountType.creditCard;
+    final st = isCard ? state.statementFor(card!.id, p.dueDate) : null;
+    final cur = p.currency;
+    final lines = <(String, bool)>[]; // text, ok
+    if (card == null || !isCard) {
+      lines.add((
+        p.last4.isEmpty
+            ? tr('No credit card found for this message')
+            : tr('No credit card ends in ${p.last4}'),
+        false
+      ));
+    } else if (st == null) {
+      lines.add((tr('The app has no statement for this due date yet'), false));
+    } else if (card.currency != cur) {
+      lines.add((tr('Different currency from the card in the app'), false));
+    } else {
+      final okAmount = (st.amount - p.amount!).abs() < 1;
+      lines.add((
+        okAmount
+            ? tr('Statement amount matches the app')
+            : tr('App statement: ${fmtMoney(st.amount, cur)} (bank: ${fmtMoney(p.amount!, cur)})'),
+        okAmount
+      ));
+      if (p.minimumDue != null) {
+        final appMin = st.amount * st.minPct / 100;
+        final okMin = (appMin - p.minimumDue!).abs() < 1;
+        lines.add((
+          okMin
+              ? tr('Minimum matches the app')
+              : tr('App minimum: ${fmtMoney(appMin, cur)} (bank: ${fmtMoney(p.minimumDue!, cur)})'),
+          okMin
+        ));
+      }
+      if (p.dueDate != null) {
+        final okDue = DateTime(st.dueDate.year, st.dueDate.month, st.dueDate.day) == p.dueDate;
+        lines.add((
+          okDue
+              ? tr('Due date matches the app')
+              : tr('App due date: ${dayFmt.format(st.dueDate)} (bank: ${dayFmt.format(p.dueDate!)})'),
+          okDue
+        ));
+      }
+    }
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 8, 6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.receipt_long_outlined, color: scheme.primary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(tr('Card Statement'), style: theme.textTheme.titleMedium),
+                      const SizedBox(height: 2),
+                      Text(
+                        [
+                          if (card != null) card.fullName
+                          else if (p.last4.isNotEmpty) '•••• ${p.last4}',
+                          if (widget.item.sender.isNotEmpty) widget.item.sender,
+                        ].join(' · '),
+                        style: theme.textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        [
+                          if (p.minimumDue != null)
+                            tr('Minimum ${fmtMoney(p.minimumDue!, cur)}'),
+                          if (p.dueDate != null)
+                            tr('Due ${dayFmt.format(p.dueDate!)}'),
+                        ].join(' · '),
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                Text(fmtMoney(p.amount!, cur), style: theme.textTheme.titleMedium),
+              ],
+            ),
+            for (final (text, ok) in lines)
+              Padding(
+                padding: const EdgeInsets.only(top: 6, right: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(ok ? Icons.check_circle_outline : Icons.warning_amber_rounded,
+                        size: 18,
+                        color: ok ? Colors.green.shade700 : scheme.tertiary),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text(text, style: theme.textTheme.bodySmall)),
+                  ],
+                ),
+              ),
+            if (_showText)
+              Padding(
+                padding: const EdgeInsets.only(top: 8, right: 6),
+                child: SelectableText(widget.item.body, style: theme.textTheme.bodySmall),
+              ),
+            Row(
+              children: [
+                TextButton(
+                  onPressed: () => setState(() => _showText = !_showText),
+                  child: Text(_showText ? tr('Hide Message') : tr('Show Message')),
+                ),
+                const Spacer(),
+                if (!widget.archived)
+                  FilledButton.tonal(
+                    onPressed: () => state.setSmsStatus(widget.item.id, 'dismissed'),
+                    child: Text(tr('Done')),
+                  )
+                else
+                  _archiveButton(state),
               ],
             ),
           ],

@@ -393,15 +393,23 @@ class _SmsCardState extends State<_SmsCard> {
                     icon: const Icon(Icons.archive_outlined),
                     onPressed: () => state.setSmsStatus(m.id, 'dismissed'),
                   ),
-                if (p.credit)
-                  TextButton(
+                // Money into a credit card is a payment: a transfer.
+                if (p.credit && account?.type == AccountType.creditCard)
+                  FilledButton(
                     onPressed: () => _add(state, p, accountId, transfer: true),
-                    child: Text(tr('Transfer')),
+                    child: Text(tr('Add Card Payment')),
+                  )
+                else ...[
+                  if (p.credit)
+                    TextButton(
+                      onPressed: () => _add(state, p, accountId, transfer: true),
+                      child: Text(tr('Transfer')),
+                    ),
+                  FilledButton(
+                    onPressed: () => _add(state, p, accountId),
+                    child: Text(tr('Add')),
                   ),
-                FilledButton(
-                  onPressed: () => _add(state, p, accountId),
-                  child: Text(tr('Add')),
-                ),
+                ],
               ],
             ),
           ],

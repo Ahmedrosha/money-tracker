@@ -3,6 +3,7 @@
 // ignore_for_file: prefer_single_quotes
 
 const Map<String, String> kArabic = {
+  "Add Card Payment": "إضافة سداد البطاقة",
   "Due today": "مستحق اليوم",
   "Tomorrow": "غدًا",
   "{0} card{1} due · {2}": "{0} بطاقات مستحقة · {2}",

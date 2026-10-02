@@ -51,7 +51,7 @@ class ParsedSms {
 class SmsParser {
   static const _num = r'([0-9][0-9 ,]*(?:\.[0-9]+)?)';
   static const _cur =
-      r'(?<![A-Za-z])(EGP|USD|EUR|GBP|SAR|AED|KWD|QAR|L\.?E\.?|جنيه|ج\.م)(?![A-Za-z])';
+      r'(?<![A-Za-z])(EGP|USD|EUR|GBP|SAR|AED|KWD|QAR|L\.?E\.?|جنيه|جم|ج\.م)(?![A-Za-z])';
 
   static final _amountBefore = RegExp('$_cur\\s*$_num', caseSensitive: false);
   static final _amountAfter = RegExp('$_num\\s*$_cur', caseSensitive: false);
@@ -59,22 +59,25 @@ class SmsParser {
   static final _ignore = RegExp(
       r'\bOTP\b|one[- ]time|password|passcode|verification|activation code|'
       r'\bcode is\b|declined|rejected|unsuccessful|failed|not completed|'
-      r'insufficient|رمز|كلمة (?:السر|المرور)|مرفوض|لم تتم|غير ناجحة',
+      r'insufficient|رمز|كلمة (?:السر|المرور)|مرفوض|لم تتم|غير ناجحة|'
+      r'monthly statement|statement (?:has a )?balance|minimum due|كشف حساب|الحد الأدنى للسداد',
       caseSensitive: false);
 
   static final _creditWords = RegExp(
       r'credited|received|deposit|refund|reversal|reversed|incoming|'
       r'cash ?back|إيداع|ايداع|استلام|وارد|إضافة|اضافة|مرتجع|استرداد|'
-      r'تم تحويل .{0,20}إليك|لحسابك',
+      r'تم تحويل .{0,20}إليك|لحسابك|'
+      r'payment (?:received|credited)|سداد .{0,40}(?:بطاقت|الائتماني)',
       caseSensitive: false);
 
   static final _debitWords = RegExp(
       r'charged|debited|purchase|spent|withdraw|paid|payment of|'
-      r'transferred to|sent to|خصم|سحب|شراء|دفع|مدين|تحويل (?:الى|إلى)',
+      r'transferred to|sent to|خصم|سحب|شراء|دفع|مدين|تحويل (?:الى|إلى)|'
+      r'تحويل لحظي|من حسابك',
       caseSensitive: false);
 
   static final _last4 = RegExp(
-      r'(?:ending(?:\s+(?:with|in))?|#|No\.?|number|رقم|المنتهي(?:ة)? ب)\s*[*xX•.]*\s*(\d{4})\b|'
+      r'(?:ending(?:\s+(?:with|in))?|#|No\.?|number|رقم|المنتهي(?:ة)? بـ?)\s*[*xX•.]*\s*(\d{4})\b|'
       r'[*xX•]{2,}\s*(\d{4})\b',
       caseSensitive: false);
 
@@ -102,9 +105,9 @@ class SmsParser {
       caseSensitive: false);
 
   static final _instaPay =
-      RegExp(r'\bIPN\b|insta ?pay|انستا ?باي|إنستاباي', caseSensitive: false);
+      RegExp(r'\bIPN\b|insta ?pay|انستا ?باي|إنستاباي|تحويل لحظي', caseSensitive: false);
   static final _ref = RegExp(
-      r'\bRef(?:erence)?\.?\s*(?:No\.?)?\s*[:#]?\s*([A-Za-z0-9]+)',
+      r'(?:\bRef(?:erence)?\.?\s*(?:No\.?)?|(?:ب?ال?رقم )?مرجعي)\s*[:#]?\s*([A-Za-z0-9]+)',
       caseSensitive: false);
 
   static double? _toDouble(String s) {
@@ -117,7 +120,7 @@ class SmsParser {
 
   static String _currency(String c) {
     final u = c.toUpperCase().replaceAll('.', '');
-    if (u == 'LE' || c == 'جنيه' || c == 'ج.م') return 'EGP';
+    if (u == 'LE' || c == 'جنيه' || c == 'جم' || c == 'ج.م') return 'EGP';
     return u;
   }
 

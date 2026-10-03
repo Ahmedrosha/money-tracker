@@ -1964,6 +1964,11 @@ class AppState extends ChangeNotifier {
     final from = fromAccountId ?? t.payAccountId;
     if (from == null) throw Exception(tr('Choose the account you pay from'));
     final when = date ?? (row.date.isAfter(DateTime.now()) ? DateTime.now() : row.date);
+    // Paid on another day than due: keep the due date as the date it is for.
+    final sameDay = when.year == row.date.year &&
+        when.month == row.date.month &&
+        when.day == row.date.day;
+    final forDate = sameDay ? null : row.date;
     final label = 'Installment ${row.index + 1}/${t.months}';
     final payFrom = accountById(from);
     final conv = payFrom == null || payFrom.currency == loan.currency
@@ -1977,6 +1982,7 @@ class AppState extends ChangeNotifier {
       toAccountId: loan.id,
       toAmount: conv == null ? null : row.principal,
       note: '${loan.name} · $label',
+      forDate: forDate,
     ));
     if (row.interest > 0.004) {
       await db.insertTxn(Txn(
@@ -1989,6 +1995,7 @@ class AppState extends ChangeNotifier {
         categoryId: await _loanInterestCategory(),
         payee: loan.fullName,
         note: 'Interest · $label',
+        forDate: forDate,
       ));
     }
     await db.updateAccount(Account.fromMap({

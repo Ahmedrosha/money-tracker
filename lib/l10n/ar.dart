@@ -3,6 +3,11 @@
 // ignore_for_file: prefer_single_quotes
 
 const Map<String, String> kArabic = {
+  "Date you paid": "تاريخ الدفع",
+  "Paid on {0}": "دُفع في {0}",
+  "No payment recorded for this installment": "لا يوجد دفع مسجل لهذا القسط",
+  "Installment {0}": "القسط {0}",
+  "Version 0.44 — loan payment dates, rates refresh": "الإصدار 0.44 — تواريخ سداد القرض، تحديث الأسعار",
   "Totals skip these. Tap to set rates, or refresh.": "الإجماليات تتجاهلها. اضغط لتحديد الأسعار، أو حدّث.",
   "Couldn't refresh — no internet": "تعذر التحديث — لا يوجد إنترنت",
   "{0} isn't available online — set it by hand": "{0} غير متاح على الإنترنت — حدده يدويًا",

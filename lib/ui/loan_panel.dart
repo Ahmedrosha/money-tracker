@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../data/models.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
+import 'transaction_edit.dart';
 import 'widgets.dart';
 import '../l10n/l10n.dart';
 
@@ -12,6 +14,11 @@ Future<void> payLoan(BuildContext context, Account loan, LoanRow row) async {
   final t = loan.loan!;
   var from = t.payAccountId;
   final cur = loan.currency;
+  // Due date if it has passed, otherwise today (paying ahead).
+  final now = DateTime.now();
+  var when = row.date.isAfter(now)
+      ? now
+      : DateTime(row.date.year, row.date.month, row.date.day, now.hour, now.minute);
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => StatefulBuilder(
@@ -38,6 +45,30 @@ Future<void> payLoan(BuildContext context, Account loan, LoanRow row) async {
               value: from,
               onChanged: (v) => setS(() => from = v),
             ),
+            const SizedBox(height: 12),
+            InkWell(
+              borderRadius: BorderRadius.circular(4),
+              onTap: () async {
+                final d = await showDatePicker(
+                  context: ctx,
+                  initialDate: when,
+                  firstDate: DateTime(2000),
+                  lastDate: DateTime(2100),
+                  helpText: tr('Date you paid'),
+                );
+                if (d != null) {
+                  setS(() => when = DateTime(d.year, d.month, d.day, when.hour, when.minute));
+                }
+              },
+              child: InputDecorator(
+                decoration: InputDecoration(
+                  labelText: tr('Paid on'),
+                  border: const OutlineInputBorder(),
+                  suffixIcon: const Icon(Icons.calendar_today),
+                ),
+                child: Text(dayFmt.format(when)),
+              ),
+            ),
           ],
         ),
         actions: [
@@ -52,7 +83,7 @@ Future<void> payLoan(BuildContext context, Account loan, LoanRow row) async {
     ),
   );
   if (ok != true || from == null) return;
-  await state.payLoanInstallment(loan, row, fromAccountId: from);
+  await state.payLoanInstallment(loan, row, fromAccountId: from, date: when);
   if (context.mounted) showSnack(context, tr('Installment ${row.index + 1} recorded'));
 }
 
@@ -180,6 +211,10 @@ class LoanPanel extends StatelessWidget {
       );
 }
 
+/// "01 October 2026".
+String dayLongFmt(DateTime d) =>
+    DateFormat('dd MMMM yyyy').format(d);
+
 /// Every installment with its status.
 class LoanScheduleScreen extends StatelessWidget {
   const LoanScheduleScreen({super.key, required this.accountId});
@@ -199,6 +234,20 @@ class LoanScheduleScreen extends StatelessWidget {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day + 1);
     final interest = t.mode == LoanMode.interest;
+    return FutureBuilder<Map<int, List<Txn>>>(
+      // Reloads after every change (state.version).
+      key: ValueKey(state.version),
+      future: state.db.loanPayments(a.id!, a.fullName),
+      builder: (context, snap) {
+        final payments = snap.data ?? const <int, List<Txn>>{};
+        return _schedule(context, state, a, t, rows, cur, today, interest, payments);
+      },
+    );
+  }
+
+  Widget _schedule(BuildContext context, AppState state, Account a, LoanTerms t,
+      List<LoanRow> rows, String cur, DateTime today, bool interest,
+      Map<int, List<Txn>> payments) {
     return Scaffold(
       appBar: AppBar(title: Text(tr('${a.name} Schedule'))),
       body: ListView.separated(
@@ -208,6 +257,8 @@ class LoanScheduleScreen extends StatelessWidget {
         itemBuilder: (context, i) {
           final r = rows[i];
           final paid = i < t.nextIndex;
+          final entries = payments[i] ?? const <Txn>[];
+          final paidOn = entries.isEmpty ? null : entries.first.date;
           final due = !paid && r.date.isBefore(today);
           final isNext = i == t.nextIndex;
           return ListTile(
@@ -235,14 +286,57 @@ class LoanScheduleScreen extends StatelessWidget {
               ],
             ),
             subtitle: Text(
-                '${shortDateFmt.format(r.date)} · ${paid ? tr('Paid') : due ? tr('Due') : tr('Upcoming')}'
+                '${paid ? tr('Due ${shortDateFmt.format(r.date)}') : shortDateFmt.format(r.date)} · '
+                '${paid ? (paidOn == null ? tr('Paid') : tr('Paid on ${dayLongFmt(paidOn)}')) : due ? tr('Due') : tr('Upcoming')}'
                 '${interest ? tr('\nPrincipal ${fmtAmount(r.principal)} · interest ${fmtAmount(r.interest)}') : ''}'),
             isThreeLine: interest,
             trailing: Text(tr('Left ${fmtAmount(r.balanceAfter)}'),
                 style: Theme.of(context).textTheme.bodySmall),
-            onTap: isNext ? () => payLoan(context, a, r) : null,
+            onTap: paid
+                ? () => _openPayment(context, state, r, entries)
+                : (isNext ? () => payLoan(context, a, r) : null),
           );
         },
+      ),
+    );
+  }
+
+  /// A paid installment: open its entry, or choose between payment and
+  /// interest.
+  Future<void> _openPayment(BuildContext context, AppState state, LoanRow r,
+      List<Txn> entries) async {
+    if (entries.isEmpty) {
+      showSnack(context, tr('No payment recorded for this installment'));
+      return;
+    }
+    void open(Txn t) => Navigator.push(context,
+        MaterialPageRoute(builder: (_) => TransactionEditScreen(txn: t)));
+    if (entries.length == 1) {
+      open(entries.first);
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: Text(tr('Installment ${r.index + 1}')),
+              subtitle: Text(tr('Paid on ${dayLongFmt(entries.first.date)}')),
+            ),
+            for (final t in entries)
+              TxnTile(
+                txn: t,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  open(t);
+                },
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     );
   }

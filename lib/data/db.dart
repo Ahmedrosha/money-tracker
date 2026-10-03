@@ -585,6 +585,26 @@ class AppDb {
     return fee.isNotEmpty;
   }
 
+  /// Recorded loan installments: index (0-based) → its entries (the
+  /// payment into the loan and, for interest loans, the interest).
+  Future<Map<int, List<Txn>>> loanPayments(int loanId, String loanFullName) async {
+    final rows = await db.rawQuery('''
+      SELECT * FROM transactions
+      WHERE (type = 'transfer' AND to_account_id = ? AND note LIKE '%Installment %')
+         OR (type = 'expense' AND payee = ? AND note LIKE 'Interest · Installment %')
+      ORDER BY date
+    ''', [loanId, loanFullName]);
+    final out = <int, List<Txn>>{};
+    final re = RegExp(r'Installment (\d+)/');
+    for (final r in rows) {
+      final t = Txn.fromMap(r);
+      final m = re.firstMatch(t.note);
+      if (m == null) continue;
+      out.putIfAbsent(int.parse(m.group(1)!) - 1, () => []).add(t);
+    }
+    return out;
+  }
+
   Future<void> setSmsStatus(int id, String status) => db.update(
       'sms_inbox', {'status': status},
       where: 'id = ?', whereArgs: [id]);

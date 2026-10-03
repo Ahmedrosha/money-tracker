@@ -337,6 +337,7 @@ class AppState extends ChangeNotifier {
           a.id!: await db.loanPayments(a.id!, a.fullName),
     };
     await _matchSms();
+    await _checkSubscriptions();
     bankNames = await db.bankNames();
     await _computeProjection();
     await _computeCards();
@@ -617,6 +618,181 @@ class AppState extends ChangeNotifier {
 
   Future<int?> suggestCategory(String payee, TxType type) =>
       db.lastCategoryForPayee(payee, type);
+
+  // ---------------- Subscriptions ----------------
+
+  /// Active subscriptions (recurring expenses marked as subscription).
+  List<RecurringRule> get subscriptions => rules
+      .where((r) => r.subscription && r.type == TxType.expense && r.cancelledAt == null)
+      .toList();
+
+  List<RecurringRule> get cancelledSubscriptions => rules
+      .where((r) => r.subscription && r.cancelledAt != null)
+      .toList()
+    ..sort((a, b) => b.cancelledAt!.compareTo(a.cancelledAt!));
+
+  /// Latest charge of each subscription (rule id → entry).
+  Map<int, Txn> subLatest = {};
+
+  /// Subscriptions whose latest charge differs from the usual price.
+  Map<int, Txn> subPriceChange = {};
+
+  /// Monthly cost of [r] in the main currency.
+  double subPerMonthBase(RecurringRule r) =>
+      toBase(r.perMonth, accountById(r.accountId)?.currency ?? baseCurrency);
+
+  Future<void> _checkSubscriptions() async {
+    subLatest = {};
+    subPriceChange = {};
+    for (final r in subscriptions) {
+      final charges = await db.subscriptionCharges(r);
+      if (charges.isEmpty) continue;
+      final last = charges.first;
+      subLatest[r.id!] = last;
+      if (last.id == r.subAckTxn) continue;
+      bool changed;
+      if (last.isForeign && charges.length > 1 && charges[1].isForeign &&
+          charges[1].origCurrency == last.origCurrency) {
+        // Paid in another currency: compare what was paid, not the
+        // converted charge (the rate moves every month).
+        changed = (last.origAmount! - charges[1].origAmount!).abs() > 0.009;
+      } else if (last.isForeign) {
+        changed = false;
+      } else {
+        changed = (last.amount - r.amount).abs() > 0.009;
+      }
+      if (changed) subPriceChange[r.id!] = last;
+    }
+    if (_loaded) _notifyPriceChanges();
+  }
+
+  Future<void> _notifyPriceChanges() async {
+    final s = notifSettings;
+    if (!s.enabled || subPriceChange.isEmpty) return;
+    try {
+      final done = (await db.getSetting('sub_notified') ?? '')
+          .split(',')
+          .where((x) => x.isNotEmpty)
+          .toSet();
+      var changed = false;
+      for (final e in subPriceChange.entries) {
+        final key = '${e.value.id}';
+        if (done.contains(key)) continue;
+        final r = ruleById(e.key);
+        if (r == null) continue;
+        final cur = accountById(r.accountId)?.currency ?? baseCurrency;
+        final name = r.payee.isNotEmpty ? r.payee : (categoryById(r.categoryId)?.name ?? '');
+        await notifier.showBudgetAlert(60000 + e.key, tr('Subscription price changed'),
+            tr('$name: ${fmtMoneyRaw(r.amount, cur)} → ${fmtMoneyRaw(e.value.amount, cur)}'));
+        done.add(key);
+        changed = true;
+      }
+      if (changed) await db.setSetting('sub_notified', done.join(','));
+    } catch (_) {}
+  }
+
+  /// Future charges expect the new price.
+  Future<void> useNewSubPrice(RecurringRule r, Txn latest) async {
+    await db.updateRule(r.copyWith(amount: latest.amount.abs(), subAckTxn: latest.id));
+    await _reloadAll();
+  }
+
+  /// A one-off different charge: keep the usual price, no alert.
+  Future<void> keepSubPrice(RecurringRule r, Txn latest) async {
+    await db.updateRule(r.copyWith(subAckTxn: latest.id));
+    await _reloadAll();
+  }
+
+  /// Ends the subscription today.
+  Future<void> cancelSubscription(RecurringRule r) async {
+    final now = DateTime.now();
+    await db.updateRule(r.copyWith(
+        cancelledAt: now, endType: EndType.date, endDate: now));
+    await _reloadAll();
+  }
+
+  /// Payees charged about the same amount once a month for 3+ months in a
+  /// row, not yet a recurring item.
+  Future<List<SubCandidate>> findSubscriptionCandidates() async {
+    final now = DateTime.now();
+    final from = DateTime(now.year, now.month - 6, 1);
+    final txns = await db.payeeExpensesSince(from);
+    final known = {for (final r in rules) r.payee.trim().toLowerCase()};
+    final dismissed = (await db.getSetting('sub_dismissed') ?? '')
+        .split('\n')
+        .where((x) => x.isNotEmpty)
+        .toSet();
+    final groups = <String, List<Txn>>{};
+    for (final t in txns) {
+      final p = t.payee.trim().toLowerCase();
+      if (known.contains(p) || dismissed.contains(p)) continue;
+      groups.putIfAbsent('$p|${t.accountId}', () => []).add(t);
+    }
+    final out = <SubCandidate>[];
+    for (final g in groups.values) {
+      // One charge per month only.
+      final byMonth = <int, Txn>{};
+      var multi = false;
+      for (final t in g) {
+        final k = t.date.year * 12 + t.date.month;
+        if (byMonth.containsKey(k)) multi = true;
+        byMonth[k] = t;
+      }
+      if (multi || byMonth.length < 3) continue;
+      final months = byMonth.keys.toList()..sort();
+      // The latest run of consecutive months.
+      var run = 1;
+      for (var i = months.length - 1; i > 0; i--) {
+        if (months[i] - months[i - 1] == 1) {
+          run++;
+        } else {
+          break;
+        }
+      }
+      if (run < 3) continue;
+      final last = byMonth[months.last]!;
+      if (now.difference(last.date).inDays > 45) continue;
+      final recent = [for (final m in months.sublist(months.length - run)) byMonth[m]!];
+      final amounts = recent.map((t) => t.amount.abs()).toList()..sort();
+      final mid = amounts[amounts.length ~/ 2];
+      if (mid <= 0 || amounts.any((a) => (a - mid).abs() > mid * 0.10)) continue;
+      out.add(SubCandidate(last, run));
+    }
+    out.sort((a, b) => a.last.payee.toLowerCase().compareTo(b.last.payee.toLowerCase()));
+    return out;
+  }
+
+  /// Turns a found payee into a monthly subscription from its next date.
+  Future<void> makeSubscription(SubCandidate c) async {
+    final t = c.last;
+    final next = DateTime(t.date.year, t.date.month + 1, 1);
+    final days = DateTime(next.year, next.month + 1, 0).day;
+    final start = DateTime(next.year, next.month,
+        t.date.day > days ? days : t.date.day, t.date.hour, t.date.minute);
+    await db.insertRule(RecurringRule(
+      type: TxType.expense,
+      amount: t.amount.abs(),
+      accountId: t.accountId,
+      categoryId: t.categoryId,
+      payee: t.payee.trim(),
+      freq: Freq.monthly,
+      start: start,
+      subscription: true,
+    ));
+    await _reloadAll();
+    await rescheduleReminders();
+  }
+
+  Future<void> dismissSubscriptionCandidate(String payee) async {
+    final list = (await db.getSetting('sub_dismissed') ?? '')
+        .split('\n')
+        .where((x) => x.isNotEmpty)
+        .toSet()
+      ..add(payee.trim().toLowerCase());
+    await db.setSetting('sub_dismissed', list.join('\n'));
+    version++;
+    notifyListeners();
+  }
 
   // ---------------- Merchant rules ----------------
 

@@ -901,6 +901,15 @@ class RecurringRule {
   final DateTime? endDate;
   final int nextIndex;
 
+  /// Shown in Subscriptions.
+  final bool subscription;
+
+  /// A charge whose different amount was seen and kept (no price alert).
+  final int? subAckTxn;
+
+  /// Subscription cancelled on this day (the rule ends then).
+  final DateTime? cancelledAt;
+
   const RecurringRule({
     this.id,
     required this.type,
@@ -918,12 +927,23 @@ class RecurringRule {
     this.endCount,
     this.endDate,
     this.nextIndex = 0,
+    this.subscription = false,
+    this.subAckTxn,
+    this.cancelledAt,
   });
 
-  RecurringRule copyWith({int? nextIndex}) => RecurringRule(
+  RecurringRule copyWith({
+    int? nextIndex,
+    double? amount,
+    int? subAckTxn,
+    DateTime? cancelledAt,
+    EndType? endType,
+    DateTime? endDate,
+  }) =>
+      RecurringRule(
         id: id,
         type: type,
-        amount: amount,
+        amount: amount ?? this.amount,
         accountId: accountId,
         toAccountId: toAccountId,
         toAmount: toAmount,
@@ -933,11 +953,26 @@ class RecurringRule {
         freq: freq,
         interval: interval,
         start: start,
-        endType: endType,
+        endType: endType ?? this.endType,
         endCount: endCount,
-        endDate: endDate,
+        endDate: endDate ?? this.endDate,
         nextIndex: nextIndex ?? this.nextIndex,
+        subscription: subscription,
+        subAckTxn: subAckTxn ?? this.subAckTxn,
+        cancelledAt: cancelledAt ?? this.cancelledAt,
       );
+
+  /// Cost per month (in the account's currency).
+  double get perMonth {
+    switch (freq) {
+      case Freq.weekly:
+        return amount * 52 / 12 / interval;
+      case Freq.monthly:
+        return amount / interval;
+      case Freq.yearly:
+        return amount / 12 / interval;
+    }
+  }
 
   /// Date of occurrence [i] (0-based). Monthly/yearly keep the start day,
   /// clamped to the month's length (e.g. 31st → 30th/28th).
@@ -1014,6 +1049,9 @@ class RecurringRule {
         'end_count': endCount,
         'end_date': endDate?.millisecondsSinceEpoch,
         'next_index': nextIndex,
+        'subscription': subscription ? 1 : 0,
+        'sub_ack': subAckTxn,
+        'cancelled_at': cancelledAt?.millisecondsSinceEpoch,
       };
 
   factory RecurringRule.fromMap(Map<String, Object?> m) => RecurringRule(
@@ -1035,6 +1073,11 @@ class RecurringRule {
             ? null
             : DateTime.fromMillisecondsSinceEpoch(m['end_date'] as int),
         nextIndex: m['next_index'] as int? ?? 0,
+        subscription: (m['subscription'] as int? ?? 0) == 1,
+        subAckTxn: m['sub_ack'] as int?,
+        cancelledAt: m['cancelled_at'] == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(m['cancelled_at'] as int),
       );
 
   /// The transaction this rule would create for occurrence [i].
@@ -1050,6 +1093,14 @@ class RecurringRule {
         note: note,
         recurringId: id,
       );
+}
+
+/// A payee that looks like a subscription: its latest charge and how many
+/// months in a row it was charged.
+class SubCandidate {
+  const SubCandidate(this.last, this.months);
+  final Txn last;
+  final int months;
 }
 
 /// One not-yet-confirmed occurrence of a recurring rule.

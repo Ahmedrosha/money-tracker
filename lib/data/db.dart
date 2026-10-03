@@ -39,7 +39,7 @@ class AppDb {
 
   final Database db;
 
-  static const int schemaVersion = 20;
+  static const int schemaVersion = 21;
 
   static Future<String> dbPath() async =>
       p.join(await getDatabasesPath(), 'money_tracker.db');
@@ -126,6 +126,7 @@ class AppDb {
         await _migrateToV18(db);
         await _migrateToV19(db);
         await _migrateToV20(db);
+        await _migrateToV21(db);
         await _seed(db);
       },
       onUpgrade: (db, oldV, newV) async {
@@ -148,6 +149,7 @@ class AppDb {
         if (oldV < 18) await _migrateToV18(db);
         if (oldV < 19) await _migrateToV19(db);
         if (oldV < 20) await _migrateToV20(db);
+        if (oldV < 21) await _migrateToV21(db);
       },
     );
     return AppDb._(db);
@@ -438,6 +440,14 @@ class AppDb {
     await db.execute('ALTER TABLE accounts ADD COLUMN loan_received REAL');
   }
 
+  /// Subscriptions: recurring items marked as such.
+  static Future<void> _migrateToV21(Database db) async {
+    await db.execute(
+        'ALTER TABLE recurring ADD COLUMN subscription INTEGER NOT NULL DEFAULT 0');
+    await db.execute('ALTER TABLE recurring ADD COLUMN sub_ack INTEGER');
+    await db.execute('ALTER TABLE recurring ADD COLUMN cancelled_at INTEGER');
+  }
+
   static Future<void> _seed(Database db) async {
     const expense = [
       ['Food & Dining', 'food', 0xFFFB8C00],
@@ -590,6 +600,29 @@ class AppDb {
     final fee = await db.query('transactions',
         columns: ['id'], where: 'fee_for = ?', whereArgs: [rows.first['id']], limit: 1);
     return fee.isNotEmpty;
+  }
+
+  /// Latest expenses for a subscription (its own entries or the same payee
+  /// on the same account), newest first.
+  Future<List<Txn>> subscriptionCharges(RecurringRule r, {int limit = 2}) async {
+    final rows = await db.query('transactions',
+        where: "type = 'expense' AND fee_for IS NULL AND (recurring_id = ? OR "
+            "(LOWER(TRIM(payee)) = ? AND TRIM(payee) <> '' AND account_id = ?))",
+        whereArgs: [r.id, r.payee.trim().toLowerCase(), r.accountId],
+        orderBy: 'date DESC',
+        limit: limit);
+    return rows.map(Txn.fromMap).toList();
+  }
+
+  /// Expenses with a payee since [from] that aren't from a recurring item
+  /// (to spot subscriptions).
+  Future<List<Txn>> payeeExpensesSince(DateTime from) async {
+    final rows = await db.query('transactions',
+        where: "type = 'expense' AND recurring_id IS NULL AND fee_for IS NULL "
+            "AND split_id IS NULL AND plan_id IS NULL AND TRIM(payee) <> '' AND date >= ?",
+        whereArgs: [from.millisecondsSinceEpoch],
+        orderBy: 'date');
+    return rows.map(Txn.fromMap).toList();
   }
 
   /// Installments whose interest (loan cost) is already recorded.

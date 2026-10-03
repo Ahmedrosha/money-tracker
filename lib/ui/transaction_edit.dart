@@ -150,6 +150,9 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
 
   // Repeat
   bool _repeat = false;
+
+  /// Recurring expense shown in Subscriptions.
+  late bool _subscription = widget.rule?.subscription ?? false;
   Freq _freq = Freq.monthly;
   EndType _endType = EndType.never;
   DateTime? _endDate;
@@ -1068,6 +1071,9 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
             : null,
         endDate: _endType == EndType.date ? _endDate : null,
         nextIndex: 0,
+        subscription: _type == TxType.expense && _subscription,
+        subAckTxn: widget.rule?.subAckTxn,
+        cancelledAt: widget.rule?.cancelledAt,
       );
       if (_mode == _Mode.editRule) {
         await state.updateRule(rule);
@@ -1911,6 +1917,15 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
             _repeat = v;
             if (v) _installments = false;
           }),
+        ),
+      if (_repeat && _type == TxType.expense)
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          secondary: const Icon(Icons.subscriptions_outlined),
+          title: Text(tr('Subscription')),
+          subtitle: Text(tr('Show in Subscriptions, with price-change alerts')),
+          value: _subscription,
+          onChanged: (v) => setState(() => _subscription = v),
         ),
       if (_repeat) ...[
         const SizedBox(height: 8),

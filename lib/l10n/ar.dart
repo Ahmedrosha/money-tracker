@@ -3,6 +3,8 @@
 // ignore_for_file: prefer_single_quotes
 
 const Map<String, String> kArabic = {
+  "Spent from accounts not in totals": "مصروف من حسابات خارج الإجماليات",
+  "Earned in accounts not in totals": "دخل في حسابات خارج الإجماليات",
   "Deleted account": "حساب محذوف",
   "What you saved": "ما وفرته",
   "Moved in from {0} (not in totals)": "محوّل من {0} (خارج الإجماليات)",

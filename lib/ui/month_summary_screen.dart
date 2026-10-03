@@ -239,23 +239,33 @@ class _MonthSummaryScreenState extends State<MonthSummaryScreen> {
   /// moved from or to accounts left out of totals (e.g. a loan or an
   /// excluded account).
   List<Widget> _netWorthWhy(BuildContext context, _Summary s, String cur) {
-    final saved = s.saved - s.uncountedSaved;
     final moved = s.movedIn.values.fold<double>(0, (a, b) => a + b);
-    if ((s.netWorthChange - saved).abs() < 1) return const [];
-    final other = s.netWorthChange - saved - moved;
-    final small = Theme.of(context).textTheme.bodySmall;
+    // Income and spending on accounts left out of totals are in "saved" but
+    // not in net worth.
+    final outside = -s.uncountedSaved;
+    if ((s.netWorthChange - s.saved).abs() < 1) return const [];
+    final other = s.netWorthChange - s.saved - outside - moved;
+    final theme = Theme.of(context);
+    // Same size as the other lines, in a softer colour.
+    final style = theme.textTheme.bodyMedium?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant);
     String sign(double v) => '${v >= 0 ? '+' : ''}${fmtMoney(v, cur)}';
     Widget line(String l, double v) => Padding(
-          padding: const EdgeInsetsDirectional.only(start: 12, top: 1),
+          padding: const EdgeInsetsDirectional.only(start: 14, top: 3, bottom: 3),
           child: Row(children: [
-            Expanded(child: Text(l, style: small, maxLines: 1, overflow: TextOverflow.ellipsis)),
-            Text(sign(v), style: small),
+            Expanded(child: Text(l, style: style, maxLines: 1, overflow: TextOverflow.ellipsis)),
+            const SizedBox(width: 8),
+            Text(sign(v), style: style),
           ]),
         );
     final names = s.movedIn.entries.toList()
       ..sort((a, b) => b.value.abs().compareTo(a.value.abs()));
     return [
-      line(tr('What you saved'), saved),
+      line(tr('What you saved'), s.saved),
+      if (outside.abs() >= 1)
+        line(outside >= 0
+            ? tr('Spent from accounts not in totals')
+            : tr('Earned in accounts not in totals'), outside),
       for (final e in names.take(3))
         line(e.value >= 0
             ? tr('Moved in from ${e.key} (not in totals)')

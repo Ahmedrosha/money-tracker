@@ -335,12 +335,12 @@ class RewardsSetupScreen extends StatefulWidget {
 class _RewardsSetupScreenState extends State<RewardsSetupScreen> {
   late final CardRewards? _old =
       AppScope.read(context).cardRewards[widget.account.id];
-  late final _points = TextEditingController(text: _old == null ? '1' : _plain(_old!.points));
-  late final _per = TextEditingController(text: _old == null ? '10' : _plain(_old!.per));
+  late final _points = TextEditingController(text: _old == null ? '1' : _plain(_old.points));
+  late final _per = TextEditingController(text: _old == null ? '10' : _plain(_old.per));
   late final _valuePoints =
-      TextEditingController(text: _old == null ? '1000' : _plain(_old!.valuePoints));
+      TextEditingController(text: _old == null ? '1000' : _plain(_old.valuePoints));
   late final _valueMoney =
-      TextEditingController(text: _old == null ? '' : _plain(_old!.valueMoney));
+      TextEditingController(text: _old == null ? '' : _plain(_old.valueMoney));
   final _start = TextEditingController();
   late final List<_CatRate> _cats = [
     for (final e in (_old?.categoryPoints ?? const <int, double>{}).entries)

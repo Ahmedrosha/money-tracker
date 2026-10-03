@@ -128,7 +128,10 @@ class _MonthSummaryScreenState extends State<MonthSummaryScreen> {
       final name = 'Summary ${_ym(_month)}.pdf';
       final f = File('${dir.path}/$name');
       await f.writeAsBytes(await doc.save());
-      await Share.shareXFiles([XFile(f.path)], subject: tr('${monthFmt.format(_month)} summary'));
+      if (!mounted) return;
+      await Share.shareXFiles([XFile(f.path)],
+          subject: tr('${monthFmt.format(_month)} summary'),
+          sharePositionOrigin: shareOrigin(context));
     } catch (e) {
       if (mounted) showSnack(context, tr('Could not share: $e'));
     } finally {

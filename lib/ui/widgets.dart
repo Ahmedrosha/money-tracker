@@ -1167,3 +1167,16 @@ class _TagsFieldState extends State<TagsField> {
     );
   }
 }
+
+/// Where the share sheet points from (required on iPhone/iPad): the
+/// tapped widget, or the middle of the screen.
+Rect shareOrigin(BuildContext context) {
+  final box = context.findRenderObject();
+  if (box is RenderBox && box.hasSize && box.size.width > 0 && box.size.height > 0) {
+    final o = box.localToGlobal(Offset.zero);
+    return o & box.size;
+  }
+  final size = MediaQuery.sizeOf(context);
+  return Rect.fromCenter(
+      center: Offset(size.width / 2, size.height / 2), width: 1, height: 1);
+}

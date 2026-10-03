@@ -12,7 +12,8 @@ import 'widgets.dart';
 Future<void> shareExcel(BuildContext context, Future<String> Function() make) async {
   try {
     final path = await make();
-    await Share.shareXFiles([XFile(path)]);
+    if (!context.mounted) return;
+    await Share.shareXFiles([XFile(path)], sharePositionOrigin: shareOrigin(context));
   } catch (e) {
     if (context.mounted) showSnack(context, tr('Could not export: $e'));
   }

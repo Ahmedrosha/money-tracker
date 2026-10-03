@@ -32,7 +32,9 @@ class _BackupScreenState extends State<BackupScreen> {
     setState(() => _busy = true);
     try {
       final path = await _makeBackup();
+      if (!mounted) return;
       await Share.shareXFiles([XFile(path)],
+          sharePositionOrigin: shareOrigin(context),
           subject: tr('Expense & Wealth Tracker backup'), text: tr('Expense & Wealth Tracker backup'));
     } catch (e) {
       if (mounted) showSnack(context, tr('Backup failed: $e'));

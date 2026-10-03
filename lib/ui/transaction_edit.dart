@@ -559,6 +559,46 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
   /// Fee already linked to the transaction being edited.
   Txn? _existingFee;
 
+  // Paid with card points: the purchase's value comes back from points.
+  bool _withPoints = false;
+  bool _hadPoints = false;
+  bool _pointsTyped = false;
+  final _pointsCtl = TextEditingController();
+
+  /// Points redeemed by the entry being edited (cashback / purchase).
+  late final _redeemCtl = TextEditingController(
+      text: widget.txn?.pointsUsed == null ? '' : _plain(widget.txn!.pointsUsed!));
+
+  bool _pointsOn(AppState state) =>
+      state.cardRewards[_accountId] != null &&
+      _type == TxType.expense &&
+      (_mode == _Mode.newTxn || _mode == _Mode.editTxn) &&
+      !_split &&
+      !_installments &&
+      !_repeat &&
+      widget.txn?.pointsUsed == null &&
+      widget.txn?.feeFor == null;
+
+  /// Points needed for the amount, from what a point is worth.
+  void _pointsAuto() {
+    if (!_withPoints || _pointsTyped || !mounted) return;
+    final r = AppScope.read(context).cardRewards[_accountId];
+    final a = parseAmount(_amount.text)?.abs();
+    if (r == null || a == null || r.pointValue <= 0) return;
+    _pointsCtl.text = _plain((a / r.pointValue).ceilToDouble());
+  }
+
+  Future<void> _loadPoints(int txnId) async {
+    final p = await AppScope.read(context).db.pointsPaymentOf(txnId);
+    if (p == null || !mounted) return;
+    setState(() {
+      _withPoints = true;
+      _hadPoints = true;
+      _pointsTyped = true;
+      _pointsCtl.text = _plain(p.pointsUsed ?? 0);
+    });
+  }
+
   bool get _showFee =>
       (_mode == _Mode.newTxn ||
           _mode == _Mode.confirm ||
@@ -670,6 +710,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     super.initState();
     _amount = TextEditingController();
     _amount.addListener(_updateFee);
+    _amount.addListener(_pointsAuto);
     _toAmount = TextEditingController();
     _payee = TextEditingController();
     _note = TextEditingController();
@@ -751,6 +792,9 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     }
     if (t.id != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadFee(t.id!));
+      if (t.type == TxType.expense) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _loadPoints(t.id!));
+      }
     }
   }
 
@@ -928,6 +972,8 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
 
   @override
   void dispose() {
+    _pointsCtl.dispose();
+    _redeemCtl.dispose();
     _amount.dispose();
     _toAmount.dispose();
     _rateCtl.dispose();
@@ -1117,6 +1163,55 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
 
   // ---------------- Save / delete ----------------
 
+  List<Widget> _pointsSection(AppState state) {
+    if (widget.txn?.pointsUsed != null) {
+      return [
+        const SizedBox(height: 10),
+        TextField(
+          controller: _redeemCtl,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText: tr('Points Used'),
+            prefixIcon: const Icon(Icons.card_giftcard),
+            border: const OutlineInputBorder(),
+          ),
+        ),
+      ];
+    }
+    if (!_pointsOn(state)) return const [];
+    final s = state.rewards[_accountId];
+    final cur = state.accountById(_accountId)?.currency ?? state.baseCurrency;
+    final used = parseAmount(_pointsCtl.text)?.abs();
+    return [
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        secondary: const Icon(Icons.card_giftcard),
+        title: Text(tr('Paid with points')),
+        subtitle: s == null
+            ? null
+            : Text(tr('You have ${fmtPoints(s.balance)} points (${fmtMoney(s.balanceValue, cur)})')),
+        value: _withPoints,
+        onChanged: (v) => setState(() {
+          _withPoints = v;
+          if (v) _pointsAuto();
+        }),
+      ),
+      if (_withPoints)
+        TextField(
+          controller: _pointsCtl,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          onChanged: (_) => setState(() => _pointsTyped = true),
+          decoration: InputDecoration(
+            labelText: tr('Points Used'),
+            helperText: used != null && s != null && used > s.balance + 0.5
+                ? tr('More than the ${fmtPointsRaw(s.balance)} points the app shows')
+                : tr('The purchase stays an expense; its value comes back as Card Rewards income'),
+            border: const OutlineInputBorder(),
+          ),
+        ),
+    ];
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     final state = AppScope.read(context);
@@ -1162,6 +1257,12 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       showSnack(context, tr('Choose a category, or No category if you\'re not sure'));
       return;
     }
+    final withPoints = _pointsOn(state) && _withPoints;
+    final pointsUsed = withPoints ? parseAmount(_pointsCtl.text)?.abs() : null;
+    if (withPoints && (pointsUsed == null || pointsUsed == 0)) {
+      showSnack(context, tr('Enter the points used'));
+      return;
+    }
     setState(() => _saving = true);
 
     final isTransfer = _type == TxType.transfer;
@@ -1197,6 +1298,10 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
           ? (_sameDay(_forDate!, _date) ? null : _forDate)
           : widget.txn?.forDate,
       tags: isTransfer || _repeat || _installments ? const [] : _tags,
+      pointsUsed: widget.txn?.pointsUsed == null
+          ? null
+          : (parseAmount(_redeemCtl.text)?.abs() ?? widget.txn!.pointsUsed),
+      pointsFor: widget.txn?.pointsFor,
       origAmount: fxPaid == null ? null : (amount < 0 ? -fxPaid : fxPaid),
       origCurrency: fxPaid == null ? null : _fxCur,
       marketRate: fxPaid == null ? null : _fxMarket(state),
@@ -1273,6 +1378,13 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
         ]);
       } else {
         mainId = await state.saveTxn(template);
+      }
+      // Paid with points: its value comes back as income (added, changed
+      // or removed).
+      if (withPoints || _hadPoints) {
+        await state.setPointsPayment(
+            Txn.fromMap({...template.toMap(), 'id': mainId}),
+            withPoints ? pointsUsed : null);
       }
       // InstaPay fee: its own expense from the same account, linked to
       // this transaction (added, changed or removed).
@@ -1884,6 +1996,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                 border: OutlineInputBorder(),
               ),
             ),
+            ..._pointsSection(state),
             ..._feeSection(),
             ..._installmentSection(account),
             ..._repeatSection(),

@@ -166,6 +166,13 @@ class TxnTile extends StatelessWidget {
         txn.type == TxType.transfer && perspectiveAccountId == null;
     final plan = state.plans[txn.planId];
     final future = txn.isFuture;
+    // Card points earned (+) or redeemed (−) by this entry.
+    final earned = state.pointsEarnedBy(txn);
+    final pointsText = txn.pointsUsed != null
+        ? '🎁 −${fmtPoints(txn.pointsUsed!)}'
+        : (earned == null
+            ? null
+            : '🎁 ${earned > 0 ? '+' : '−'}${fmtPoints(earned.abs())}');
 
     return Opacity(
       opacity: future ? 0.7 : 1,
@@ -189,6 +196,8 @@ class TxnTile extends StatelessWidget {
               padding: EdgeInsetsDirectional.only(start: 6),
               child: Icon(Icons.receipt_long_outlined, size: 14),
             ),
+          if (pointsText != null)
+            TagChip(pointsText, color: const Color(0xFF8E24AA)),
           if (late > 0)
             TagChip(tr('+$late day${late == 1 ? '' : 's'} late'),
                 color: Theme.of(context).colorScheme.error)

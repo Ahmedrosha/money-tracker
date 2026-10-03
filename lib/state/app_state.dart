@@ -354,6 +354,7 @@ class AppState extends ChangeNotifier {
     bankNames = await db.bankNames();
     await _computeProjection();
     await _computeCards();
+    await _computeRewards();
     version++;
     notifyListeners();
     // Any data change after start-up is sent to Dropbox (debounced).
@@ -1164,6 +1165,131 @@ class AppState extends ChangeNotifier {
     await db.deleteMerchantRule(merchant);
     merchantRules = await db.merchantRules();
     notifyListeners();
+  }
+
+  // ---------------- Card points ----------------
+
+  /// Points rules per card (account id).
+  Map<int, CardRewards> cardRewards = {};
+
+  /// Points balance and totals per card.
+  Map<int, RewardsStatus> rewards = {};
+
+  /// Purchases paid with points: they earn no points.
+  Set<int> _paidWithPoints = {};
+
+  Future<void> _computeRewards() async {
+    cardRewards = await db.cardRewards();
+    final out = <int, RewardsStatus>{};
+    final paid = <int>{};
+    final now = DateTime.now();
+    final lists = <int, List<Txn>>{};
+    for (final r in cardRewards.values) {
+      final txns = await db.txnsOfAccountSince(r.accountId, r.startAt);
+      lists[r.accountId] = txns;
+      for (final t in txns) {
+        if (t.pointsFor != null) paid.add(t.pointsFor!);
+      }
+    }
+    _paidWithPoints = paid;
+    for (final r in cardRewards.values) {
+      final s = RewardsStatus(r);
+      for (final t in lists[r.accountId]!) {
+        if (t.date.isAfter(now)) continue;
+        if (t.pointsUsed != null) {
+          s.redeemed += t.pointsUsed!;
+          s.redemptions.add(t);
+          if (t.date.year == now.year) s.valueThisYear += t.amount;
+          continue;
+        }
+        final p = pointsEarnedBy(t);
+        if (p == null) continue;
+        s.earned += p;
+        if (t.date.year == now.year) {
+          s.earnedThisYear += p;
+          if (t.date.month == now.month) s.earnedThisMonth += p;
+        }
+      }
+      out[r.accountId] = s;
+    }
+    rewards = out;
+  }
+
+  /// Points this entry earns on its card (null = none).
+  double? pointsEarnedBy(Txn t) {
+    final r = cardRewards[t.accountId];
+    if (r == null ||
+        t.type != TxType.expense ||
+        t.feeFor != null ||
+        t.pointsUsed != null ||
+        t.date.isBefore(r.startAt) ||
+        (t.id != null && _paidWithPoints.contains(t.id))) {
+      return null;
+    }
+    final p = r.pointsOn(t.amount, t.categoryId);
+    return p == 0 ? null : p;
+  }
+
+  Future<void> saveCardRewards(CardRewards r) async {
+    await db.saveCardRewards(r);
+    await _reloadAll();
+  }
+
+  Future<void> deleteCardRewards(int accountId) async {
+    await db.deleteCardRewards(accountId);
+    await _reloadAll();
+  }
+
+  /// The points balance the bank shows: counting starts again from now.
+  Future<void> setPointsFromBank(int accountId, double points) async {
+    final r = cardRewards[accountId];
+    if (r == null) return;
+    await db.saveCardRewards(
+        r.copyWith(startPoints: points, startAt: DateTime.now()));
+    await _reloadAll();
+  }
+
+  Future<int?> _rewardsCategory() => _categoryNamed(
+      'Card Rewards', TxType.income, 'gift',
+      group: '', color: 0xFF8E24AA);
+
+  /// Points turned into cashback: income on the card.
+  Future<void> redeemCashback(
+      Account card, double points, double amount, DateTime date) async {
+    await db.insertTxn(Txn(
+      type: TxType.income,
+      date: date,
+      amount: amount,
+      accountId: card.id!,
+      categoryId: await _rewardsCategory(),
+      payee: 'Points redeemed',
+      note: 'Cashback · ${fmtPointsRaw(points)} points',
+      pointsUsed: points,
+    ));
+    await _reloadAll();
+  }
+
+  /// A purchase paid with points: its value comes back as income on the
+  /// card (so spending stays right). Null [points] removes it.
+  Future<void> setPointsPayment(Txn purchase, double? points) async {
+    final old = await db.pointsPaymentOf(purchase.id!);
+    if (old != null) {
+      await db.db.delete('transactions', where: 'id = ?', whereArgs: [old.id]);
+    }
+    if (points != null && points > 0) {
+      await db.insertTxn(Txn(
+        type: TxType.income,
+        date: purchase.date,
+        amount: purchase.amount,
+        accountId: purchase.accountId,
+        categoryId: old?.categoryId ?? await _rewardsCategory(),
+        payee: purchase.payee,
+        note: 'Paid with points · ${fmtPointsRaw(points)} points',
+        pointsUsed: points,
+        pointsFor: purchase.id,
+      ));
+    }
+    await _reloadAll();
   }
 
   // ---------------- Matching bank messages ----------------
@@ -2242,15 +2368,15 @@ class AppState extends ChangeNotifier {
     return v;
   }
 
-  Future<int?> _categoryNamed(String name, TxType kind, String icon) async {
+  Future<int?> _categoryNamed(String name, TxType kind, String icon,
+      {String group = 'Investments', int color = 0xFF00897B}) async {
     for (final c in categories) {
       if (c.kind == kind && c.name.toLowerCase() == name.toLowerCase()) {
         return c.id;
       }
     }
     return db.insertCategory(Category(
-        name: name, group: 'Investments', kind: kind, icon: icon,
-        color: 0xFF00897B));
+        name: name, group: group, kind: kind, icon: icon, color: color));
   }
 
   /// Records a buy or sell. Fees become an expense; a sell's profit or

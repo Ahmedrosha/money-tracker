@@ -39,7 +39,7 @@ class AppDb {
 
   final Database db;
 
-  static const int schemaVersion = 23;
+  static const int schemaVersion = 24;
 
   static Future<String> dbPath() async =>
       p.join(await getDatabasesPath(), 'money_tracker.db');
@@ -129,6 +129,7 @@ class AppDb {
         await _migrateToV21(db);
         await _migrateToV22(db);
         await _migrateToV23(db);
+        await _migrateToV24(db);
         await _seed(db);
       },
       onUpgrade: (db, oldV, newV) async {
@@ -154,6 +155,7 @@ class AppDb {
         if (oldV < 21) await _migrateToV21(db);
         if (oldV < 22) await _migrateToV22(db);
         if (oldV < 23) await _migrateToV23(db);
+        if (oldV < 24) await _migrateToV24(db);
       },
     );
     return AppDb._(db);
@@ -461,6 +463,24 @@ class AppDb {
   /// Receipt photos on transactions.
   static Future<void> _migrateToV23(Database db) async {
     await db.execute('ALTER TABLE transactions ADD COLUMN photo TEXT');
+  }
+
+  /// Card points: the rules per card, and redemptions on transactions.
+  static Future<void> _migrateToV24(Database db) async {
+    await db.execute('''
+      CREATE TABLE card_rewards (
+        account_id INTEGER PRIMARY KEY,
+        points REAL NOT NULL DEFAULT 0,
+        per REAL NOT NULL DEFAULT 0,
+        cat_points TEXT NOT NULL DEFAULT '',
+        value_points REAL NOT NULL DEFAULT 0,
+        value_money REAL NOT NULL DEFAULT 0,
+        start_points REAL NOT NULL DEFAULT 0,
+        start_at INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+    await db.execute('ALTER TABLE transactions ADD COLUMN points_used REAL');
+    await db.execute('ALTER TABLE transactions ADD COLUMN points_for INTEGER');
   }
 
   static Future<void> _seed(Database db) async {
@@ -807,6 +827,7 @@ class AppDb {
       await tx.delete('recurring',
           where: 'account_id = ? OR to_account_id = ?', whereArgs: [id, id]);
       await tx.delete('accounts', where: 'id = ?', whereArgs: [id]);
+      await tx.delete('card_rewards', where: 'account_id = ?', whereArgs: [id]);
       // Plans with no remaining installments.
       await tx.execute(
           'DELETE FROM plans WHERE id NOT IN (SELECT DISTINCT plan_id FROM transactions WHERE plan_id IS NOT NULL)');
@@ -981,6 +1002,36 @@ class AppDb {
 
   Future<int> insertTxn(Txn t) => db.insert('transactions', t.toMap());
 
+  // ---------------- Card points ----------------
+
+  Future<Map<int, CardRewards>> cardRewards() async {
+    final rows = await db.query('card_rewards');
+    return {for (final r in rows) r['account_id'] as int: CardRewards.fromMap(r)};
+  }
+
+  Future<void> saveCardRewards(CardRewards r) => db.insert(
+      'card_rewards', r.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace);
+
+  Future<void> deleteCardRewards(int accountId) => db.delete('card_rewards',
+      where: 'account_id = ?', whereArgs: [accountId]);
+
+  /// A card's entries from [from] on (earning and redemptions).
+  Future<List<Txn>> txnsOfAccountSince(int accountId, DateTime from) async {
+    final rows = await db.query('transactions',
+        where: 'account_id = ? AND date >= ?',
+        whereArgs: [accountId, from.millisecondsSinceEpoch],
+        orderBy: 'date DESC');
+    return rows.map(Txn.fromMap).toList();
+  }
+
+  /// The points redemption that pays for a purchase, if any.
+  Future<Txn?> pointsPaymentOf(int txnId) async {
+    final rows = await db.query('transactions',
+        where: 'points_for = ?', whereArgs: [txnId], limit: 1);
+    return rows.isEmpty ? null : Txn.fromMap(rows.first);
+  }
+
   /// The fee entry linked to a transaction, if any.
   Future<Txn?> feeOf(int txnId) async {
     final rows = await db.query('transactions',
@@ -1145,7 +1196,7 @@ class AppDb {
 
   Future<void> deleteTxn(int id) async {
     await db.delete('transactions',
-        where: 'id = ? OR fee_for = ?', whereArgs: [id, id]);
+        where: 'id = ? OR fee_for = ? OR points_for = ?', whereArgs: [id, id, id]);
     await db.execute(
         'DELETE FROM plans WHERE id NOT IN (SELECT DISTINCT plan_id FROM transactions WHERE plan_id IS NOT NULL)');
   }

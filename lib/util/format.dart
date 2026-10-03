@@ -5,6 +5,13 @@ import 'calc.dart';
 import 'currencies.dart';
 
 final NumberFormat _amountFmt = NumberFormat('#,##0.00', 'en_US');
+final NumberFormat _pointsFmt = NumberFormat('#,##0.##', 'en_US');
+
+/// Card points, e.g. "18,400" (always shown, even with amounts hidden).
+String fmtPointsRaw(double v) => _pointsFmt.format(v.abs() < 0.005 ? 0 : v);
+
+/// Card points for display; dots while amounts are hidden.
+String fmtPoints(double v) => amountsHidden ? kHiddenAmount : ltr(fmtPointsRaw(v));
 // Getters so they follow the app language when it changes.
 DateFormat get dayFmt => DateFormat('EEE, d MMM yyyy');
 DateFormat get shortDateFmt => DateFormat('d MMM yyyy');

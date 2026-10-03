@@ -695,6 +695,13 @@ class Txn {
   /// Receipt photo file name (in Documents/receipts), if any.
   final String? photo;
 
+  /// Card points redeemed by this entry (income on the card: cashback,
+  /// or the value of a purchase paid with points).
+  final double? pointsUsed;
+
+  /// Purchase paid with points: the expense this redemption pays for.
+  final int? pointsFor;
+
   /// Stored as "|Sahel 2026|Work|" so one tag can be searched with LIKE.
   static String encodeTags(List<String> tags) {
     final clean = [
@@ -743,6 +750,8 @@ class Txn {
     this.forDate,
     this.tags = const [],
     this.photo,
+    this.pointsUsed,
+    this.pointsFor,
   });
 
   bool get isFuture => date.isAfter(DateTime.now());
@@ -784,6 +793,8 @@ class Txn {
         'for_date': forDate?.millisecondsSinceEpoch,
         'tags': encodeTags(tags),
         'photo': photo,
+        'points_used': pointsUsed,
+        'points_for': pointsFor,
       };
 
   factory Txn.fromMap(Map<String, Object?> m) => Txn(
@@ -817,7 +828,118 @@ class Txn {
             : DateTime.fromMillisecondsSinceEpoch(m['for_date'] as int),
         tags: decodeTags(m['tags'] as String?),
         photo: m['photo'] as String?,
+        pointsUsed:
+            m['points_used'] == null ? null : _toDouble(m['points_used']),
+        pointsFor: m['points_for'] as int?,
       );
+}
+
+/// Points a card gives: [points] for every [per] spent (in the card's
+/// currency), other rates for some categories, and what points are worth.
+class CardRewards {
+  final int accountId;
+  final double points;
+  final double per;
+
+  /// Category id -> points for every [per] spent in that category.
+  final Map<int, double> categoryPoints;
+
+  /// [valuePoints] points are worth [valueMoney] (card currency).
+  final double valuePoints;
+  final double valueMoney;
+
+  /// Points balance on [startAt]; earning and redeeming count after it.
+  final double startPoints;
+  final DateTime startAt;
+
+  const CardRewards({
+    required this.accountId,
+    required this.points,
+    required this.per,
+    this.categoryPoints = const {},
+    required this.valuePoints,
+    required this.valueMoney,
+    this.startPoints = 0,
+    required this.startAt,
+  });
+
+  /// Money one point is worth.
+  double get pointValue => valuePoints <= 0 ? 0 : valueMoney / valuePoints;
+
+  double rateFor(int? categoryId) =>
+      categoryId == null ? points : (categoryPoints[categoryId] ?? points);
+
+  /// Points a purchase earns (whole points, as banks count them). Refunds
+  /// take them back.
+  double pointsOn(double amount, int? categoryId) {
+    if (per <= 0) return 0;
+    final p = (amount.abs() * rateFor(categoryId) / per).floorToDouble();
+    return amount < 0 ? -p : p;
+  }
+
+  CardRewards copyWith({double? startPoints, DateTime? startAt}) => CardRewards(
+        accountId: accountId,
+        points: points,
+        per: per,
+        categoryPoints: categoryPoints,
+        valuePoints: valuePoints,
+        valueMoney: valueMoney,
+        startPoints: startPoints ?? this.startPoints,
+        startAt: startAt ?? this.startAt,
+      );
+
+  Map<String, Object?> toMap() => {
+        'account_id': accountId,
+        'points': points,
+        'per': per,
+        'cat_points': categoryPoints.entries
+            .map((e) => '${e.key}:${e.value}')
+            .join(','),
+        'value_points': valuePoints,
+        'value_money': valueMoney,
+        'start_points': startPoints,
+        'start_at': startAt.millisecondsSinceEpoch,
+      };
+
+  factory CardRewards.fromMap(Map<String, Object?> m) {
+    final cats = <int, double>{};
+    for (final part in ((m['cat_points'] as String?) ?? '').split(',')) {
+      final kv = part.split(':');
+      if (kv.length != 2) continue;
+      final k = int.tryParse(kv[0]);
+      final v = double.tryParse(kv[1]);
+      if (k != null && v != null) cats[k] = v;
+    }
+    return CardRewards(
+      accountId: m['account_id'] as int,
+      points: _toDouble(m['points']),
+      per: _toDouble(m['per']),
+      categoryPoints: cats,
+      valuePoints: _toDouble(m['value_points']),
+      valueMoney: _toDouble(m['value_money']),
+      startPoints: _toDouble(m['start_points']),
+      startAt: DateTime.fromMillisecondsSinceEpoch(m['start_at'] as int? ?? 0),
+    );
+  }
+}
+
+/// A card's points now: balance, earned and redeemed.
+class RewardsStatus {
+  RewardsStatus(this.rules);
+  final CardRewards rules;
+  double earned = 0;
+  double redeemed = 0;
+  double earnedThisMonth = 0;
+  double earnedThisYear = 0;
+
+  /// Money received from points this year (cashback and purchases).
+  double valueThisYear = 0;
+
+  /// Redemptions since the start, newest first.
+  final List<Txn> redemptions = [];
+
+  double get balance => rules.startPoints + earned - redeemed;
+  double get balanceValue => balance * rules.pointValue;
 }
 
 /// A purchase split into equal monthly installments. The installments

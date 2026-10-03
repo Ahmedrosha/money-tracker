@@ -13,6 +13,7 @@ import 'account_edit.dart';
 import 'account_details_sheet.dart';
 import 'calendar_screen.dart';
 import 'card_panel.dart';
+import 'rewards_screen.dart';
 import 'transaction_edit.dart';
 import 'widgets.dart';
 import '../l10n/l10n.dart';
@@ -121,6 +122,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                 _header(context, state, account, null),
                 if (state.cards[account.id] != null)
                   CardPanel(summary: state.cards[account.id]!),
+                if (canEarnPoints(account)) RewardsPanel(account: account),
                 CalendarView(accountId: account.id, shrinkWrap: true),
               ],
             )
@@ -160,6 +162,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                   children: [
                     _header(context, state, account, txns.length),
                     if (card != null) CardPanel(summary: card),
+                    if (canEarnPoints(account)) RewardsPanel(account: account),
                     if (isGold(account.currency))
                       GoldPanel(account: account, txns: txns),
                     if (account.loan != null) LoanPanel(account: account),

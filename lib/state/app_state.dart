@@ -2183,8 +2183,24 @@ class AppState extends ChangeNotifier {
 
   /// Records occurrence [o] as the transaction [t] (possibly edited by the
   /// user) and moves the rule past it.
-  Future<int> confirmOccurrence(Occurrence o, [Txn? t]) async {
-    final id = await db.insertTxn(t ?? o.rule.toTxn(o.index));
+  /// Records an occurrence. [paidOn]: paid on another day than it was
+  /// due (the due date is kept as the date it is for).
+  Future<int> confirmOccurrence(Occurrence o, [Txn? t, DateTime? paidOn]) async {
+    var txn = t ?? o.rule.toTxn(o.index);
+    if (t == null && paidOn != null) {
+      final due = txn.date;
+      final same = due.year == paidOn.year &&
+          due.month == paidOn.month &&
+          due.day == paidOn.day;
+      if (!same) {
+        txn = Txn.fromMap({
+          ...txn.toMap(),
+          'date': paidOn.millisecondsSinceEpoch,
+          'for_date': due.millisecondsSinceEpoch,
+        });
+      }
+    }
+    final id = await db.insertTxn(txn);
     await _advance(o);
     return id;
   }

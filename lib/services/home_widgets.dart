@@ -79,7 +79,8 @@ class HomeWidgets {
     final rows = await state.db.db.rawQuery('''
       SELECT t.type AS type, t.amount AS amount, a.currency AS cur
       FROM transactions t JOIN accounts a ON a.id = t.account_id
-      WHERE t.type IN ('expense', 'income') AND t.date >= ? AND t.date < ?
+      WHERE t.type IN ('expense', 'income')
+        AND COALESCE(t.for_date, t.date) >= ? AND COALESCE(t.for_date, t.date) < ?
     ''', [from.millisecondsSinceEpoch, to.millisecondsSinceEpoch]);
     var spent = 0.0, income = 0.0;
     for (final r in rows) {

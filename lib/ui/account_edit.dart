@@ -114,6 +114,11 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
   bool _loanPlan = true;
   LoanMode _loanMode = LoanMode.installments;
   final _loanPayment = TextEditingController();
+  final _loanFirst = TextEditingController();
+  final _loanLast = TextEditingController();
+
+  /// Installments mode: the bank's total, only to work out the last one.
+  final _loanTotal = TextEditingController();
   final _loanMonths = TextEditingController();
   final _loanPrincipal = TextEditingController();
   final _loanRate = TextEditingController();
@@ -126,6 +131,20 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
   /// Show the plan section: new loans, or loans that already have a plan.
   bool get _showLoan =>
       _type == AccountType.loan && (_isNew || widget.account?.loan != null);
+
+  /// An existing installments loan whose total changed (e.g. a different
+  /// last payment): move the opening balance with it, unless it was
+  /// edited by hand.
+  double _loanOpening(LoanTerms? loan, double opening) {
+    final old = widget.account?.loan;
+    if (_isNew || loan == null || old == null) return opening;
+    if (loan.mode != LoanMode.installments || old.mode != LoanMode.installments) {
+      return opening;
+    }
+    if ((opening - widget.account!.openingBalance).abs() > 0.004) return opening;
+    final delta = loan.startOwed - old.startOwed;
+    return opening - delta;
+  }
 
   LoanTerms? _buildLoan() {
     if (!_showLoan || !_loanPlan) return null;
@@ -141,7 +160,9 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
           months: months,
           firstDue: _loanFirstDue,
           payAccountId: _loanPayFrom,
-          nextIndex: old?.nextIndex ?? 0);
+          nextIndex: old?.nextIndex ?? 0,
+          firstPayment: parseAmount(_loanFirst.text)?.abs(),
+          lastPayment: parseAmount(_loanLast.text)?.abs());
     }
     final principal = parseAmount(_loanPrincipal.text)?.abs() ?? 0;
     final rate = parseAmount(_loanRate.text)?.abs() ?? 0;
@@ -155,7 +176,143 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
         principal: principal,
         rate: rate,
         flat: _loanFlat,
-        nextIndex: old?.nextIndex ?? 0);
+        nextIndex: old?.nextIndex ?? 0,
+        firstPayment: parseAmount(_loanFirst.text)?.abs(),
+        lastPayment: parseAmount(_loanLast.text)?.abs());
+  }
+
+  /// First and last installment (when the bank's differ), the total to
+  /// work the last one out from, and a check that it all adds up.
+  List<Widget> _loanEnds(LoanTerms? preview) {
+    final cur = currencyUnit(_currency);
+    final small = Theme.of(context).textTheme.bodySmall;
+    final interest = _loanMode == LoanMode.interest;
+    final months = int.tryParse(_loanMonths.text.trim()) ?? 0;
+    final regular = preview?.payment;
+    final auto = interest && preview != null ? preview.autoLastPayment : null;
+
+    // Installments: last = total − first − regular × middle months.
+    double? workedOut;
+    final total = parseAmount(_loanTotal.text)?.abs();
+    if (!interest && total != null && regular != null && months >= 2) {
+      final first = parseAmount(_loanFirst.text)?.abs() ?? regular;
+      workedOut = total - first - regular * (months - 2);
+    }
+    String? diff;
+    double? fix;
+    if (!interest && workedOut != null && preview != null) {
+      final d = total! - preview.startOwed;
+      if (d.abs() > 0.004) {
+        diff = tr('Difference ${fmtMoneyRaw(d, _currency)} from the total');
+        fix = workedOut;
+      }
+    } else if (interest && preview != null && preview.lastPayment != null) {
+      final left = preview.schedule().last.balanceAfter;
+      if (left.abs() > 0.004) {
+        diff = tr('The loan ends with ${fmtMoneyRaw(left, _currency)} left');
+        fix = auto;
+      }
+    }
+
+    String fmtPlain(double v) => v.toStringAsFixed(2);
+    return [
+      const SizedBox(height: 12),
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: TextFormField(
+              controller: _loanFirst,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                labelText: tr('First Payment'),
+                hintText: regular == null ? null : fmtPlain(regular),
+                helperText: tr('Empty = regular'),
+                suffixText: cur,
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextFormField(
+              controller: _loanLast,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                labelText: tr('Last Payment'),
+                hintText: auto != null
+                    ? fmtPlain(auto)
+                    : (regular == null ? null : fmtPlain(regular)),
+                helperText: interest ? tr('Empty = what is left') : tr('Empty = regular'),
+                suffixText: cur,
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ),
+        ],
+      ),
+      if (!interest) ...[
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: _loanTotal,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          onChanged: (_) => setState(() {}),
+          decoration: InputDecoration(
+            labelText: tr('Total to Repay (optional)'),
+            helperText: tr('From the bank\'s contract — to work out the last payment'),
+            suffixText: cur,
+            border: const OutlineInputBorder(),
+          ),
+        ),
+      ],
+      if (!interest && workedOut != null)
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: TextButton.icon(
+            icon: const Icon(Icons.calculate_outlined, size: 18),
+            label: Text(tr('Work out last payment (${fmtMoneyRaw(workedOut, _currency)})')),
+            onPressed: workedOut <= 0
+                ? null
+                : () => setState(() {
+                      _loanLast.text = fmtPlain(workedOut!);
+                    }),
+          ),
+        ),
+      if (interest && auto != null && _loanLast.text.trim().isNotEmpty)
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: TextButton.icon(
+            icon: const Icon(Icons.calculate_outlined, size: 18),
+            label: Text(tr('Use what is left (${fmtMoneyRaw(auto, _currency)})')),
+            onPressed: () => setState(() => _loanLast.clear()),
+          ),
+        ),
+      if (diff != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded,
+                  size: 18, color: Theme.of(context).colorScheme.tertiary),
+              const SizedBox(width: 6),
+              Expanded(child: Text(diff, style: small)),
+              if (fix != null && fix > 0)
+                TextButton(
+                  onPressed: () => setState(() {
+                    if (interest) {
+                      _loanLast.clear();
+                    } else {
+                      _loanLast.text = fmtPlain(fix!);
+                    }
+                  }),
+                  child: Text(tr('Adjust Last Payment')),
+                ),
+            ],
+          ),
+        ),
+    ];
   }
 
   @override
@@ -213,6 +370,8 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
       _loanRate.text = l.rate > 0 ? _trimNum(l.rate) : '';
       _loanFlat = l.flat;
       _loanPayFrom = l.payAccountId;
+      _loanFirst.text = l.firstPayment == null ? '' : _trimNum(l.firstPayment!);
+      _loanLast.text = l.lastPayment == null ? '' : _trimNum(l.lastPayment!);
     }
   }
 
@@ -235,7 +394,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
     _statementDay.dispose();
     _dueDay.dispose();
     _minPct.dispose();
-    for (final c in [_loanPayment, _loanMonths, _loanPrincipal, _loanRate, _loanReceived, _assetValue, _assetShare,
+    for (final c in [_loanPayment, _loanFirst, _loanLast, _loanTotal, _loanMonths, _loanPrincipal, _loanRate, _loanReceived, _assetValue, _assetShare,
         _last4, _expiry, _phone, _customerNo, _accountNo, _iban, _notes, _sender, _fxFee, _cardNumber]) {
       c.dispose();
     }
@@ -285,7 +444,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
       bank: _type.hasBank ? _bank.trim() : '',
       type: _type,
       currency: _currency,
-      openingBalance: _type.isLiability ? -opening.abs() : opening,
+      openingBalance: _loanOpening(loan, _type.isLiability ? -opening.abs() : opening),
       archived: _archived,
       excludeTotal: _exclude,
       sortOrder: widget.account?.sortOrder ?? 0,
@@ -449,6 +608,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
               style: small?.copyWith(fontWeight: FontWeight.w600),
             ),
           ),
+        ..._loanEnds(preview),
         const SizedBox(height: 12),
         ListTile(
           contentPadding: EdgeInsets.zero,

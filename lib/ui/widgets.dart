@@ -147,6 +147,11 @@ class TxnTile extends StatelessWidget {
     if (txn.postedLater) {
       subtitle = tr('$subtitle · Posted ${DateFormat('d MMM').format(txn.postDate!)}');
     }
+    // Recurring item paid on another day than it was due.
+    if (txn.forDate != null) {
+      subtitle = tr('For ${DateFormat('d MMM').format(txn.forDate!)} · $subtitle');
+    }
+    final late = txn.daysLate;
     if (txn.note.isNotEmpty) subtitle = '$subtitle · ${txn.note}';
 
     final isNeutralTransfer =
@@ -171,6 +176,12 @@ class TxnTile extends StatelessWidget {
               padding: EdgeInsets.only(left: 6),
               child: Icon(Icons.repeat, size: 14),
             ),
+          if (late > 0)
+            TagChip(tr('+$late day${late == 1 ? '' : 's'} late'),
+                color: Theme.of(context).colorScheme.error)
+          else if (late < 0)
+            TagChip(tr('${-late} day${late == -1 ? '' : 's'} early'),
+                color: Theme.of(context).colorScheme.secondary),
           if (future)
             TagChip(tr('Upcoming'),
                 color: Theme.of(context).colorScheme.tertiary)
@@ -281,6 +292,9 @@ class OccurrenceTile extends StatelessWidget {
   }
 }
 
+bool _sameDay(DateTime a, DateTime b) =>
+    a.year == b.year && a.month == b.month && a.day == b.day;
+
 /// Bottom sheet with Confirm / Edit & confirm / Skip / Edit rule.
 Future<void> openOccurrence(BuildContext context, Occurrence o) async {
   final state = AppScope.read(context);
@@ -302,9 +316,18 @@ Future<void> openOccurrence(BuildContext context, Occurrence o) async {
               title: Text(tr('Confirm or skip the earlier ones of this item first')),
             ),
           if (canAct) ...[
+            if (!_sameDay(o.date, DateTime.now()))
+              ListTile(
+                leading: const Icon(Icons.check_circle_outline),
+                title: Text(tr('Confirm — paid today')),
+                subtitle: Text(tr('Kept as for ${dayFmt.format(o.date)}')),
+                onTap: () => Navigator.pop(ctx, 'today'),
+              ),
             ListTile(
-              leading: const Icon(Icons.check_circle_outline),
-              title: Text(tr('Confirm as is')),
+              leading: const Icon(Icons.event_available_outlined),
+              title: Text(_sameDay(o.date, DateTime.now())
+                  ? tr('Confirm as is')
+                  : tr('Confirm — paid on ${dayFmt.format(o.date)}')),
               onTap: () => Navigator.pop(ctx, 'confirm'),
             ),
             ListTile(
@@ -331,6 +354,10 @@ Future<void> openOccurrence(BuildContext context, Occurrence o) async {
   switch (choice) {
     case 'confirm':
       await state.confirmOccurrence(o);
+      if (context.mounted) showSnack(context, tr('Recorded'));
+      break;
+    case 'today':
+      await state.confirmOccurrence(o, null, DateTime.now());
       if (context.mounted) showSnack(context, tr('Recorded'));
       break;
     case 'skip':
@@ -525,8 +552,18 @@ class AccountField extends StatelessWidget {
                     Text(a.bank,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: Theme.of(context).colorScheme.primary)),
-                  Text('${a.name} · ${currencyUnit(a.currency)}',
-                      overflow: TextOverflow.ellipsis),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text('${a.name} · ${currencyUnit(a.currency)}',
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                      const SizedBox(width: 8),
+                      // Current balance, as in the account list.
+                      Text(fmtMoney(a.balance, a.currency),
+                          style: TextStyle(color: amountColor(context, a.balance))),
+                    ],
+                  ),
                 ],
               ),
       ),

@@ -93,6 +93,28 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
   /// Card expenses: posting date set by hand. Null = follows [_date].
   DateTime? _postDate;
 
+  /// Recurring items: the date the payment is for (due date); [_date] is
+  /// the day it was paid.
+  DateTime? _forDate;
+
+  bool get _showFor =>
+      _forDate != null &&
+      (_mode == _Mode.confirm ||
+          (_mode == _Mode.editTxn && widget.txn?.recurringId != null));
+
+  Future<void> _pickForDate() async {
+    final d = await showDatePicker(
+      context: context,
+      initialDate: _forDate!,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+      helpText: tr('Date the payment is for'),
+    );
+    if (d == null) return;
+    setState(() => _forDate =
+        DateTime(d.year, d.month, d.day, _forDate!.hour, _forDate!.minute));
+  }
+
   // Installments
   bool _installments = false;
 
@@ -489,7 +511,9 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     if (widget.occurrence != null) {
       _mode = _Mode.confirm;
       _fillFromRule(widget.occurrence!.rule);
-      _date = widget.occurrence!.date;
+      // Due on the occurrence date; paid today (changeable).
+      _forDate = widget.occurrence!.date;
+      _date = _sameDay(_forDate!, DateTime.now()) ? _forDate! : DateTime.now();
     } else if (widget.rule != null) {
       _mode = _Mode.editRule;
       _fillFromRule(widget.rule!);
@@ -545,6 +569,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     _categoryId = t.categoryId;
     _date = t.date;
     if (t.postedLater) _postDate = t.postDate;
+    if (t.recurringId != null) _forDate = t.forDate ?? t.date;
     if (t.isForeign) {
       _fxCur = t.origCurrency;
       _fxAmount.text = _plain(t.origAmount!.abs());
@@ -983,6 +1008,9 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               : null),
       feeFor: widget.txn?.feeFor,
       splitId: widget.txn?.splitId,
+      forDate: _showFor
+          ? (_sameDay(_forDate!, _date) ? null : _forDate)
+          : widget.txn?.forDate,
       origAmount: fxPaid == null ? null : (amount < 0 ? -fxPaid : fxPaid),
       origCurrency: fxPaid == null ? null : _fxCur,
       marketRate: fxPaid == null ? null : _fxMarket(state),
@@ -1488,6 +1516,22 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                 ),
               ),
             ],
+            if (_showFor) ...[
+              gap,
+              InkWell(
+                borderRadius: BorderRadius.circular(4),
+                onTap: _pickForDate,
+                child: InputDecorator(
+                  decoration: InputDecoration(
+                    labelText: tr('For (due date)'),
+                    border: const OutlineInputBorder(),
+                    suffixIcon: const Icon(Icons.event_note_outlined),
+                    helperText: tr('Budgets and monthly reports count it in this month'),
+                  ),
+                  child: Text(dayFmt.format(_forDate!)),
+                ),
+              ),
+            ],
             gap,
             InkWell(
               borderRadius: BorderRadius.circular(4),
@@ -1704,6 +1748,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
   }
 
   String get _dateLabel {
+    if (_showFor) return tr('Paid on');
     if (_installments) return tr('Purchase date');
     if (_mode == _Mode.editRule) return tr('Next date');
     if (_repeat) return tr('First date');

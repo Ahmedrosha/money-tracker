@@ -396,6 +396,7 @@ class AccountDetails {
         'notes': notes,
         'sender': sender,
         'fx_fee': fxFee,
+        'for_date': forDate?.millisecondsSinceEpoch,
       };
 
   factory AccountDetails.fromMap(Map<String, Object?> m) => AccountDetails(
@@ -683,6 +684,20 @@ class Txn {
 
   bool get isForeign => origCurrency != null && origAmount != null;
 
+  /// Recurring items paid on another day than they were due: the date the
+  /// payment is for (budgets and monthly reports use it). Null = [date].
+  final DateTime? forDate;
+
+  DateTime get effectiveForDate => forDate ?? date;
+
+  /// Whole days between the due date and the payment (+ late, − early).
+  int get daysLate {
+    if (forDate == null) return 0;
+    final a = DateTime(forDate!.year, forDate!.month, forDate!.day);
+    final b = DateTime(date.year, date.month, date.day);
+    return b.difference(a).inDays;
+  }
+
   const Txn({
     this.id,
     required this.type,
@@ -705,6 +720,7 @@ class Txn {
     this.origCurrency,
     this.marketRate,
     this.fxFee,
+    this.forDate,
   });
 
   bool get isFuture => date.isAfter(DateTime.now());
@@ -771,6 +787,9 @@ class Txn {
         origCurrency: m['orig_currency'] as String?,
         marketRate: m['market_rate'] == null ? null : _toDouble(m['market_rate']),
         fxFee: m['fx_fee'] == null ? null : _toDouble(m['fx_fee']),
+        forDate: m['for_date'] == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(m['for_date'] as int),
       );
 }
 
@@ -1229,6 +1248,11 @@ class LoanTerms {
   /// Installments already handled (confirmed); the next one is this index.
   final int nextIndex;
 
+  /// First / last installment when the bank's differs from the regular
+  /// one (null = same as the others; interest loans: last = what is left).
+  final double? firstPayment;
+  final double? lastPayment;
+
   const LoanTerms({
     required this.mode,
     required this.payment,
@@ -1239,6 +1263,8 @@ class LoanTerms {
     this.rate = 0,
     this.flat = true,
     this.nextIndex = 0,
+    this.firstPayment,
+    this.lastPayment,
   });
 
   LoanTerms copyWith({int? nextIndex}) => LoanTerms(
@@ -1251,6 +1277,8 @@ class LoanTerms {
         rate: rate,
         flat: flat,
         nextIndex: nextIndex ?? this.nextIndex,
+        firstPayment: firstPayment,
+        lastPayment: lastPayment,
       );
 
   /// Monthly payment for an interest loan.
@@ -1274,13 +1302,24 @@ class LoanTerms {
   static double _r2(double v) => (v * 100).roundToDouble() / 100;
 
   /// Every installment with its date and split.
+  /// Installment [i] in installments mode.
+  double paymentAt(int i) {
+    if (i == 0 && firstPayment != null) return firstPayment!;
+    if (i == months - 1 && months > 1 && lastPayment != null) return lastPayment!;
+    return payment;
+  }
+
   List<LoanRow> schedule() {
     final out = <LoanRow>[];
     if (mode == LoanMode.installments) {
-      var left = payment * months;
+      var left = 0.0;
       for (var i = 0; i < months; i++) {
-        left -= payment;
-        out.add(LoanRow(i, addMonths(firstDue, i), payment, payment, 0,
+        left += paymentAt(i);
+      }
+      for (var i = 0; i < months; i++) {
+        final p = paymentAt(i);
+        left -= p;
+        out.add(LoanRow(i, addMonths(firstDue, i), p, p, 0,
             left.abs() < 0.005 ? 0 : left));
       }
       return out;
@@ -1289,12 +1328,19 @@ class LoanTerms {
     final totalInterest = principal * rate / 100 * months / 12;
     for (var i = 0; i < months; i++) {
       double interest, princ;
+      final isLast = i == months - 1;
       if (flat) {
         interest = _r2(totalInterest / months);
-        princ = i == months - 1 ? bal : _r2(principal / months);
+        princ = isLast ? bal : _r2(principal / months);
       } else {
         interest = _r2(bal * rate / 100 / 12);
-        princ = i == months - 1 ? bal : _r2(payment - interest);
+        princ = isLast ? bal : _r2(payment - interest);
+      }
+      // The bank's own first / last installment.
+      if (i == 0 && firstPayment != null && !(isLast && lastPayment != null)) {
+        princ = _r2(firstPayment! - interest);
+      } else if (isLast && months > 1 && lastPayment != null) {
+        princ = _r2(lastPayment! - interest);
       }
       bal -= princ;
       out.add(LoanRow(i, addMonths(firstDue, i), _r2(princ + interest), princ,
@@ -1304,8 +1350,22 @@ class LoanTerms {
   }
 
   /// What the loan account should show as owed at the start.
-  double get startOwed =>
-      mode == LoanMode.installments ? payment * months : principal;
+  double get startOwed => mode == LoanMode.installments
+      ? schedule().fold(0.0, (s, r) => s + r.payment)
+      : principal;
+
+  /// Interest loans: what the last installment comes to on its own (what
+  /// is left), ignoring [lastPayment].
+  double get autoLastPayment => months <= 0 ? 0 : LoanTerms(
+        mode: mode,
+        payment: payment,
+        months: months,
+        firstDue: firstDue,
+        principal: principal,
+        rate: rate,
+        flat: flat,
+        firstPayment: firstPayment,
+      ).schedule().last.payment;
 
   static Map<String, Object?> toColumns(LoanTerms? t) => {
         'loan_mode': t?.mode.name,
@@ -1317,6 +1377,8 @@ class LoanTerms {
         'loan_rate': t?.rate,
         'loan_flat': t == null ? null : (t.flat ? 1 : 0),
         'loan_next': t?.nextIndex ?? 0,
+        'loan_first': t?.firstPayment,
+        'loan_last': t?.lastPayment,
       };
 
   static LoanTerms? fromColumns(Map<String, Object?> m) {
@@ -1334,6 +1396,8 @@ class LoanTerms {
       rate: _toDouble(m['loan_rate']),
       flat: (m['loan_flat'] as int? ?? 1) == 1,
       nextIndex: m['loan_next'] as int? ?? 0,
+      firstPayment: m['loan_first'] == null ? null : _toDouble(m['loan_first']),
+      lastPayment: m['loan_last'] == null ? null : _toDouble(m['loan_last']),
     );
   }
 }

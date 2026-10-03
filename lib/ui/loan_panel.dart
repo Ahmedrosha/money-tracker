@@ -222,9 +222,18 @@ class LoanScheduleScreen extends StatelessWidget {
                   : Text('${i + 1}',
                       style: TextStyle(color: due ? kExpenseColor : null)),
             ),
-            title: Text(fmtMoney(r.payment, cur),
-                style: TextStyle(
-                    fontWeight: isNext ? FontWeight.bold : FontWeight.normal)),
+            title: Row(
+              children: [
+                Text(fmtMoney(r.payment, cur),
+                    style: TextStyle(
+                        fontWeight: isNext ? FontWeight.bold : FontWeight.normal)),
+                // The bank's first / last installment differs.
+                if (rows.length > 1 &&
+                    (i == 0 || i == rows.length - 1) &&
+                    (r.payment - rows[i == 0 ? 1 : i - 1].payment).abs() > 0.004)
+                  TagChip(i == 0 ? tr('First') : tr('Last')),
+              ],
+            ),
             subtitle: Text(
                 '${shortDateFmt.format(r.date)} · ${paid ? tr('Paid') : due ? tr('Due') : tr('Upcoming')}'
                 '${interest ? tr('\nPrincipal ${fmtAmount(r.principal)} · interest ${fmtAmount(r.interest)}') : ''}'),

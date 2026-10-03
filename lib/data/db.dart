@@ -39,7 +39,7 @@ class AppDb {
 
   final Database db;
 
-  static const int schemaVersion = 18;
+  static const int schemaVersion = 19;
 
   static Future<String> dbPath() async =>
       p.join(await getDatabasesPath(), 'money_tracker.db');
@@ -124,6 +124,7 @@ class AppDb {
         await _migrateToV16(db);
         await _migrateToV17(db);
         await _migrateToV18(db);
+        await _migrateToV19(db);
         await _seed(db);
       },
       onUpgrade: (db, oldV, newV) async {
@@ -144,6 +145,7 @@ class AppDb {
         if (oldV < 16) await _migrateToV16(db);
         if (oldV < 17) await _migrateToV17(db);
         if (oldV < 18) await _migrateToV18(db);
+        if (oldV < 19) await _migrateToV19(db);
       },
     );
     return AppDb._(db);
@@ -420,6 +422,13 @@ class AppDb {
     await db.execute(
         "ALTER TABLE account_details ADD COLUMN fx_fee TEXT NOT NULL DEFAULT ''");
     await db.execute('ALTER TABLE merchant_rules ADD COLUMN fee_separate INTEGER');
+  }
+
+  /// Recurring items: the date a payment is for, when paid another day.
+  static Future<void> _migrateToV19(Database db) async {
+    await db.execute('ALTER TABLE transactions ADD COLUMN for_date INTEGER');
+    await db.execute('ALTER TABLE accounts ADD COLUMN loan_first REAL');
+    await db.execute('ALTER TABLE accounts ADD COLUMN loan_last REAL');
   }
 
   static Future<void> _seed(Database db) async {
@@ -835,7 +844,7 @@ class AppDb {
       SELECT t.category_id AS cat, a.currency AS cur,
              SUM(t.amount) AS total, COUNT(*) AS n
       FROM transactions t JOIN accounts a ON a.id = t.account_id
-      WHERE t.type = ? AND t.date >= ? AND t.date < ?
+      WHERE t.type = ? AND COALESCE(t.for_date, t.date) >= ? AND COALESCE(t.for_date, t.date) < ?
       GROUP BY t.category_id, a.currency
     ''', [type.name, from.millisecondsSinceEpoch, to.millisecondsSinceEpoch]);
   }
@@ -863,10 +872,10 @@ class AppDb {
   Future<List<Map<String, Object?>>> categoryMonthly(
       int categoryId, DateTime from, DateTime to) {
     return db.rawQuery('''
-      SELECT strftime('%Y-%m', t.date / 1000, 'unixepoch', 'localtime') AS ym,
+      SELECT strftime('%Y-%m', COALESCE(t.for_date, t.date) / 1000, 'unixepoch', 'localtime') AS ym,
              a.currency AS cur, SUM(t.amount) AS total
       FROM transactions t JOIN accounts a ON a.id = t.account_id
-      WHERE t.category_id = ? AND t.date >= ? AND t.date < ?
+      WHERE t.category_id = ? AND COALESCE(t.for_date, t.date) >= ? AND COALESCE(t.for_date, t.date) < ?
       GROUP BY ym, a.currency
     ''', [categoryId, from.millisecondsSinceEpoch, to.millisecondsSinceEpoch]);
   }
@@ -881,10 +890,10 @@ class AppDb {
   /// Income and expense sums per calendar month (local time) in [from, to).
   Future<List<Map<String, Object?>>> monthlyTotals(DateTime from, DateTime to) {
     return db.rawQuery('''
-      SELECT strftime('%Y-%m', t.date / 1000, 'unixepoch', 'localtime') AS ym,
+      SELECT strftime('%Y-%m', COALESCE(t.for_date, t.date) / 1000, 'unixepoch', 'localtime') AS ym,
              t.type AS type, a.currency AS cur, SUM(t.amount) AS total
       FROM transactions t JOIN accounts a ON a.id = t.account_id
-      WHERE t.type IN ('income', 'expense') AND t.date >= ? AND t.date < ?
+      WHERE t.type IN ('income', 'expense') AND COALESCE(t.for_date, t.date) >= ? AND COALESCE(t.for_date, t.date) < ?
       GROUP BY ym, t.type, a.currency
     ''', [from.millisecondsSinceEpoch, to.millisecondsSinceEpoch]);
   }
@@ -1078,10 +1087,10 @@ class AppDb {
   Future<List<Map<String, Object?>>> expensesByMonthCategory(
       DateTime from, DateTime to) {
     return db.rawQuery('''
-      SELECT strftime('%Y-%m', t.date / 1000, 'unixepoch', 'localtime') AS ym,
+      SELECT strftime('%Y-%m', COALESCE(t.for_date, t.date) / 1000, 'unixepoch', 'localtime') AS ym,
              t.category_id AS cat, a.currency AS cur, SUM(t.amount) AS total
       FROM transactions t JOIN accounts a ON a.id = t.account_id
-      WHERE t.type = 'expense' AND t.date >= ? AND t.date < ?
+      WHERE t.type = 'expense' AND COALESCE(t.for_date, t.date) >= ? AND COALESCE(t.for_date, t.date) < ?
       GROUP BY ym, t.category_id, a.currency
     ''', [from.millisecondsSinceEpoch, to.millisecondsSinceEpoch]);
   }
@@ -1094,7 +1103,7 @@ class AppDb {
       SELECT TRIM(t.payee) AS payee, a.currency AS cur,
              SUM(t.amount) AS total, COUNT(*) AS n
       FROM transactions t JOIN accounts a ON a.id = t.account_id
-      WHERE t.type = ? AND TRIM(t.payee) <> '' AND t.date >= ? AND t.date < ?
+      WHERE t.type = ? AND TRIM(t.payee) <> '' AND COALESCE(t.for_date, t.date) >= ? AND COALESCE(t.for_date, t.date) < ?
       GROUP BY TRIM(t.payee) COLLATE NOCASE, a.currency
     ''', [type.name, from.millisecondsSinceEpoch, to.millisecondsSinceEpoch]);
   }

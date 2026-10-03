@@ -141,10 +141,14 @@ class LoanPanel extends StatelessWidget {
             const SizedBox(height: 8),
             _row(tr('Paid so far'), fmtMoney(paidAmt, cur)),
             _row(tr('Left to pay'), fmtMoney(left, cur), bold: true),
-            if (t.mode == LoanMode.interest)
+            if (t.mode == LoanMode.interest || t.spreadsCost)
               _row(tr('Interest still to pay'), fmtMoney(interestLeft, cur)),
             _row(tr('Months left'), '${t.months - paidN}'),
             _row(tr('Paid off'), shortDateFmt.format(rows.last.date)),
+            if (t.spreadsCost)
+              Text(
+                  tr('Borrowed ${fmtMoney(t.received!, cur)} · interest ${fmtMoney(t.totalToRepay - t.received!, cur)}, recorded on each due date'),
+                  style: small),
             if (t.mode == LoanMode.interest)
               Text(
                   tr('Borrowed ${fmtMoney(t.principal, cur)} at ${t.rate}% ${t.flat ? tr('flat') : tr('declining')}'),
@@ -233,7 +237,7 @@ class LoanScheduleScreen extends StatelessWidget {
     final cur = a.currency;
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day + 1);
-    final interest = t.mode == LoanMode.interest;
+    final interest = t.mode == LoanMode.interest || t.spreadsCost;
     return FutureBuilder<Map<int, List<Txn>>>(
       // Reloads after every change (state.version).
       key: ValueKey(state.version),

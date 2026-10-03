@@ -1253,6 +1253,11 @@ class LoanTerms {
   final double? firstPayment;
   final double? lastPayment;
 
+  /// Installments mode: the amount actually borrowed. When it is less than
+  /// the total to repay, the loan owes this amount and the difference is
+  /// recorded as interest (an expense) on each due date.
+  final double? received;
+
   const LoanTerms({
     required this.mode,
     required this.payment,
@@ -1265,6 +1270,7 @@ class LoanTerms {
     this.nextIndex = 0,
     this.firstPayment,
     this.lastPayment,
+    this.received,
   });
 
   LoanTerms copyWith({int? nextIndex}) => LoanTerms(
@@ -1279,7 +1285,24 @@ class LoanTerms {
         nextIndex: nextIndex ?? this.nextIndex,
         firstPayment: firstPayment,
         lastPayment: lastPayment,
+        received: received,
       );
+
+  /// Sum of all installments (installments mode).
+  double get totalToRepay {
+    var s = 0.0;
+    for (var i = 0; i < months; i++) {
+      s += paymentAt(i);
+    }
+    return s;
+  }
+
+  /// The extra over the amount borrowed is spread as interest.
+  bool get spreadsCost =>
+      mode == LoanMode.installments &&
+      received != null &&
+      received! > 0 &&
+      received! < totalToRepay - 0.004;
 
   /// Monthly payment for an interest loan.
   static double interestPayment(double p, double ratePct, int n, bool flat) {
@@ -1312,14 +1335,20 @@ class LoanTerms {
   List<LoanRow> schedule() {
     final out = <LoanRow>[];
     if (mode == LoanMode.installments) {
-      var left = 0.0;
-      for (var i = 0; i < months; i++) {
-        left += paymentAt(i);
-      }
+      final total = totalToRepay;
+      var left = total;
+      // The loan's cost, shared by each installment in proportion.
+      final cost = spreadsCost ? total - received! : 0.0;
+      var costLeft = cost;
       for (var i = 0; i < months; i++) {
         final p = paymentAt(i);
         left -= p;
-        out.add(LoanRow(i, addMonths(firstDue, i), p, p, 0,
+        var interest = 0.0;
+        if (cost > 0) {
+          interest = i == months - 1 ? _r2(costLeft) : _r2(p * cost / total);
+          costLeft -= interest;
+        }
+        out.add(LoanRow(i, addMonths(firstDue, i), p, _r2(p - interest), interest,
             left.abs() < 0.005 ? 0 : left));
       }
       return out;
@@ -1351,7 +1380,7 @@ class LoanTerms {
 
   /// What the loan account should show as owed at the start.
   double get startOwed => mode == LoanMode.installments
-      ? schedule().fold(0.0, (s, r) => s + r.payment)
+      ? (spreadsCost ? received! : totalToRepay)
       : principal;
 
   /// Interest loans: what the last installment comes to on its own (what
@@ -1379,6 +1408,7 @@ class LoanTerms {
         'loan_next': t?.nextIndex ?? 0,
         'loan_first': t?.firstPayment,
         'loan_last': t?.lastPayment,
+        'loan_received': t?.received,
       };
 
   static LoanTerms? fromColumns(Map<String, Object?> m) {
@@ -1398,6 +1428,7 @@ class LoanTerms {
       nextIndex: m['loan_next'] as int? ?? 0,
       firstPayment: m['loan_first'] == null ? null : _toDouble(m['loan_first']),
       lastPayment: m['loan_last'] == null ? null : _toDouble(m['loan_last']),
+      received: m['loan_received'] == null ? null : _toDouble(m['loan_received']),
     );
   }
 }

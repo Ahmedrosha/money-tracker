@@ -196,7 +196,7 @@ class SettingsScreen extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.info_outline),
             title: const Text('Expense & Wealth Tracker'),
-            subtitle: Text(tr('Version 0.44 — loan payment dates, rates refresh')),
+            subtitle: Text(tr('Version 0.45 — loan interest spread over the loan')),
           ),
         ],
       ),

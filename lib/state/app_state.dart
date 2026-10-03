@@ -305,6 +305,7 @@ class AppState extends ChangeNotifier {
     await dropbox.init();
     notifSettings = await NotifSettings.load(db);
     await _reloadAll();
+    await accrueLoanCosts();
     final setupDone = await db.getSetting('setup_done');
     if (setupDone == null && accounts.isNotEmpty) {
       // Existing data (an update, or a restore): no welcome screens.
@@ -1981,6 +1982,7 @@ class AppState extends ChangeNotifier {
       ));
     }
     await _reloadAll();
+    await accrueLoanCosts();
   }
 
   /// Records one installment: a transfer from the paying account into the
@@ -1998,20 +2000,23 @@ class AppState extends ChangeNotifier {
     final forDate = sameDay ? null : row.date;
     final label = 'Installment ${row.index + 1}/${t.months}';
     final payFrom = accountById(from);
+    // A loan whose cost is recorded on due dates: the whole installment
+    // goes into the loan (it clears the principal and that interest).
+    final intoLoan = t.spreadsCost ? row.payment : row.principal;
     final conv = payFrom == null || payFrom.currency == loan.currency
         ? null
-        : convert(row.principal, loan.currency, payFrom.currency);
+        : convert(intoLoan, loan.currency, payFrom.currency);
     await db.insertTxn(Txn(
       type: TxType.transfer,
       date: when,
-      amount: conv ?? row.principal,
+      amount: conv ?? intoLoan,
       accountId: from,
       toAccountId: loan.id,
-      toAmount: conv == null ? null : row.principal,
+      toAmount: conv == null ? null : intoLoan,
       note: '${loan.name} · $label',
       forDate: forDate,
     ));
-    if (row.interest > 0.004) {
+    if (row.interest > 0.004 && !t.spreadsCost) {
       await db.insertTxn(Txn(
         type: TxType.expense,
         date: when,
@@ -2229,7 +2234,50 @@ class AppState extends ChangeNotifier {
   /// Occurrences whose date has arrived and need confirming.
   /// Redraws screens that depend on today's date (due badge) — e.g. when
   /// the app comes back after midnight.
-  void refreshForToday() => notifyListeners();
+  void refreshForToday() {
+    notifyListeners();
+    accrueLoanCosts();
+  }
+
+  bool _accruing = false;
+
+  /// Installment loans with a cost: on each due date the installment's
+  /// interest is recorded as an expense on the loan (it adds to what is
+  /// owed; the payment then clears it).
+  Future<void> accrueLoanCosts() async {
+    if (_accruing) return;
+    _accruing = true;
+    var added = 0;
+    try {
+      final n = DateTime.now();
+      final today = DateTime(n.year, n.month, n.day + 1);
+      int? cat;
+      for (final a in plannedLoans) {
+        final t = a.loan!;
+        if (!t.spreadsCost || a.id == null) continue;
+        final done = await db.loanCostIndexes(a.id!);
+        for (final r in t.schedule()) {
+          if (!r.date.isBefore(today)) break;
+          if (done.contains(r.index) || r.interest <= 0.004) continue;
+          cat ??= await _loanInterestCategory();
+          await db.insertTxn(Txn(
+            type: TxType.expense,
+            date: r.date,
+            amount: r.interest,
+            accountId: a.id!,
+            categoryId: cat,
+            payee: a.fullName,
+            note: 'Loan cost · Installment ${r.index + 1}/${t.months}',
+          ));
+          added++;
+        }
+      }
+    } catch (_) {
+    } finally {
+      _accruing = false;
+    }
+    if (added > 0) await _reloadAll();
+  }
 
   /// Recurring items dated today or earlier, still to confirm.
   List<Occurrence> get dueOccurrences {

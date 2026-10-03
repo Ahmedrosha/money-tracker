@@ -128,6 +128,10 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
   int? _loanReceivedInto;
   final _loanReceived = TextEditingController();
 
+  /// New installment loans: record the extra over the amount received as
+  /// interest on each due date.
+  bool _loanSpread = true;
+
   /// Show the plan section: new loans, or loans that already have a plan.
   bool get _showLoan =>
       _type == AccountType.loan && (_isNew || widget.account?.loan != null);
@@ -162,7 +166,10 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
           payAccountId: _loanPayFrom,
           nextIndex: old?.nextIndex ?? 0,
           firstPayment: parseAmount(_loanFirst.text)?.abs(),
-          lastPayment: parseAmount(_loanLast.text)?.abs());
+          lastPayment: parseAmount(_loanLast.text)?.abs(),
+          received: _isNew
+              ? (_loanSpread ? parseAmount(_loanReceived.text)?.abs() : null)
+              : old?.received);
     }
     final principal = parseAmount(_loanPrincipal.text)?.abs() ?? 0;
     final rate = parseAmount(_loanRate.text)?.abs() ?? 0;
@@ -179,6 +186,29 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
         nextIndex: old?.nextIndex ?? 0,
         firstPayment: parseAmount(_loanFirst.text)?.abs(),
         lastPayment: parseAmount(_loanLast.text)?.abs());
+  }
+
+  /// New installment loans: the extra over the amount borrowed recorded as
+  /// interest on each due date.
+  List<Widget> _loanSpreadSwitch(LoanTerms? preview) {
+    final got = parseAmount(_loanReceived.text)?.abs();
+    final total = preview?.totalToRepay;
+    if (got == null || total == null || got <= 0 || got >= total - 0.004) {
+      return const [];
+    }
+    final cost = total - got;
+    final months = preview!.months;
+    return [
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: Text(tr('Record the extra as interest')),
+        subtitle: Text(_loanSpread
+            ? tr('The loan starts at ${fmtMoneyRaw(got, _currency)} owed. ${fmtMoneyRaw(cost, _currency)} interest is recorded as an expense over $months months (about ${fmtMoneyRaw(cost / months, _currency)} on each due date).')
+            : tr('The loan starts at ${fmtMoneyRaw(total, _currency)} owed; the extra is not recorded as an expense.')),
+        value: _loanSpread,
+        onChanged: (v) => setState(() => _loanSpread = v),
+      ),
+    ];
   }
 
   /// First and last installment (when the bank's differ), the total to
@@ -201,7 +231,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
     String? diff;
     double? fix;
     if (!interest && workedOut != null && preview != null) {
-      final d = total! - preview.startOwed;
+      final d = total! - preview.totalToRepay;
       if (d.abs() > 0.004) {
         diff = tr('Difference ${fmtMoneyRaw(d, _currency)} from the total');
         fix = workedOut;
@@ -604,7 +634,7 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
               _loanMode == LoanMode.interest
                   ? tr('Installment ${fmtMoneyRaw(preview.payment, _currency)} · total interest '
                       '${fmtMoneyRaw(preview.schedule().fold<double>(0, (s, r) => s + r.interest), _currency)}')
-                  : tr('Total to repay ${fmtMoneyRaw(preview.startOwed, _currency)}'),
+                  : tr('Total to repay ${fmtMoneyRaw(preview.totalToRepay, _currency)}'),
               style: small?.copyWith(fontWeight: FontWeight.w600),
             ),
           ),
@@ -636,16 +666,18 @@ class _AccountEditScreenState extends State<AccountEditScreen> {
             value: _loanReceivedInto,
             onChanged: (v) => setState(() => _loanReceivedInto = v),
           ),
-          if (_loanMode == LoanMode.installments && _loanReceivedInto != null) ...[
+          if (_loanMode == LoanMode.installments) ...[
             const SizedBox(height: 12),
             TextFormField(
               controller: _loanReceived,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
-                  labelText: tr('Amount Received'),
+                  labelText: tr('Amount Received (borrowed)'),
                   suffixText: cur,
                   border: const OutlineInputBorder()),
             ),
+            ..._loanSpreadSwitch(preview),
           ],
           const SizedBox(height: 4),
           Text(

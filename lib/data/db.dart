@@ -39,7 +39,7 @@ class AppDb {
 
   final Database db;
 
-  static const int schemaVersion = 19;
+  static const int schemaVersion = 20;
 
   static Future<String> dbPath() async =>
       p.join(await getDatabasesPath(), 'money_tracker.db');
@@ -125,6 +125,7 @@ class AppDb {
         await _migrateToV17(db);
         await _migrateToV18(db);
         await _migrateToV19(db);
+        await _migrateToV20(db);
         await _seed(db);
       },
       onUpgrade: (db, oldV, newV) async {
@@ -146,6 +147,7 @@ class AppDb {
         if (oldV < 17) await _migrateToV17(db);
         if (oldV < 18) await _migrateToV18(db);
         if (oldV < 19) await _migrateToV19(db);
+        if (oldV < 20) await _migrateToV20(db);
       },
     );
     return AppDb._(db);
@@ -431,6 +433,11 @@ class AppDb {
     await db.execute('ALTER TABLE accounts ADD COLUMN loan_last REAL');
   }
 
+  /// Installment loans: the amount borrowed (the rest is interest).
+  static Future<void> _migrateToV20(Database db) async {
+    await db.execute('ALTER TABLE accounts ADD COLUMN loan_received REAL');
+  }
+
   static Future<void> _seed(Database db) async {
     const expense = [
       ['Food & Dining', 'food', 0xFFFB8C00],
@@ -583,6 +590,20 @@ class AppDb {
     final fee = await db.query('transactions',
         columns: ['id'], where: 'fee_for = ?', whereArgs: [rows.first['id']], limit: 1);
     return fee.isNotEmpty;
+  }
+
+  /// Installments whose interest (loan cost) is already recorded.
+  Future<Set<int>> loanCostIndexes(int loanId) async {
+    final rows = await db.query('transactions',
+        columns: ['note'],
+        where: "account_id = ? AND type = 'expense' AND note LIKE 'Loan cost · Installment %'",
+        whereArgs: [loanId]);
+    final re = RegExp(r'Installment (\d+)/');
+    return {
+      for (final r in rows)
+        if (re.firstMatch(r['note'] as String? ?? '') case final m?)
+          int.parse(m.group(1)!) - 1,
+    };
   }
 
   /// Recorded loan installments: index (0-based) → its entries (the

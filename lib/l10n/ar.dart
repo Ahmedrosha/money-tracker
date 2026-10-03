@@ -3,6 +3,12 @@
 // ignore_for_file: prefer_single_quotes
 
 const Map<String, String> kArabic = {
+  "Version 0.45 — loan interest spread over the loan": "الإصدار 0.45 — توزيع فائدة القرض على مدته",
+  "Amount Received (borrowed)": "المبلغ المستلم (المقترض)",
+  "Record the extra as interest": "تسجيل الزيادة كفائدة",
+  "The loan starts at {0} owed. {1} interest is recorded as an expense over {2} months (about {3} on each due date).": "يبدأ القرض بمبلغ مستحق {0}. تُسجل فائدة {1} كمصروف على مدى {2} شهرًا (حوالي {3} في كل تاريخ استحقاق).",
+  "The loan starts at {0} owed; the extra is not recorded as an expense.": "يبدأ القرض بمبلغ مستحق {0}؛ ولا تُسجل الزيادة كمصروف.",
+  "Borrowed {0} · interest {1}, recorded on each due date": "مقترض {0} · فائدة {1}، تُسجل في كل تاريخ استحقاق",
   "This also removes the interest entry of this installment, and the installment becomes unpaid again. This cannot be undone.": "سيتم أيضًا حذف قيد الفائدة لهذا القسط، ويعود القسط غير مدفوع. لا يمكن التراجع عن ذلك.",
   "Date you paid": "تاريخ الدفع",
   "Paid on {0}": "دُفع في {0}",

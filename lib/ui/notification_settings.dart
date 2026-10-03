@@ -33,6 +33,9 @@ class _NotificationSettingsScreenState
       statementClosed: cur.statementClosed,
       backup: cur.backup,
       budgets: cur.budgets,
+      unusual: cur.unusual,
+      monthSummary: cur.monthSummary,
+      lowBalance: cur.lowBalance,
     );
   }
 
@@ -142,6 +145,27 @@ class _NotificationSettingsScreenState
             subtitle: Text(tr('When a budget reaches 80% and when it is exceeded')),
             value: _s.budgets,
             onChanged: on ? (v) => _update(() => _s.budgets = v) : null,
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.trending_up),
+            title: Text(tr('Unusual Spending')),
+            subtitle: Text(tr('When a category is heading 30% above your usual month (from the 8th)')),
+            value: _s.unusual,
+            onChanged: on ? (v) => _update(() => _s.unusual = v) : null,
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.trending_down),
+            title: Text(tr('Low Balance Ahead')),
+            subtitle: Text(tr('When an account may go below zero in the next 14 days')),
+            value: _s.lowBalance,
+            onChanged: on ? (v) => _update(() => _s.lowBalance = v) : null,
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.summarize_outlined),
+            title: Text(tr('Month Summary')),
+            subtitle: Text(tr('On the 1st at 9:00, last month in short')),
+            value: _s.monthSummary,
+            onChanged: on ? (v) => _update(() => _s.monthSummary = v) : null,
           ),
           const Divider(),
           ListTile(

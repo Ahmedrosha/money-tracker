@@ -5,6 +5,8 @@ import '../data/models.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
 import 'transaction_edit.dart';
+import 'export_screen.dart';
+import '../services/export_excel.dart';
 import 'widgets.dart';
 import '../l10n/l10n.dart';
 
@@ -296,7 +298,16 @@ class LoanScheduleScreen extends StatelessWidget {
       List<LoanRow> rows, String cur, DateTime today, bool interest,
       Map<int, List<Txn>> payments) {
     return Scaffold(
-      appBar: AppBar(title: Text(tr('${a.name} Schedule'))),
+      appBar: AppBar(
+        title: Text(tr('${a.name} Schedule')),
+        actions: [
+          IconButton(
+            tooltip: tr('Export to Excel'),
+            icon: const Icon(Icons.table_view_outlined),
+            onPressed: () => shareExcel(context, () => ExcelExport.loanSchedule(state, a)),
+          ),
+        ],
+      ),
       body: ListView.separated(
         padding: const EdgeInsets.only(bottom: 32),
         itemCount: rows.length,

@@ -1,0 +1,38 @@
+name: Check code
+
+on:
+  push:
+    branches: [check]
+
+permissions:
+  contents: write
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Analyze
+        shell: bash
+        run: |
+          flutter create --org com.rashad --project-name money_tracker --platforms android build_app
+          rm -rf build_app/lib build_app/test build_app/analysis_options.yaml
+          cp -r lib build_app/lib
+          cp pubspec.yaml build_app/pubspec.yaml
+          cp -r assets build_app/assets
+          cd build_app
+          set +e
+          flutter pub get > ../check.log 2>&1
+          flutter analyze --no-fatal-infos --no-fatal-warnings >> ../check.log 2>&1
+          echo "EXIT $?" >> ../check.log
+      - name: Publish result
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ci-check
+          name: Code check (latest)
+          prerelease: true
+          files: check.log

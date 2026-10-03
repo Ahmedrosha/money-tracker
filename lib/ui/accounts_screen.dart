@@ -16,6 +16,8 @@ import 'widgets.dart';
 import 'sms_inbox_screen.dart';
 import 'cards_due.dart';
 import 'currencies_screen.dart';
+import 'month_summary_screen.dart';
+import 'reports_extra.dart' show OutlookTab;
 import '../l10n/l10n.dart';
 
 class AccountsScreen extends StatelessWidget {
@@ -184,6 +186,55 @@ class AccountsScreen extends StatelessWidget {
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const BackupScreen()),
+                  ),
+                ),
+              ),
+            ),
+          if (state.showSummaryCard && state.accounts.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Card(
+                color: Theme.of(context).colorScheme.secondaryContainer,
+                child: ListTile(
+                  leading: const Icon(Icons.summarize_outlined),
+                  title: Text(tr('${monthFmt.format(DateTime(DateTime.now().year, DateTime.now().month - 1))} summary is ready')),
+                  subtitle: Text(tr('Income, spending and what you saved')),
+                  trailing: IconButton(
+                    tooltip: tr('Hide'),
+                    icon: const Icon(Icons.close),
+                    onPressed: state.markSummarySeen,
+                  ),
+                  onTap: () {
+                    state.markSummarySeen();
+                    final n = DateTime.now();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => MonthSummaryScreen(month: DateTime(n.year, n.month - 1))),
+                    );
+                  },
+                ),
+              ),
+            ),
+          for (final f in state.shortfalls)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Card(
+                color: Theme.of(context).colorScheme.errorContainer,
+                child: ListTile(
+                  leading: const Icon(Icons.trending_down),
+                  title: Text(tr('${f.account.name} may go below zero')),
+                  subtitle: Text(tr(
+                      'On ${shortDateFmt.format(f.date)} (${fmtMoney(f.lowest, state.baseCurrency)}) · ${f.reason}')),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => Scaffold(
+                        appBar: AppBar(title: Text(tr('Outlook'))),
+                        body: OutlookTab(accountId: f.account.id),
+                      ),
+                    ),
                   ),
                 ),
               ),

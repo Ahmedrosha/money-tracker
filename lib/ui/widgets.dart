@@ -152,6 +152,9 @@ class TxnTile extends StatelessWidget {
       subtitle = tr('For ${DateFormat('d MMM').format(txn.forDate!)} · $subtitle');
     }
     final late = txn.daysLate;
+    if (txn.tags.isNotEmpty) {
+      subtitle = '$subtitle · ${txn.tags.map((t) => '#$t').join(' ')}';
+    }
     if (txn.note.isNotEmpty) subtitle = '$subtitle · ${txn.note}';
 
     final isNeutralTransfer =
@@ -1080,6 +1083,87 @@ class _SplitTileState extends State<SplitTile> {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// Several free tags (e.g. "Sahel 2026", "Work") with suggestions from the
+/// tags used before.
+class TagsField extends StatefulWidget {
+  const TagsField({super.key, required this.tags, required this.onChanged});
+
+  final List<String> tags;
+  final ValueChanged<List<String>> onChanged;
+
+  @override
+  State<TagsField> createState() => _TagsFieldState();
+}
+
+class _TagsFieldState extends State<TagsField> {
+  TextEditingController? _text;
+
+  void _add(String v) {
+    final t = v.trim().replaceAll('|', '/');
+    _text?.clear();
+    if (t.isEmpty) return;
+    if (widget.tags.any((x) => x.toLowerCase() == t.toLowerCase())) return;
+    widget.onChanged([...widget.tags, t]);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText: tr('Tags'),
+        border: const OutlineInputBorder(),
+        prefixIcon: const Icon(Icons.sell_outlined),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (widget.tags.isNotEmpty)
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                for (final t in widget.tags)
+                  InputChip(
+                    label: Text(t),
+                    visualDensity: VisualDensity.compact,
+                    onDeleted: () => widget.onChanged(
+                        widget.tags.where((x) => x != t).toList()),
+                  ),
+              ],
+            ),
+          Autocomplete<String>(
+            optionsBuilder: (v) {
+              final q = v.text.trim().toLowerCase();
+              final used = widget.tags.map((x) => x.toLowerCase()).toSet();
+              return state.allTags
+                  .where((t) => !used.contains(t.toLowerCase()))
+                  .where((t) => q.isEmpty || t.toLowerCase().contains(q))
+                  .take(8);
+            },
+            onSelected: _add,
+            fieldViewBuilder: (context, controller, focus, onSubmit) {
+              _text = controller;
+              return TextField(
+                controller: controller,
+                focusNode: focus,
+                textCapitalization: TextCapitalization.words,
+                decoration: InputDecoration(
+                  hintText: tr('Add a tag, e.g. a trip'),
+                  border: InputBorder.none,
+                  isDense: true,
+                ),
+                onSubmitted: _add,
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 }

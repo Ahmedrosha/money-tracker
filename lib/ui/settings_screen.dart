@@ -13,6 +13,7 @@ import 'reset_screen.dart';
 import 'sms_inbox_screen.dart';
 import 'widgets.dart';
 import '../l10n/l10n.dart';
+import 'export_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -124,6 +125,15 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
           ListTile(
+            leading: const Icon(Icons.table_view_outlined),
+            title: Text(tr('Export to Excel')),
+            subtitle: Text(tr('Transactions for any period, to share or keep')),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ExportScreen()),
+            ),
+          ),
+          ListTile(
             leading: const Icon(Icons.repeat),
             title: Text(tr('Recurring Items')),
             subtitle: Text(
@@ -196,7 +206,7 @@ class SettingsScreen extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.info_outline),
             title: const Text('Expense & Wealth Tracker'),
-            subtitle: Text(tr('Version 0.46 — subscriptions')),
+            subtitle: Text(tr('Version 0.47 — forecast, alerts, month summary, tags, Excel')),
           ),
         ],
       ),

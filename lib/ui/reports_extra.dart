@@ -11,6 +11,7 @@ import 'account_detail.dart';
 import 'reports_more.dart';
 import 'search_screen.dart';
 import 'widgets.dart';
+import '../services/outlook.dart';
 import '../l10n/l10n.dart';
 
 Widget _heading(BuildContext context, String t, {String? sub}) => Padding(
@@ -109,30 +110,18 @@ class _ShareRow extends StatelessWidget {
 // Outlook: cash and bank money over the coming weeks
 // ===========================================================================
 
-class _Event {
-  final DateTime date;
-  final String name;
-  final double amount; // main currency, + in / - out
-  final IconData icon;
-  final bool estimate;
-  _Event(this.date, this.name, this.amount, this.icon, {this.estimate = false});
-}
-
 class _Outlook {
   final double start;
-  final List<_Event> events;
+  final List<OutlookEvent> events;
   final List<(DateTime, double)> days;
   _Outlook(this.start, this.events, this.days);
 }
 
-bool isSpendable(Account a) =>
-    !a.archived &&
-    !a.excludeTotal &&
-    (a.type.family == AccountFamily.cash ||
-        (a.type.family == AccountFamily.bank && a.type != AccountType.certificate));
-
 class OutlookTab extends StatefulWidget {
-  const OutlookTab({super.key});
+  const OutlookTab({super.key, this.accountId});
+
+  /// Start on one account instead of all cash and bank accounts.
+  final int? accountId;
 
   @override
   State<OutlookTab> createState() => _OutlookTabState();
@@ -144,108 +133,29 @@ class _OutlookTabState extends State<OutlookTab> {
   Future<_Outlook>? _future;
   String _key = '';
 
+  /// null = all cash and bank accounts.
+  late int? _acc = widget.accountId;
+
   Future<_Outlook> _load(AppState state) async {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final end = DateTime(today.year, today.month, today.day + _days + 1);
-    final liquid = {
-      for (final a in state.accounts)
-        if (isSpendable(a)) a.id!: a
-    };
+    final acc = state.accountById(_acc);
+    final accounts = acc != null ? [acc] : state.accounts.where(isSpendable).toList();
     var start = 0.0;
-    for (final a in liquid.values) {
+    for (final a in accounts) {
       start += state.toBase(a.balance, a.currency);
     }
-    final events = <_Event>[];
-    DateTime notBefore(DateTime d) => d.isBefore(today) ? today : d;
-
-    // Effect of one entry on cash & bank accounts.
-    double effect(TxType type, int accId, int? toId, double amount, double? toAmount) {
-      var v = 0.0;
-      final from = liquid[accId];
-      final to = liquid[toId];
-      switch (type) {
-        case TxType.income:
-          if (from != null) v += state.toBase(amount, from.currency);
-        case TxType.expense:
-          if (from != null) v -= state.toBase(amount, from.currency);
-        case TxType.transfer:
-          if (from != null) v -= state.toBase(amount, from.currency);
-          if (to != null) v += state.toBase(toAmount ?? amount, to.currency);
-      }
-      return v;
-    }
-
-    String nameOf(TxType type, int? toId, String payee, int? catId) {
-      if (type == TxType.transfer) {
-        return tr('Transfer to ${state.accountById(toId)?.name ?? '?'}');
-      }
-      if (payee.isNotEmpty) return payee;
-      return state.categoryById(catId)?.name ?? type.label;
-    }
-
-    // Entries already recorded with a future date.
-    for (final t in await state.db.transactions(from: now, to: end)) {
-      if (!t.date.isAfter(now)) continue;
-      final v = effect(t.type, t.accountId, t.toAccountId, t.amount, t.toAmount);
-      if (v.abs() < 0.005) continue;
-      events.add(_Event(t.date, nameOf(t.type, t.toAccountId, t.payee, t.categoryId),
-          v, t.type == TxType.income ? Icons.south_west : Icons.north_east));
-    }
-
-    // Recurring items not confirmed yet (overdue ones count as today).
-    for (final o in state.pendingOccurrences(DateTime(1970), end)) {
-      final r = o.rule;
-      final v = effect(r.type, r.accountId, r.toAccountId, r.amount, r.toAmount);
-      if (v.abs() < 0.005) continue;
-      events.add(_Event(notBefore(o.date),
-          nameOf(r.type, r.toAccountId, r.payee, r.categoryId), v, Icons.repeat));
-    }
-
-    // Credit card payments: the open statement, then each coming cycle.
-    for (final c in state.cards.values) {
-      final a = c.card;
-      if (a.archived || a.excludeTotal || !a.hasCycle) continue;
-      final last = c.last;
-      if (last != null && !last.settled && last.remaining > 0.004) {
-        events.add(_Event(notBefore(last.dueDate), tr('${a.fullName} statement'),
-            -state.toBase(last.remaining, a.currency), Icons.credit_card));
-      }
-      var close = c.nextClose;
-      if (close == null) continue;
-      var prevClose = lastCloseBefore(now, a.statementDay!);
-      var first = true;
-      while (true) {
-        final due = dueDateAfter(close!, a.dueDay!);
-        if (!due.isBefore(end)) break;
-        final amt = first
-            ? c.cycleSpent
-            : await state.db.debitsBetween(a.id!, prevClose, close);
-        if (amt > 0.004) {
-          events.add(_Event(due, tr('${a.fullName} (estimate)'),
-              -state.toBase(amt, a.currency), Icons.credit_card,
-              estimate: true));
-        }
-        first = false;
-        prevClose = close;
-        close = cycleCloseIn(close.year, close.month + 1, a.statementDay!);
-      }
-    }
-
-    // Loan installments still to pay.
-    for (final a in state.plannedLoans) {
-      final t = a.loan!;
-      final from = liquid[t.payAccountId];
-      if (from == null) continue;
-      for (final r in state.unpaidInstallments(a)) {
-        if (!r.date.isBefore(end)) break;
-        events.add(_Event(notBefore(r.date),
-            tr('${a.name} installment ${r.index + 1}/${t.months}'),
-            -state.toBase(r.payment, a.currency), Icons.request_quote_outlined));
-      }
-    }
-
-    events.sort((x, y) => x.date.compareTo(y.date));
+    final all = await outlookEvents(state, end);
+    // One account: only what touches it, with its part of the amount.
+    final events = <OutlookEvent>[
+      for (final e in all)
+        if (acc == null)
+          e
+        else if (e.effects.containsKey(acc.id))
+          OutlookEvent(e.date, e.name, {acc.id!: e.effects[acc.id]!}, e.icon,
+              estimate: e.estimate),
+    ];
     final days = <(DateTime, double)>[];
     var bal = start;
     var k = 0;
@@ -253,7 +163,7 @@ class _OutlookTabState extends State<OutlookTab> {
       final d = DateTime(today.year, today.month, today.day + i);
       final next = DateTime(d.year, d.month, d.day + 1);
       while (k < events.length && events[k].date.isBefore(next)) {
-        bal += events[k].amount;
+        bal += events[k].total;
         k++;
       }
       days.add((d, bal));
@@ -264,7 +174,7 @@ class _OutlookTabState extends State<OutlookTab> {
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
-    final key = '${state.version}-$_days';
+    final key = '${state.version}-$_days-$_acc';
     if (key != _key) {
       _key = key;
       _sel = null;
@@ -291,6 +201,19 @@ class _OutlookTabState extends State<OutlookTab> {
                 onSelectionChanged: (s) => setState(() => _days = s.first),
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+              child: LabeledDropdown<int>(
+                label: tr('Account'),
+                value: _acc ?? -1,
+                items: [
+                  DropdownMenuItem(value: -1, child: Text(tr('All cash & bank accounts'))),
+                  for (final a in state.accounts.where(isSpendable))
+                    DropdownMenuItem(value: a.id!, child: Text(a.fullName, overflow: TextOverflow.ellipsis)),
+                ],
+                onChanged: (v) => setState(() => _acc = v == null || v == -1 ? null : v),
+              ),
+            ),
             if (o == null)
               const Padding(
                 padding: EdgeInsets.all(40),
@@ -308,8 +231,8 @@ class _OutlookTabState extends State<OutlookTab> {
     final sel = _sel == null || _sel! >= o.days.length ? o.days.length - 1 : _sel!;
     final low = o.days.reduce((a, b) => b.$2 < a.$2 ? b : a);
     final endV = o.days.last.$2;
-    final inflow = o.events.where((e) => e.amount > 0).fold<double>(0, (t, e) => t + e.amount);
-    final outflow = o.events.where((e) => e.amount < 0).fold<double>(0, (t, e) => t - e.amount);
+    final inflow = o.events.where((e) => e.total > 0).fold<double>(0, (t, e) => t + e.total);
+    final outflow = o.events.where((e) => e.total < 0).fold<double>(0, (t, e) => t - e.total);
     final dayFmt2 = DateFormat('d MMM');
     final labels = List<String?>.filled(o.days.length, null);
     final step = (o.days.length / 5).ceil();
@@ -374,7 +297,7 @@ class _OutlookTabState extends State<OutlookTab> {
               : tr('Recurring items, future-dated entries and card payments')),
       for (final e in o.events)
         () {
-          running += e.amount;
+          running += e.total;
           return ListTile(
             dense: true,
             leading: Icon(e.icon),
@@ -382,10 +305,10 @@ class _OutlookTabState extends State<OutlookTab> {
             subtitle: Text(
                 tr('${dayFmt.format(e.date)} · balance ${fmtAmount(running)}')),
             trailing: Text(
-              '${e.amount > 0 ? '+' : ''}${fmtAmount(e.amount)}',
+              '${e.total > 0 ? '+' : ''}${fmtAmount(e.total)}',
               style: TextStyle(
                   fontWeight: FontWeight.w600,
-                  color: amountColor(context, e.amount),
+                  color: amountColor(context, e.total),
                   fontStyle: e.estimate ? FontStyle.italic : null),
             ),
           );

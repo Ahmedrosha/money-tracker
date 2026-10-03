@@ -689,6 +689,24 @@ class Txn {
 
   DateTime get effectiveForDate => forDate ?? date;
 
+  /// Free labels, e.g. "Sahel 2026", "Work" (several per entry).
+  final List<String> tags;
+
+  /// Stored as "|Sahel 2026|Work|" so one tag can be searched with LIKE.
+  static String encodeTags(List<String> tags) {
+    final clean = [
+      for (final t in tags)
+        if (t.trim().isNotEmpty) t.trim().replaceAll('|', '/')
+    ];
+    return clean.isEmpty ? '' : '|${clean.join('|')}|';
+  }
+
+  static List<String> decodeTags(String? s) => (s ?? '')
+      .split('|')
+      .map((x) => x.trim())
+      .where((x) => x.isNotEmpty)
+      .toList();
+
   /// Whole days between the due date and the payment (+ late, − early).
   int get daysLate {
     if (forDate == null) return 0;
@@ -720,6 +738,7 @@ class Txn {
     this.marketRate,
     this.fxFee,
     this.forDate,
+    this.tags = const [],
   });
 
   bool get isFuture => date.isAfter(DateTime.now());
@@ -759,6 +778,7 @@ class Txn {
         'market_rate': marketRate,
         'fx_fee': fxFee,
         'for_date': forDate?.millisecondsSinceEpoch,
+        'tags': encodeTags(tags),
       };
 
   factory Txn.fromMap(Map<String, Object?> m) => Txn(
@@ -790,6 +810,7 @@ class Txn {
         forDate: m['for_date'] == null
             ? null
             : DateTime.fromMillisecondsSinceEpoch(m['for_date'] as int),
+        tags: decodeTags(m['tags'] as String?),
       );
 }
 
@@ -1093,6 +1114,15 @@ class RecurringRule {
         note: note,
         recurringId: id,
       );
+}
+
+/// A category heading well above its usual month.
+class UnusualSpend {
+  const UnusualSpend(this.categoryId, this.spent, this.projected, this.usual);
+  final int categoryId;
+  final double spent;
+  final double projected;
+  final double usual;
 }
 
 /// A payee that looks like a subscription: its latest charge and how many

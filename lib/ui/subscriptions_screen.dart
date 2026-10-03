@@ -5,6 +5,8 @@ import '../l10n/l10n.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
 import 'transaction_edit.dart';
+import 'export_screen.dart';
+import '../services/export_excel.dart';
 import 'widgets.dart';
 
 /// Recurring expenses marked as subscriptions: what they cost a month and a
@@ -36,7 +38,16 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
     final cancelled = state.cancelledSubscriptions;
 
     return Scaffold(
-      appBar: AppBar(title: Text(tr('Subscriptions'))),
+      appBar: AppBar(
+        title: Text(tr('Subscriptions')),
+        actions: [
+          IconButton(
+            tooltip: tr('Export to Excel'),
+            icon: const Icon(Icons.table_view_outlined),
+            onPressed: () => shareExcel(context, () => ExcelExport.subscriptions(state)),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 32),
         children: [

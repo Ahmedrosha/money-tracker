@@ -151,6 +151,9 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
   // Repeat
   bool _repeat = false;
 
+  /// Tags (expenses and income).
+  List<String> _tags = [];
+
   /// Recurring expense shown in Subscriptions.
   late bool _subscription = widget.rule?.subscription ?? false;
   Freq _freq = Freq.monthly;
@@ -573,6 +576,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     _date = t.date;
     if (t.postedLater) _postDate = t.postDate;
     if (t.recurringId != null) _forDate = t.forDate ?? t.date;
+    _tags = [...t.tags];
     if (t.isForeign) {
       _fxCur = t.origCurrency;
       _fxAmount.text = _plain(t.origAmount!.abs());
@@ -1014,6 +1018,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       forDate: _showFor
           ? (_sameDay(_forDate!, _date) ? null : _forDate)
           : widget.txn?.forDate,
+      tags: isTransfer || _repeat || _installments ? const [] : _tags,
       origAmount: fxPaid == null ? null : (amount < 0 ? -fxPaid : fxPaid),
       origCurrency: fxPaid == null ? null : _fxCur,
       marketRate: fxPaid == null ? null : _fxMarket(state),
@@ -1582,6 +1587,16 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                                   Theme.of(context).colorScheme.onSurfaceVariant)
                           : null),
                 ),
+              ),
+            ],
+            if (_type != TxType.transfer &&
+                !_repeat &&
+                _mode != _Mode.editRule &&
+                _mode != _Mode.editPlan) ...[
+              gap,
+              TagsField(
+                tags: _tags,
+                onChanged: (v) => setState(() => _tags = v),
               ),
             ],
             gap,

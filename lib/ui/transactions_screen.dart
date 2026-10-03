@@ -11,6 +11,7 @@ import 'transaction_edit.dart';
 import 'widgets.dart';
 import '../l10n/l10n.dart';
 import 'subscriptions_screen.dart';
+import 'tags_screen.dart';
 
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key});
@@ -121,6 +122,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         ),
         actions: [
           const HideAmountsButton(),
+          IconButton(
+            tooltip: tr('Tags'),
+            icon: const Icon(Icons.sell_outlined),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const TagsScreen()),
+            ),
+          ),
           IconButton(
             tooltip: tr('Subscriptions'),
             icon: const Icon(Icons.subscriptions_outlined),

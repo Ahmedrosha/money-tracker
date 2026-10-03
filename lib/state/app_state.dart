@@ -1,4 +1,5 @@
 import '../l10n/l10n.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -17,6 +18,7 @@ import '../services/secure_store.dart';
 import '../services/home_widgets.dart';
 import '../services/sms_parser.dart';
 import '../services/sms_reader.dart';
+import '../services/outlook.dart';
 
 class AppState extends ChangeNotifier {
   AppState(this.db) {
@@ -314,7 +316,9 @@ class AppState extends ChangeNotifier {
     needsSetup = setupDone == null && accounts.isEmpty;
     _sampleAccounts = _idList(await db.getSetting('sample_accounts'));
     _sampleBudgets = _idList(await db.getSetting('sample_budgets'));
+    summarySeen = await db.getSetting('summary_seen');
     _loaded = true;
+    _scheduleChecks();
   }
 
   Future<void> _reloadAll() async {
@@ -331,6 +335,7 @@ class AppState extends ChangeNotifier {
     smsPending = await db.pendingSms();
     smsDismissed = await db.dismissedSms();
     merchantRules = await db.merchantRules();
+    allTags = await db.allTags();
     loanPayments = {
       for (final a in accounts)
         if (a.loan != null && a.id != null)
@@ -350,6 +355,154 @@ class AppState extends ChangeNotifier {
     }
     rescheduleReminders();
     HomeWidgets.schedule(this);
+    if (_loaded) _scheduleChecks();
+  }
+
+  Timer? _checksTimer;
+
+  /// Shortfalls and unusual spending, a moment after the last change.
+  void _scheduleChecks() {
+    _checksTimer?.cancel();
+    _checksTimer = Timer(const Duration(seconds: 3), () {
+      _checkShortfalls();
+      checkUnusualSpending();
+    });
+  }
+
+  // ---------------- Month summary ----------------
+
+  /// Last month's summary hasn't been opened yet (first week of a month).
+  String? summarySeen;
+
+  bool get showSummaryCard {
+    final now = DateTime.now();
+    if (now.day > 7) return false;
+    final last = DateTime(now.year, now.month - 1);
+    return summarySeen != '${last.year}-${last.month}';
+  }
+
+  Future<void> markSummarySeen() async {
+    final now = DateTime.now();
+    final last = DateTime(now.year, now.month - 1);
+    summarySeen = '${last.year}-${last.month}';
+    await db.setSetting('summary_seen', summarySeen!);
+    notifyListeners();
+  }
+
+  // ---------------- Unusual spending ----------------
+
+  /// Categories heading well above their usual month.
+  List<UnusualSpend> unusual = [];
+  bool _checkingUnusual = false;
+
+  /// Compares this month (projected to its end) with the average of the
+  /// last 3 months, per category. From the 8th; 30% and 500 above usual.
+  Future<void> checkUnusualSpending() async {
+    if (_checkingUnusual) return;
+    _checkingUnusual = true;
+    try {
+      final now = DateTime.now();
+      if (now.day < 8) {
+        unusual = [];
+        return;
+      }
+      final from = DateTime(now.year, now.month, 1);
+      final next = DateTime(now.year, now.month + 1, 1);
+      final daysInMonth = next.subtract(const Duration(days: 1)).day;
+      final tomorrow = DateTime(now.year, now.month, now.day + 1);
+      Future<Map<int, double>> totals(DateTime a, DateTime b) async {
+        final out = <int, double>{};
+        for (final r in await db.categoryTotals(TxType.expense, a, b)) {
+          final cat = r['cat'] as int?;
+          if (cat == null) continue;
+          out[cat] = (out[cat] ?? 0) +
+              toBase((r['total'] as num).toDouble(), r['cur'] as String? ?? baseCurrency);
+        }
+        return out;
+      }
+
+      final spent = await totals(from, tomorrow);
+      final past = <Map<int, double>>[
+        for (var m = 1; m <= 3; m++)
+          await totals(DateTime(now.year, now.month - m, 1),
+              DateTime(now.year, now.month - m + 1, 1)),
+      ];
+      final out = <UnusualSpend>[];
+      spent.forEach((cat, v) {
+        final months = past.where((p) => (p[cat] ?? 0) > 0.004).length;
+        if (months < 2) return; // not a usual expense yet
+        final usual = past.fold<double>(0, (s, p) => s + (p[cat] ?? 0)) / 3;
+        final projected = v / now.day * daysInMonth;
+        if (projected >= usual * 1.3 && projected - usual >= 500) {
+          out.add(UnusualSpend(cat, v, projected, usual));
+        }
+      });
+      out.sort((a, b) => (b.projected - b.usual).compareTo(a.projected - a.usual));
+      unusual = out;
+      notifyListeners();
+
+      final s = notifSettings;
+      if (!s.enabled || !s.unusual || out.isEmpty) return;
+      final key = 'unusual_${now.year}-${now.month}';
+      final done = (await db.getSetting(key) ?? '')
+          .split(',')
+          .where((x) => x.isNotEmpty)
+          .toSet();
+      var changed = false;
+      for (final u in out) {
+        if (done.contains('${u.categoryId}')) continue;
+        final name = categoryById(u.categoryId)?.name ?? '';
+        await notifier.showBudgetAlert(70000 + u.categoryId,
+            tr('$name is higher than usual'),
+            tr('${fmtMoneyRaw(u.spent, baseCurrency)} so far, heading for ${fmtMoneyRaw(u.projected, baseCurrency)} vs usual ${fmtMoneyRaw(u.usual, baseCurrency)}'));
+        done.add('${u.categoryId}');
+        changed = true;
+      }
+      if (changed) await db.setSetting(key, done.join(','));
+    } catch (_) {
+    } finally {
+      _checkingUnusual = false;
+    }
+  }
+
+  // ---------------- Shortfalls ----------------
+
+  /// Cash and bank accounts expected to go below zero in the next 14 days.
+  List<Shortfall> shortfalls = [];
+  bool _checkingShort = false;
+
+  Future<void> _checkShortfalls() async {
+    if (_checkingShort) return;
+    _checkingShort = true;
+    try {
+      shortfalls = await findShortfalls(this);
+      notifyListeners();
+      final s = notifSettings;
+      if (!s.enabled || !s.lowBalance || shortfalls.isEmpty) return;
+      final done = (await db.getSetting('short_notified') ?? '')
+          .split(',')
+          .where((x) => x.isNotEmpty)
+          .toSet();
+      var changed = false;
+      for (final f in shortfalls) {
+        final key = '${f.account.id}@${f.date.year}-${f.date.month}-${f.date.day}';
+        if (done.contains(key)) continue;
+        await notifier.showBudgetAlert(80000 + (f.account.id ?? 0),
+            tr('${f.account.name} may go below zero'),
+            tr('On ${shortDateFmt.format(f.date)} (${fmtMoneyRaw(f.lowest, baseCurrency)}) · ${f.reason}'));
+        done.add(key);
+        changed = true;
+      }
+      if (changed) {
+        // Keep the list short.
+        final keep = done.toList();
+        await db.setSetting('short_notified',
+            keep.sublist(keep.length > 60 ? keep.length - 60 : 0).join(','));
+      }
+    } catch (_) {
+    } finally {
+      _checkingShort = false;
+    }
   }
 
   // ---------------- Budgets ----------------
@@ -618,6 +771,11 @@ class AppState extends ChangeNotifier {
 
   Future<int?> suggestCategory(String payee, TxType type) =>
       db.lastCategoryForPayee(payee, type);
+
+  // ---------------- Tags ----------------
+
+  /// Tags used so far, most used first (for suggestions).
+  List<String> allTags = [];
 
   // ---------------- Subscriptions ----------------
 
@@ -1495,6 +1653,13 @@ class AppState extends ChangeNotifier {
           'Your data is only on this phone. Open Settings → Backup & restore.'));
     }
 
+    // Month summary: on the 1st at 9:00.
+    if (s.monthSummary) {
+      out.add(Reminder(DateTime(now.year, now.month + 1, 1, 9, 0),
+          '📊 Your month summary is ready',
+          'Income, spending and what you saved last month. Open the app to see it.'));
+    }
+
     await notifier.replaceAll(out);
   }
 
@@ -2304,6 +2469,7 @@ class AppState extends ChangeNotifier {
         note: base.note,
         postDate: base.postDate,
         splitId: splitId,
+        tags: base.tags,
         // Paid in another currency: each part gets its share.
         origAmount: base.origAmount == null || base.amount == 0
             ? null

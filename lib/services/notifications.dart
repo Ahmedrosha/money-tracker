@@ -16,6 +16,9 @@ class NotifSettings {
   bool statementClosed;
   bool backup;
   bool budgets;
+  bool unusual;
+  bool monthSummary;
+  bool lowBalance;
 
   NotifSettings({
     this.enabled = true,
@@ -26,6 +29,9 @@ class NotifSettings {
     this.statementClosed = true,
     this.backup = true,
     this.budgets = true,
+    this.unusual = true,
+    this.monthSummary = true,
+    this.lowBalance = true,
   }) : cardDays = cardDays ?? {3, 1, 0};
 
   static Future<NotifSettings> load(AppDb db) async {
@@ -46,6 +52,9 @@ class NotifSettings {
       statementClosed: (await g('notif_statement') ?? '1') == '1',
       backup: (await g('notif_backup') ?? '1') == '1',
       budgets: (await g('notif_budgets') ?? '1') == '1',
+      unusual: (await g('notif_unusual') ?? '1') == '1',
+      monthSummary: (await g('notif_month') ?? '1') == '1',
+      lowBalance: (await g('notif_low') ?? '1') == '1',
     );
   }
 
@@ -59,6 +68,9 @@ class NotifSettings {
     await db.setSetting('notif_statement', b(statementClosed));
     await db.setSetting('notif_backup', b(backup));
     await db.setSetting('notif_budgets', b(budgets));
+    await db.setSetting('notif_unusual', b(unusual));
+    await db.setSetting('notif_month', b(monthSummary));
+    await db.setSetting('notif_low', b(lowBalance));
   }
 }
 

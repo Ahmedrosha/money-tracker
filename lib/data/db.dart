@@ -39,7 +39,7 @@ class AppDb {
 
   final Database db;
 
-  static const int schemaVersion = 21;
+  static const int schemaVersion = 22;
 
   static Future<String> dbPath() async =>
       p.join(await getDatabasesPath(), 'money_tracker.db');
@@ -127,6 +127,7 @@ class AppDb {
         await _migrateToV19(db);
         await _migrateToV20(db);
         await _migrateToV21(db);
+        await _migrateToV22(db);
         await _seed(db);
       },
       onUpgrade: (db, oldV, newV) async {
@@ -150,6 +151,7 @@ class AppDb {
         if (oldV < 19) await _migrateToV19(db);
         if (oldV < 20) await _migrateToV20(db);
         if (oldV < 21) await _migrateToV21(db);
+        if (oldV < 22) await _migrateToV22(db);
       },
     );
     return AppDb._(db);
@@ -448,6 +450,12 @@ class AppDb {
     await db.execute('ALTER TABLE recurring ADD COLUMN cancelled_at INTEGER');
   }
 
+  /// Tags on transactions.
+  static Future<void> _migrateToV22(Database db) async {
+    await db.execute(
+        "ALTER TABLE transactions ADD COLUMN tags TEXT NOT NULL DEFAULT ''");
+  }
+
   static Future<void> _seed(Database db) async {
     const expense = [
       ['Food & Dining', 'food', 0xFFFB8C00],
@@ -623,6 +631,45 @@ class AppDb {
         whereArgs: [from.millisecondsSinceEpoch],
         orderBy: 'date');
     return rows.map(Txn.fromMap).toList();
+  }
+
+  /// The account that last paid into [cardId] (to place its next payment).
+  Future<int?> lastPayerOf(int cardId) async {
+    final rows = await db.query('transactions',
+        columns: ['account_id'],
+        where: "type = 'transfer' AND to_account_id = ?",
+        whereArgs: [cardId],
+        orderBy: 'date DESC',
+        limit: 1);
+    return rows.isEmpty ? null : rows.first['account_id'] as int?;
+  }
+
+  /// Every tag used, with how often (most used first).
+  Future<List<String>> allTags() async {
+    final rows = await db.rawQuery(
+        "SELECT tags FROM transactions WHERE tags <> ''");
+    final count = <String, int>{};
+    final shown = <String, String>{};
+    for (final r in rows) {
+      for (final t in Txn.decodeTags(r['tags'] as String?)) {
+        final k = t.toLowerCase();
+        count[k] = (count[k] ?? 0) + 1;
+        shown.putIfAbsent(k, () => t);
+      }
+    }
+    final keys = count.keys.toList()
+      ..sort((a, b) => count[b]!.compareTo(count[a]!));
+    return [for (final k in keys) shown[k]!];
+  }
+
+  /// Entries carrying [tag] (any case), newest first.
+  Future<List<Txn>> txnsWithTag(String tag) async {
+    final rows = await db.query('transactions',
+        where: 'tags LIKE ?', whereArgs: ['%|$tag|%'], orderBy: 'date DESC');
+    return rows
+        .map(Txn.fromMap)
+        .where((t) => t.tags.any((x) => x.toLowerCase() == tag.toLowerCase()))
+        .toList();
   }
 
   /// Installments whose interest (loan cost) is already recorded.
@@ -998,10 +1045,17 @@ class AppDb {
     final args = <Object?>[];
     for (final raw in query.trim().split(RegExp(r'\s+'))) {
       if (raw.isEmpty) continue;
+      // "#Sahel": entries with a tag starting with that word.
+      if (raw.startsWith('#') && raw.length > 1) {
+        where.add('t.tags LIKE ?');
+        args.add('%|${raw.substring(1)}%');
+        continue;
+      }
       final like = '%$raw%';
       final parts = <String>[
         't.payee LIKE ?', 't.note LIKE ?', 'c.name LIKE ?', 'c.grp LIKE ?',
         'a.name LIKE ?', 'a.bank LIKE ?', 'b.name LIKE ?', 'b.bank LIKE ?',
+        't.tags LIKE ?',
       ];
       args.addAll(List.filled(parts.length, like));
       final n = double.tryParse(raw.replaceAll(',', ''));

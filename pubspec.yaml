@@ -1,7 +1,7 @@
 name: money_tracker
 description: Personal money tracker - accounts, transactions, transfers, multi-currency.
 publish_to: 'none'
-version: 0.46.0+77
+version: 0.47.0+78
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
@@ -26,6 +26,8 @@ dependencies:
   flutter_secure_storage: ^9.2.4
   app_links: ^6.3.3
   home_widget: ^0.7.0
+  pdf: ^3.11.3
+  excel: ^4.0.6
 
 dev_dependencies:
   flutter_launcher_icons: ^0.14.4

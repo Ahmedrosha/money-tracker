@@ -9,6 +9,7 @@ import 'budgets_screen.dart';
 import 'home.dart';
 import 'pay_card.dart';
 import 'reports_extra.dart';
+import 'month_summary_screen.dart';
 import 'reports_budget.dart';
 import 'charts.dart';
 import 'reports_more.dart';
@@ -387,6 +388,44 @@ class _DashboardState extends State<_Dashboard> {
                 ),
               ],
             ),
+            Center(
+              child: TextButton.icon(
+                icon: const Icon(Icons.summarize_outlined, size: 18),
+                label: Text(tr('Month Summary')),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => MonthSummaryScreen(month: _month)),
+                ),
+              ),
+            ),
+            if (isCurrent && state.unusual.isNotEmpty)
+              Card(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                color: kExpenseColor.withValues(alpha: 0.10),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        const Icon(Icons.trending_up, color: kExpenseColor, size: 20),
+                        const SizedBox(width: 8),
+                        Text(tr('Running higher than usual'),
+                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                      ]),
+                      const SizedBox(height: 6),
+                      for (final u in state.unusual)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            tr('${state.categoryById(u.categoryId)?.name ?? ''}: ${fmtMoney(u.spent, cur)} so far, heading for ${fmtMoney(u.projected, cur)} vs usual ${fmtMoney(u.usual, cur)}'),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
             if (d == null)
               const Padding(
                 padding: EdgeInsets.all(40),

@@ -2036,6 +2036,8 @@ class AppState extends ChangeNotifier {
           nextIndex: row.index + 1 > t.nextIndex ? row.index + 1 : t.nextIndex)),
     }));
     await _reloadAll();
+    // Paid ahead: record that installment's cost now.
+    if (t.spreadsCost) await accrueLoanCosts();
   }
 
   /// Gold kept in money -> gold kept in grams (see switchGoldToWeight UI).
@@ -2163,6 +2165,12 @@ class AppState extends ChangeNotifier {
         if (e.id != id && e.type == TxType.expense) await db.deleteTxn(e.id!);
       }
       final t = loan.loan!;
+      // A cost recorded early with this payment goes with it (it comes
+      // back on its due date).
+      if (t.spreadsCost) {
+        final cost = await db.loanCostEntry(loan.id!, index);
+        if (cost != null && cost.forDate != null) await db.deleteTxn(cost.id!);
+      }
       if (index < t.nextIndex) {
         await db.updateAccount(Account.fromMap({
           ...loan.toMap(),
@@ -2257,17 +2265,25 @@ class AppState extends ChangeNotifier {
         if (!t.spreadsCost || a.id == null) continue;
         final done = await db.loanCostIndexes(a.id!);
         for (final r in t.schedule()) {
-          if (!r.date.isBefore(today)) break;
+          final due = r.date.isBefore(today);
+          // Paid ahead of its date: its cost is recorded with the payment,
+          // so a fully paid loan ends at zero.
+          final paidEarly = !due && installmentPaid(a, r.index);
+          if (!due && !paidEarly) continue;
           if (done.contains(r.index) || r.interest <= 0.004) continue;
+          final payment = loanPayments[a.id]?[r.index]
+              ?.where((x) => x.type == TxType.transfer)
+              .firstOrNull;
           cat ??= await _loanInterestCategory();
           await db.insertTxn(Txn(
             type: TxType.expense,
-            date: r.date,
+            date: due ? r.date : (payment?.date ?? n),
             amount: r.interest,
             accountId: a.id!,
             categoryId: cat,
             payee: a.fullName,
             note: 'Loan cost · Installment ${r.index + 1}/${t.months}',
+            forDate: due ? null : r.date,
           ));
           added++;
         }

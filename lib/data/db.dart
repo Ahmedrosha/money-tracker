@@ -606,6 +606,15 @@ class AppDb {
     };
   }
 
+  /// The recorded cost (interest) entry of one installment, if any.
+  Future<Txn?> loanCostEntry(int loanId, int index) async {
+    final rows = await db.query('transactions',
+        where: "account_id = ? AND type = 'expense' AND note LIKE ?",
+        whereArgs: [loanId, 'Loan cost · Installment ${index + 1}/%'],
+        limit: 1);
+    return rows.isEmpty ? null : Txn.fromMap(rows.first);
+  }
+
   /// Recorded loan installments: index (0-based) → its entries (the
   /// payment into the loan and, for interest loans, the interest).
   Future<Map<int, List<Txn>>> loanPayments(int loanId, String loanFullName) async {

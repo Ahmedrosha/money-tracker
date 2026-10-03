@@ -3,6 +3,12 @@
 // ignore_for_file: prefer_single_quotes
 
 const Map<String, String> kArabic = {
+  "Loan Amount": "مبلغ القرض",
+  "Cost of fund {0}": "تكلفة التمويل {0}",
+  "Loan remaining": "المتبقي من القرض",
+  "Interest remaining": "المتبقي من الفائدة",
+  "The cost of fund is recorded as an expense on each due date.": "تُسجل تكلفة التمويل كمصروف في كل تاريخ استحقاق.",
+  "Version 0.45.1 — loan card: amount, cost of fund, what is left": "الإصدار 0.45.1 — بطاقة القرض: المبلغ وتكلفة التمويل والمتبقي",
   "Version 0.45 — loan interest spread over the loan": "الإصدار 0.45 — توزيع فائدة القرض على مدته",
   "Amount Received (borrowed)": "المبلغ المستلم (المقترض)",
   "Record the extra as interest": "تسجيل الزيادة كفائدة",

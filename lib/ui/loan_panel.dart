@@ -119,6 +119,34 @@ class LoanPanel extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Borrowed amount and cost of fund, and what is left of each.
+            if (t.spreadsCost) ...[
+              Text(tr('Loan Amount'), style: small),
+              Text(fmtMoney(t.received!, cur),
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineMedium
+                      ?.copyWith(fontWeight: FontWeight.bold)),
+              Text(
+                  tr('Cost of fund ${fmtMoney(t.totalToRepay - t.received!, cur)}'),
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: scheme.onSurfaceVariant)),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _figure(context, tr('Loan remaining'),
+                        fmtMoney(unpaid.fold<double>(0, (s, r) => s + r.principal), cur)),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _figure(context, tr('Interest remaining'),
+                        fmtMoney(interestLeft, cur)),
+                  ),
+                ],
+              ),
+              const Divider(height: 24),
+            ],
             Row(
               children: [
                 Expanded(
@@ -141,13 +169,12 @@ class LoanPanel extends StatelessWidget {
             const SizedBox(height: 8),
             _row(tr('Paid so far'), fmtMoney(paidAmt, cur)),
             _row(tr('Left to pay'), fmtMoney(left, cur), bold: true),
-            if (t.mode == LoanMode.interest || t.spreadsCost)
+            if (t.mode == LoanMode.interest)
               _row(tr('Interest still to pay'), fmtMoney(interestLeft, cur)),
             _row(tr('Months left'), '${t.months - paidN}'),
             _row(tr('Paid off'), shortDateFmt.format(rows.last.date)),
             if (t.spreadsCost)
-              Text(
-                  tr('Borrowed ${fmtMoney(t.received!, cur)} · interest ${fmtMoney(t.totalToRepay - t.received!, cur)}, recorded on each due date'),
+              Text(tr('The cost of fund is recorded as an expense on each due date.'),
                   style: small),
             if (t.mode == LoanMode.interest)
               Text(
@@ -203,6 +230,22 @@ class LoanPanel extends StatelessWidget {
       ),
     );
   }
+
+  Widget _figure(BuildContext context, String label, String value) => Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 2),
+            Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+      );
 
   Widget _row(String l, String v, {bool bold = false}) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),

@@ -447,7 +447,7 @@ class _Grid extends StatelessWidget {
                 const Spacer(),
                 if (info?.hasCard ?? false) _dot(scheme.secondary),
                 if (info?.hasDue ?? false) _dot(scheme.error),
-                if (info?.hasUpcoming ?? false) _dot(scheme.tertiary),
+                if (info?.hasUpcoming ?? false) _dot(scheme.tertiary, hollow: true),
               ],
             ),
             const Spacer(),
@@ -461,11 +461,16 @@ class _Grid extends StatelessWidget {
     );
   }
 
-  Widget _dot(Color c) => Container(
-        width: 6,
-        height: 6,
+  /// Filled = happened; hollow = coming (not paid yet).
+  Widget _dot(Color c, {bool hollow = false}) => Container(
+        width: 7,
+        height: 7,
         margin: const EdgeInsets.only(left: 2),
-        decoration: BoxDecoration(color: c, shape: BoxShape.circle),
+        decoration: BoxDecoration(
+          color: hollow ? null : c,
+          shape: BoxShape.circle,
+          border: hollow ? Border.all(color: c, width: 1.5) : null,
+        ),
       );
 
   Widget _amt(String s, Color c) => FittedBox(

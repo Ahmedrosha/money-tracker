@@ -91,11 +91,15 @@ class TxnTile extends StatelessWidget {
     required this.txn,
     this.perspectiveAccountId,
     this.onTap,
+    this.showDate = false,
   });
 
   final Txn txn;
   final int? perspectiveAccountId;
   final VoidCallback? onTap;
+
+  /// Put the date in front of the details (lists not grouped by day).
+  final bool showDate;
 
   @override
   Widget build(BuildContext context) {
@@ -156,6 +160,7 @@ class TxnTile extends StatelessWidget {
       subtitle = '$subtitle · ${txn.tags.map((t) => '#$t').join(' ')}';
     }
     if (txn.note.isNotEmpty) subtitle = '$subtitle · ${txn.note}';
+    if (showDate) subtitle = '${DateFormat('d MMM').format(txn.date)} · $subtitle';
 
     final isNeutralTransfer =
         txn.type == TxType.transfer && perspectiveAccountId == null;
@@ -191,7 +196,7 @@ class TxnTile extends StatelessWidget {
             TagChip(tr('${-late} day${late == -1 ? '' : 's'} early'),
                 color: Theme.of(context).colorScheme.secondary),
           if (future)
-            TagChip(tr('Upcoming'),
+            TagChip(tr('Scheduled'),
                 color: Theme.of(context).colorScheme.tertiary)
           else if (txn.isPending)
             TagChip(tr('Pending'), color: Theme.of(context).colorScheme.secondary),
@@ -265,7 +270,10 @@ class OccurrenceTile extends StatelessWidget {
             Flexible(
                 child:
                     Text(title, maxLines: 1, overflow: TextOverflow.ellipsis)),
-            TagChip(due ? tr('Due') : tr('Upcoming'),
+            TagChip(
+                _occDay(occurrence.date) < 0
+                    ? tr('Overdue')
+                    : (_occDay(occurrence.date) == 0 ? tr('Due today') : tr('To confirm')),
                 color: due ? scheme.error : scheme.tertiary),
           ],
         ),
@@ -302,6 +310,12 @@ class OccurrenceTile extends StatelessWidget {
 
 bool _sameDay(DateTime a, DateTime b) =>
     a.year == b.year && a.month == b.month && a.day == b.day;
+
+/// Days from today to [d] (negative = in the past).
+int _occDay(DateTime d) {
+  final n = DateTime.now();
+  return DateTime(d.year, d.month, d.day).difference(DateTime(n.year, n.month, n.day)).inDays;
+}
 
 /// Bottom sheet with Confirm / Edit & confirm / Skip / Edit rule.
 Future<void> openOccurrence(BuildContext context, Occurrence o) async {

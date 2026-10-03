@@ -55,13 +55,16 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
-    final key = '${state.version}-${_month.year}-${_month.month}';
+    // This month, plus the next 7 days when they run into next month.
+    final now = DateTime.now();
+    final monthEnd = DateTime(_month.year, _month.month + 1);
+    final week = DateTime(now.year, now.month, now.day + 8);
+    final isCurrent = now.year == _month.year && now.month == _month.month;
+    final horizon = isCurrent && week.isAfter(monthEnd) ? week : monthEnd;
+    final key = '${state.version}-${_month.year}-${_month.month}-${horizon.day}';
     if (key != _loadedKey) {
       _loadedKey = key;
-      _future = state.db.transactions(
-        from: _month,
-        to: DateTime(_month.year, _month.month + 1),
-      );
+      _future = state.db.transactions(from: _month, to: horizon);
     }
 
     return Scaffold(
@@ -160,7 +163,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         child: FutureBuilder<List<Txn>>(
         future: _future,
         builder: (context, snap) {
-          final all = snap.data ?? const <Txn>[];
+          final loaded = snap.data ?? const <Txn>[];
+          // Paid = dated now or earlier; the rest is upcoming.
+          final all = loaded.where((t) => !t.date.isAfter(now)).toList();
+          final scheduled = loaded.where((t) => t.date.isAfter(now)).toList();
           var income = 0.0;
           var expense = 0.0;
           for (final t in all) {
@@ -175,17 +181,32 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               ? all
               : all.where((t) => t.type == _filter).toList();
           final pending = state
-              .pendingOccurrences(
-                  _month, DateTime(_month.year, _month.month + 1))
+              .pendingOccurrences(_month, horizon)
               .where((o) => _filter == null || o.rule.type == _filter)
               .toList();
+          final upcoming = <(DateTime, Object)>[
+            for (final t in scheduled)
+              if (_filter == null || t.type == _filter) (t.date, t),
+            for (final o in pending) (o.date, o),
+          ]..sort((a, b) => a.$1.compareTo(b.$1));
+          // Still to come this month (not paid yet).
+          var upIn = 0.0, upOut = 0.0;
+          for (final (d, item) in upcoming) {
+            if (!d.isBefore(monthEnd)) continue;
+            final (type, amt, accId) = item is Txn
+                ? (item.type, item.amount, item.accountId)
+                : ((item as Occurrence).rule.type, item.rule.amount, item.rule.accountId);
+            final v = state.toBase(amt, state.accountById(accId)?.currency ?? state.baseCurrency);
+            if (type == TxType.income) upIn += v;
+            if (type == TxType.expense) upOut += v;
+          }
+          final upOpen = state.isCollapsed('txn:upcoming_open');
 
           final byCategory = state.txnSort == 'category';
 
-          // Merge transactions and pending recurring items, newest first.
+          // Paid entries, newest first (upcoming ones have their group).
           final items = <(DateTime, Object)>[
             for (final t in list) (t.date, t),
-            for (final o in pending) (o.date, o),
           ]..sort((a, b) => state.txnSort == 'date_asc'
               ? a.$1.compareTo(b.$1)
               : b.$1.compareTo(a.$1));
@@ -346,7 +367,59 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   ],
                 ),
               ),
-              if (snap.connectionState == ConnectionState.done && items.isEmpty)
+              if (upIn > 0.004 || upOut > 0.004)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+                  child: Text(
+                    [
+                      if (upOut > 0.004) tr('Still to pay this month: ${fmtMoney(upOut, state.baseCurrency)}'),
+                      if (upIn > 0.004) tr('Still to come: ${fmtMoney(upIn, state.baseCurrency)}'),
+                    ].join(' · '),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              if (upcoming.isNotEmpty) ...[
+                InkWell(
+                  onTap: () => state.toggleCollapsed('txn:upcoming_open'),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 14, 16, 6),
+                    child: Row(
+                      children: [
+                        CollapseArrow(collapsed: !upOpen),
+                        const SizedBox(width: 6),
+                        Icon(Icons.schedule, size: 18,
+                            color: Theme.of(context).colorScheme.tertiary),
+                        const SizedBox(width: 6),
+                        Text(tr('Upcoming · ${upcoming.length}'),
+                            style: Theme.of(context).textTheme.titleSmall),
+                        const Spacer(),
+                        if (upOut > 0.004)
+                          Text('−${fmtAmount(upOut)}',
+                              style: const TextStyle(fontWeight: FontWeight.w600, color: kExpenseColor)),
+                      ],
+                    ),
+                  ),
+                ),
+                if (upOpen)
+                  for (final (_, item) in upcoming)
+                    if (item is Txn)
+                      TxnTile(
+                        txn: item,
+                        showDate: true,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => TransactionEditScreen(txn: item)),
+                        ),
+                      )
+                    else
+                      OccurrenceTile(occurrence: item as Occurrence, showDate: true),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: Text(tr('Paid'),
+                      style: Theme.of(context).textTheme.titleSmall),
+                ),
+              ],
+              if (snap.connectionState == ConnectionState.done && items.isEmpty && upcoming.isEmpty)
                 Padding(
                   padding: EdgeInsets.all(40),
                   child: Center(child: Text(tr('No transactions this month'))),

@@ -3,6 +3,11 @@
 // ignore_for_file: prefer_single_quotes
 
 const Map<String, String> kArabic = {
+  "Scheduled": "مجدول",
+  "To confirm": "للتأكيد",
+  "Upcoming · {0}": "القادم · {0}",
+  "Still to pay this month: {0}": "متبقٍ للدفع هذا الشهر: {0}",
+  "Still to come: {0}": "متبقٍ للاستلام: {0}",
   "Version 0.48 — voice, receipts, gold alerts, year in review, people": "الإصدار 0.48 — الصوت والإيصالات وتنبيهات الذهب ومراجعة السنة والأشخاص",
   "Didn't catch that. Tap the microphone and try again.": "لم أفهم. اضغط على الميكروفون وحاول مرة أخرى.",
   "Speech recognition isn't available. Allow the microphone and speech recognition for the app in the phone settings.": "التعرف على الكلام غير متاح. اسمح للتطبيق باستخدام الميكروفون والتعرف على الكلام من إعدادات الهاتف.",

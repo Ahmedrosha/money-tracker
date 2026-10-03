@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_recognition_error.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
@@ -74,7 +76,10 @@ class _VoiceSheetState extends State<_VoiceSheet> {
         if (id == w || (w.length == 2 && id.startsWith('${w}_'))) return l.localeId;
       }
     }
-    return null;
+    // Some phones don't list their languages: ask for one directly
+    // (iPhone knows Arabic as ar-SA, Android as ar-EG).
+    if (_lang == 'ar') return Platform.isIOS ? 'ar-SA' : 'ar-EG';
+    return Platform.isIOS ? 'en-US' : 'en-US';
   }
 
   Future<void> _listen() async {

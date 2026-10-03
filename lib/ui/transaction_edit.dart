@@ -282,9 +282,12 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     final id = await showModalBottomSheet<int>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(ctx).height * 0.7),
+          child: ListView(
+          shrinkWrap: true,
           children: [
             for (final p in people)
               ListTile(
@@ -298,6 +301,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               onTap: () => Navigator.pop(ctx, -1),
             ),
           ],
+        ),
         ),
       ),
     );

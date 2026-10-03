@@ -396,7 +396,6 @@ class AccountDetails {
         'notes': notes,
         'sender': sender,
         'fx_fee': fxFee,
-        'for_date': forDate?.millisecondsSinceEpoch,
       };
 
   factory AccountDetails.fromMap(Map<String, Object?> m) => AccountDetails(
@@ -759,6 +758,7 @@ class Txn {
         'orig_currency': origCurrency,
         'market_rate': marketRate,
         'fx_fee': fxFee,
+        'for_date': forDate?.millisecondsSinceEpoch,
       };
 
   factory Txn.fromMap(Map<String, Object?> m) => Txn(

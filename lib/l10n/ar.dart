@@ -3,6 +3,12 @@
 // ignore_for_file: prefer_single_quotes
 
 const Map<String, String> kArabic = {
+  "Deleted account": "حساب محذوف",
+  "What you saved": "ما وفرته",
+  "Moved in from {0} (not in totals)": "محوّل من {0} (خارج الإجماليات)",
+  "Moved out to {0} (not in totals)": "محوّل إلى {0} (خارج الإجماليات)",
+  "Other accounts not in totals": "حسابات أخرى خارج الإجماليات",
+  "Other (entry dates, exchange rates)": "أخرى (تواريخ القيود، أسعار الصرف)",
   "Version 0.47 — forecast, alerts, month summary, tags, Excel": "الإصدار 0.47 — التوقعات والتنبيهات وملخص الشهر والوسوم وإكسل",
   "Tags": "الوسوم",
   "Add a tag, e.g. a trip": "أضف وسمًا، مثل رحلة",

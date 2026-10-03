@@ -17,6 +17,14 @@ import 'widgets.dart';
 class _Summary {
   double income = 0, spent = 0, prevIncome = 0, prevSpent = 0;
   double netWorthChange = 0;
+
+  /// Money moved into counted accounts from accounts left out of totals
+  /// (minus what went the other way), per account name.
+  Map<String, double> movedIn = {};
+
+  /// Income minus spending on accounts left out of totals (in "saved" but
+  /// not in net worth).
+  double uncountedSaved = 0;
   double loanInterest = 0, subscriptions = 0;
   List<(String, double)> topCats = [];
   List<Txn> biggest = [];
@@ -103,6 +111,24 @@ class _MonthSummaryScreenState extends State<MonthSummaryScreen> {
       if (a == null) continue;
       s.netWorthChange += state.toBase((r['delta'] as num).toDouble(), a.currency);
     }
+    // Why net worth changed differently from what was saved.
+    for (final t in txns) {
+      final fromIn = counted.containsKey(t.accountId);
+      if (t.type == TxType.transfer) {
+        final toIn = counted.containsKey(t.toAccountId);
+        if (fromIn == toIn) continue;
+        final other = state.accountById(fromIn ? t.toAccountId : t.accountId);
+        final name = other?.name ?? tr('Deleted account');
+        final toAcc = state.accountById(t.toAccountId);
+        final v = fromIn
+            ? -base(t)
+            : state.toBase(t.toAmount ?? t.amount, toAcc?.currency ?? state.baseCurrency);
+        s.movedIn[name] = (s.movedIn[name] ?? 0) + v;
+      } else if (!fromIn) {
+        s.uncountedSaved += t.type == TxType.income ? base(t) : -base(t);
+      }
+    }
+    s.movedIn.removeWhere((_, v) => v.abs() < 0.5);
     s.budgets = [...await state.budgetStatus(from)];
     return s;
   }
@@ -209,6 +235,38 @@ class _MonthSummaryScreenState extends State<MonthSummaryScreen> {
     );
   }
 
+  /// Explains a net worth change that differs from what was saved: money
+  /// moved from or to accounts left out of totals (e.g. a loan or an
+  /// excluded account).
+  List<Widget> _netWorthWhy(BuildContext context, _Summary s, String cur) {
+    final saved = s.saved - s.uncountedSaved;
+    final moved = s.movedIn.values.fold<double>(0, (a, b) => a + b);
+    if ((s.netWorthChange - saved).abs() < 1) return const [];
+    final other = s.netWorthChange - saved - moved;
+    final small = Theme.of(context).textTheme.bodySmall;
+    String sign(double v) => '${v >= 0 ? '+' : ''}${fmtMoney(v, cur)}';
+    Widget line(String l, double v) => Padding(
+          padding: const EdgeInsetsDirectional.only(start: 12, top: 1),
+          child: Row(children: [
+            Expanded(child: Text(l, style: small, maxLines: 1, overflow: TextOverflow.ellipsis)),
+            Text(sign(v), style: small),
+          ]),
+        );
+    final names = s.movedIn.entries.toList()
+      ..sort((a, b) => b.value.abs().compareTo(a.value.abs()));
+    return [
+      line(tr('What you saved'), saved),
+      for (final e in names.take(3))
+        line(e.value >= 0
+            ? tr('Moved in from ${e.key} (not in totals)')
+            : tr('Moved out to ${e.key} (not in totals)'), e.value),
+      if (names.length > 3)
+        line(tr('Other accounts not in totals'),
+            names.skip(3).fold<double>(0, (a, e) => a + e.value)),
+      if (other.abs() >= 1) line(tr('Other (entry dates, exchange rates)'), other),
+    ];
+  }
+
   Widget _content(BuildContext context, AppState state, _Summary s, String cur) {
     final theme = Theme.of(context);
     final small = theme.textTheme.bodySmall;
@@ -291,6 +349,7 @@ class _MonthSummaryScreenState extends State<MonthSummaryScreen> {
         const SizedBox(height: 8),
         row(tr('Net worth change'), '${s.netWorthChange >= 0 ? '+' : ''}${fmtMoney(s.netWorthChange, cur)}',
             color: s.netWorthChange >= 0 ? kIncomeColor : kExpenseColor),
+        ..._netWorthWhy(context, s, cur),
         if (s.subscriptions > 0.004) row(tr('Subscriptions'), fmtMoney(s.subscriptions, cur)),
         if (s.loanInterest > 0.004) row(tr('Loan interest'), fmtMoney(s.loanInterest, cur)),
         if (s.topCats.isNotEmpty) ...[

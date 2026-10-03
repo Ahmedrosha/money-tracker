@@ -330,6 +330,11 @@ class AppState extends ChangeNotifier {
     smsPending = await db.pendingSms();
     smsDismissed = await db.dismissedSms();
     merchantRules = await db.merchantRules();
+    loanPayments = {
+      for (final a in accounts)
+        if (a.loan != null && a.id != null)
+          a.id!: await db.loanPayments(a.id!, a.fullName),
+    };
     await _matchSms();
     bankNames = await db.bankNames();
     await _computeProjection();
@@ -1294,7 +1299,7 @@ class AppState extends ChangeNotifier {
     if (s.recurring) {
       for (final a in plannedLoans) {
         final t = a.loan!;
-        for (final r in t.schedule().skip(t.nextIndex).take(3)) {
+        for (final r in unpaidInstallments(a).take(3)) {
           for (final d in {0, ...s.cardDays.where((d) => d > 0)}) {
             out.add(Reminder(
               at(r.date, d),
@@ -1892,15 +1897,39 @@ class AppState extends ChangeNotifier {
   List<Account> get plannedLoans =>
       accounts.where((a) => !a.archived && a.loan != null).toList();
 
+  /// Recorded loan installments per loan: index → entries.
+  Map<int, Map<int, List<Txn>>> loanPayments = {};
+
+  /// An installment is paid when its payment is recorded. Installments
+  /// marked handled before payments were linked (below the loan's next
+  /// index, with no entry) also count as paid.
+  bool installmentPaid(Account a, int i) {
+    final t = a.loan;
+    if (t == null) return false;
+    final recorded = loanPayments[a.id]?[i];
+    if (recorded != null &&
+        recorded.any((x) => x.type == TxType.transfer)) {
+      return true;
+    }
+    return i < t.nextIndex && recorded == null;
+  }
+
+  /// Installments still to pay, in order.
+  List<LoanRow> unpaidInstallments(Account a) => a.loan == null
+      ? const []
+      : a.loan!.schedule().where((r) => !installmentPaid(a, r.index)).toList();
+
+  int paidInstallmentCount(Account a) => a.loan == null
+      ? 0
+      : a.loan!.schedule().where((r) => installmentPaid(a, r.index)).length;
+
   /// Installments whose date has arrived and aren't recorded yet.
   List<(Account, LoanRow)> get loansDue {
     final end = DateTime.now();
     final today = DateTime(end.year, end.month, end.day + 1);
     final out = <(Account, LoanRow)>[];
     for (final a in plannedLoans) {
-      final t = a.loan!;
-      for (final r in t.schedule()) {
-        if (r.index < t.nextIndex) continue;
+      for (final r in unpaidInstallments(a)) {
         if (!r.date.isBefore(today)) break;
         out.add((a, r));
       }
@@ -1911,10 +1940,8 @@ class AppState extends ChangeNotifier {
 
   /// Next unpaid installment of a loan, if any.
   LoanRow? nextInstallment(Account a) {
-    final t = a.loan;
-    if (t == null) return null;
-    final rows = t.schedule();
-    return t.nextIndex < rows.length ? rows[t.nextIndex] : null;
+    final rows = unpaidInstallments(a);
+    return rows.isEmpty ? null : rows.first;
   }
 
   Future<int?> _loanInterestCategory() async {
@@ -2000,7 +2027,8 @@ class AppState extends ChangeNotifier {
     }
     await db.updateAccount(Account.fromMap({
       ...loan.toMap(),
-      ...LoanTerms.toColumns(t.copyWith(nextIndex: row.index + 1)),
+      ...LoanTerms.toColumns(t.copyWith(
+          nextIndex: row.index + 1 > t.nextIndex ? row.index + 1 : t.nextIndex)),
     }));
     await _reloadAll();
   }
@@ -2120,8 +2148,45 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> deleteTxn(int id) async {
+    final loanLink = _loanInstallmentOf(id);
     await db.deleteTxn(id);
+    if (loanLink != null) {
+      final (loan, index, entries) = loanLink;
+      // The installment is unpaid again: remove its interest entry too and
+      // make sure it is offered for payment.
+      for (final e in entries) {
+        if (e.id != id && e.type == TxType.expense) await db.deleteTxn(e.id!);
+      }
+      final t = loan.loan!;
+      if (index < t.nextIndex) {
+        await db.updateAccount(Account.fromMap({
+          ...loan.toMap(),
+          ...LoanTerms.toColumns(t.copyWith(nextIndex: index)),
+        }));
+      }
+    }
     await _reloadAll();
+  }
+
+  /// A loan installment's payment (the transfer into the loan): the loan,
+  /// the installment index and all its entries.
+  (Account, int, List<Txn>)? _loanInstallmentOf(int txnId) {
+    for (final e in loanPayments.entries) {
+      for (final i in e.value.entries) {
+        final hit = i.value.where((x) => x.id == txnId).firstOrNull;
+        if (hit == null || hit.type != TxType.transfer) continue;
+        final loan = accountById(e.key);
+        if (loan?.loan == null) return null;
+        return (loan!, i.key, i.value);
+      }
+    }
+    return null;
+  }
+
+  /// Deleting this entry also removes the installment's interest entry.
+  bool deletesLoanInterest(int txnId) {
+    final l = _loanInstallmentOf(txnId);
+    return l != null && l.$3.any((x) => x.type == TxType.expense);
   }
 
   // ---------------- Installments ----------------

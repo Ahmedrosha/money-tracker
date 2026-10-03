@@ -99,13 +99,13 @@ class LoanPanel extends StatelessWidget {
     final t = account.loan!;
     final rows = t.schedule();
     final cur = account.currency;
-    final paidN = t.nextIndex.clamp(0, rows.length);
-    final paidAmt = rows.take(paidN).fold<double>(0, (s, r) => s + r.payment);
+    final unpaid = state.unpaidInstallments(account);
+    final paidN = rows.length - unpaid.length;
     final totalAmt = rows.fold<double>(0, (s, r) => s + r.payment);
-    final left = totalAmt - paidAmt;
-    final interestLeft =
-        rows.skip(paidN).fold<double>(0, (s, r) => s + r.interest);
-    final next = paidN < rows.length ? rows[paidN] : null;
+    final left = unpaid.fold<double>(0, (s, r) => s + r.payment);
+    final paidAmt = totalAmt - left;
+    final interestLeft = unpaid.fold<double>(0, (s, r) => s + r.interest);
+    final next = unpaid.isEmpty ? null : unpaid.first;
     final now = DateTime.now();
     final overdue = next != null &&
         next.date.isBefore(DateTime(now.year, now.month, now.day + 1));
@@ -256,11 +256,11 @@ class LoanScheduleScreen extends StatelessWidget {
         separatorBuilder: (_, __) => const Divider(height: 1),
         itemBuilder: (context, i) {
           final r = rows[i];
-          final paid = i < t.nextIndex;
+          final paid = state.installmentPaid(a, i);
           final entries = payments[i] ?? const <Txn>[];
           final paidOn = entries.isEmpty ? null : entries.first.date;
           final due = !paid && r.date.isBefore(today);
-          final isNext = i == t.nextIndex;
+          final isNext = !paid && i == state.nextInstallment(a)?.index;
           return ListTile(
             leading: CircleAvatar(
               backgroundColor: paid

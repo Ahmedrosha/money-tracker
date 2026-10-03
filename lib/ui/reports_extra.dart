@@ -237,7 +237,7 @@ class _OutlookTabState extends State<OutlookTab> {
       final t = a.loan!;
       final from = liquid[t.payAccountId];
       if (from == null) continue;
-      for (final r in t.schedule().skip(t.nextIndex)) {
+      for (final r in state.unpaidInstallments(a)) {
         if (!r.date.isBefore(end)) break;
         events.add(_Event(notBefore(r.date),
             tr('${a.name} installment ${r.index + 1}/${t.months}'),
@@ -1045,7 +1045,7 @@ class LoansTab extends StatelessWidget {
       if (a.balance < 0) owed += state.toBase(-a.balance, a.currency);
       final t = a.loan;
       if (t == null) continue;
-      final rows = t.schedule().skip(t.nextIndex).toList();
+      final rows = state.unpaidInstallments(a);
       if (rows.isNotEmpty) monthly += state.toBase(rows.first.payment, a.currency);
       interestLeft += state.toBase(
           rows.fold<double>(0, (s, r) => s + r.interest), a.currency);
@@ -1072,8 +1072,8 @@ class LoansTab extends StatelessWidget {
           () {
             final t = a.loan;
             final rows = t?.schedule();
-            final paid = t == null ? 0 : t.nextIndex.clamp(0, rows!.length);
-            final next = t == null || paid >= rows!.length ? null : rows[paid];
+            final paid = t == null ? 0 : state.paidInstallmentCount(a);
+            final next = t == null ? null : state.nextInstallment(a);
             final frac = t == null || t.months == 0 ? null : paid / t.months;
             final overdue = next != null &&
                 next.date.isBefore(DateTime(now.year, now.month, now.day + 1));

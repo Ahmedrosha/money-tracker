@@ -1187,7 +1187,10 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
           }
         } else {
           final ok = await confirmDialog(context,
-              title: tr('Delete transaction?'), message: tr('This cannot be undone.'));
+              title: tr('Delete transaction?'),
+              message: state.deletesLoanInterest(t.id!)
+                  ? tr('This also removes the interest entry of this installment, and the installment becomes unpaid again. This cannot be undone.')
+                  : tr('This cannot be undone.'));
           if (!ok) return;
           await state.deleteTxn(t.id!);
         }

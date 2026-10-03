@@ -3,6 +3,7 @@
 // ignore_for_file: prefer_single_quotes
 
 const Map<String, String> kArabic = {
+  "This also removes the interest entry of this installment, and the installment becomes unpaid again. This cannot be undone.": "سيتم أيضًا حذف قيد الفائدة لهذا القسط، ويعود القسط غير مدفوع. لا يمكن التراجع عن ذلك.",
   "Date you paid": "تاريخ الدفع",
   "Paid on {0}": "دُفع في {0}",
   "No payment recorded for this installment": "لا يوجد دفع مسجل لهذا القسط",

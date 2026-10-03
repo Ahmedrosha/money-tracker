@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:archive/archive.dart';
 import 'package:flutter/widgets.dart';
 import 'package:intl/intl.dart' show Intl;
 import 'package:path_provider/path_provider.dart';
@@ -19,6 +20,9 @@ import '../services/home_widgets.dart';
 import '../services/sms_parser.dart';
 import '../services/sms_reader.dart';
 import '../services/outlook.dart';
+import '../services/receipts.dart';
+import '../services/gold.dart';
+import '../util/currencies.dart';
 
 class AppState extends ChangeNotifier {
   AppState(this.db) {
@@ -317,6 +321,10 @@ class AppState extends ChangeNotifier {
     _sampleAccounts = _idList(await db.getSetting('sample_accounts'));
     _sampleBudgets = _idList(await db.getSetting('sample_budgets'));
     summarySeen = await db.getSetting('summary_seen');
+    yearSeen = await db.getSetting('year_seen');
+    await _loadPersonDue();
+    await _loadGold();
+    if (goldAlerts.any((a) => a.above != null || a.below != null)) scheduleGoldCheck(true);
     _loaded = true;
     _scheduleChecks();
   }
@@ -366,6 +374,8 @@ class AppState extends ChangeNotifier {
     _checksTimer = Timer(const Duration(seconds: 3), () {
       _checkShortfalls();
       checkUnusualSpending();
+      syncReceipts();
+      checkGoldAlerts();
     });
   }
 
@@ -379,6 +389,20 @@ class AppState extends ChangeNotifier {
     if (now.day > 7) return false;
     final last = DateTime(now.year, now.month - 1);
     return summarySeen != '${last.year}-${last.month}';
+  }
+
+  /// January: last year's review hasn't been opened yet.
+  String? yearSeen;
+
+  bool get showYearCard {
+    final now = DateTime.now();
+    return now.month == 1 && yearSeen != '${now.year - 1}';
+  }
+
+  Future<void> markYearSeen() async {
+    yearSeen = '${DateTime.now().year - 1}';
+    await db.setSetting('year_seen', yearSeen!);
+    notifyListeners();
   }
 
   Future<void> markSummarySeen() async {
@@ -462,6 +486,156 @@ class AppState extends ChangeNotifier {
     } catch (_) {
     } finally {
       _checkingUnusual = false;
+    }
+  }
+
+  // ---------------- Gold prices and alerts ----------------
+
+  List<GoldAlert> goldAlerts = [];
+
+  /// Extra over the world price that local shops charge, in %.
+  double goldPremium = 0;
+
+  /// Price of one gram of [code] (XAU24/21/18) in the main currency.
+  double? goldPrice(String code) {
+    final r = rate(code, baseCurrency);
+    return r == null ? null : r * (1 + goldPremium / 100);
+  }
+
+  Future<void> _loadGold() async {
+    goldAlerts = GoldAlert.decode(await db.getSetting('gold_alerts'));
+    goldPremium = double.tryParse(await db.getSetting('gold_premium') ?? '') ?? 0;
+  }
+
+  Future<void> saveGold(List<GoldAlert> alerts, double premium) async {
+    goldAlerts = alerts;
+    goldPremium = premium;
+    await db.setSetting('gold_alerts', GoldAlert.encode(alerts));
+    await db.setSetting('gold_premium', '$premium');
+    notifyListeners();
+    final any = alerts.any((a) => a.above != null || a.below != null);
+    await scheduleGoldCheck(any);
+    await checkGoldAlerts();
+  }
+
+  /// Notifies when a watched gold price is crossed (at most once per level
+  /// until the price goes back).
+  Future<void> checkGoldAlerts() async {
+    if (goldAlerts.isEmpty || !notifSettings.enabled) return;
+    try {
+      final prices = <String, double>{
+        for (final c in kGoldCodes)
+          if (goldPrice(c) != null) c: goldPrice(c)!,
+      };
+      final fired = (await db.getSetting('gold_fired') ?? '').split(',').where((x) => x.isNotEmpty).toSet();
+      final msgs = evaluateGoldAlerts(goldAlerts, prices, fired, baseCurrency);
+      await db.setSetting('gold_fired', fired.join(','));
+      var i = 0;
+      for (final (t, b) in msgs) {
+        await notifier.showBudgetAlert(90000 + i++, t, b);
+      }
+    } catch (_) {}
+  }
+
+  /// Gold kept in grams: grams, value now, what it cost (money moved in
+  /// minus money moved out) — per account.
+  Future<List<(Account, double, double)>> goldHoldings() async {
+    final out = <(Account, double, double)>[];
+    for (final a in accounts.where((a) => !a.archived && isGold(a.currency))) {
+      final value = (goldPrice(a.currency) ?? 0) * a.balance;
+      var cost = 0.0;
+      for (final t in await db.transactions(accountId: a.id)) {
+        if (t.type != TxType.transfer) continue;
+        if (t.toAccountId == a.id) {
+          final from = accountById(t.accountId);
+          if (from != null && !isGold(from.currency)) cost += toBase(t.amount, from.currency);
+        } else if (t.accountId == a.id) {
+          final to = accountById(t.toAccountId);
+          if (to != null && !isGold(to.currency)) cost -= toBase(t.toAmount ?? t.amount, to.currency);
+        }
+      }
+      out.add((a, value, cost));
+    }
+    return out;
+  }
+
+  // ---------------- People (money lent and borrowed) ----------------
+
+  /// People you lend to or borrow from: the Money Lent accounts. A plus
+  /// balance means they owe you; a minus balance means you owe them.
+  List<Account> get people => accounts
+      .where((a) => a.type == AccountType.receivable && !a.archived)
+      .toList()
+    ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+  Future<int> addPerson(String name) => saveAccount(Account(
+        name: name.trim(),
+        type: AccountType.receivable,
+        currency: baseCurrency,
+      ));
+
+  /// "Pay back by" date and amount per person.
+  Map<int, (DateTime, double)> personDue = {};
+
+  Future<void> _loadPersonDue() async {
+    personDue = {};
+    final raw = await db.getSetting('person_due') ?? '';
+    for (final part in raw.split(';')) {
+      final x = part.split('|');
+      if (x.length != 3) continue;
+      final id = int.tryParse(x[0]);
+      final ms = int.tryParse(x[1]);
+      final amt = double.tryParse(x[2]);
+      if (id == null || ms == null || amt == null) continue;
+      personDue[id] = (DateTime.fromMillisecondsSinceEpoch(ms), amt);
+    }
+  }
+
+  Future<void> setPersonDue(int personId, DateTime? date, double amount) async {
+    if (date == null) {
+      personDue.remove(personId);
+    } else {
+      personDue[personId] = (date, amount);
+    }
+    await db.setSetting('person_due', [
+      for (final e in personDue.entries)
+        '${e.key}|${e.value.$1.millisecondsSinceEpoch}|${e.value.$2}'
+    ].join(';'));
+    notifyListeners();
+    await rescheduleReminders();
+  }
+
+  // ---------------- Receipt photos in Dropbox ----------------
+
+  bool _syncingReceipts = false;
+
+  /// Uploads new receipt photos and downloads ones this phone is missing.
+  Future<void> syncReceipts() async {
+    if (!dropbox.connected || _syncingReceipts) return;
+    _syncingReceipts = true;
+    try {
+      final names = (await db.receiptNames()).toSet();
+      if (names.isEmpty) return;
+      final key = 'receipts_uploaded';
+      final up = (await db.getSetting(key) ?? '').split(',').where((x) => x.isNotEmpty).toSet();
+      var changed = false;
+      for (final n in names) {
+        final f = await Receipts.file(n);
+        if (await f.exists()) {
+          if (up.contains(n)) continue;
+          await dropbox.putReceipt(n, await f.readAsBytes());
+        } else {
+          final b = await dropbox.getReceipt(n);
+          if (b == null) continue;
+          await f.writeAsBytes(b);
+        }
+        up.add(n);
+        changed = true;
+      }
+      if (changed) await db.setSetting(key, up.join(','));
+    } catch (_) {
+    } finally {
+      _syncingReceipts = false;
     }
   }
 
@@ -1506,7 +1680,52 @@ class AppState extends ChangeNotifier {
     final path = '$dir/$name';
     await db.backupTo(path);
     await markBackedUp();
+    // With receipt photos: one .zip holding the database and the photos.
+    try {
+      final rdir = await Receipts.dir();
+      final photos = rdir.listSync().whereType<File>().toList();
+      if (photos.isNotEmpty) {
+        final arch = Archive();
+        final dbBytes = await File(path).readAsBytes();
+        arch.addFile(ArchiveFile('money-tracker.db', dbBytes.length, dbBytes));
+        for (final f in photos) {
+          final b = await f.readAsBytes();
+          arch.addFile(ArchiveFile('receipts/${f.uri.pathSegments.last}', b.length, b));
+        }
+        final List<int>? zipped = ZipEncoder().encode(arch);
+        if (zipped == null) return path;
+        final zipPath = path.replaceAll(RegExp(r'\.db$'), '.zip');
+        await File(zipPath).writeAsBytes(zipped);
+        await File(path).delete();
+        return zipPath;
+      }
+    } catch (_) {}
     return path;
+  }
+
+  /// A .zip backup (database + receipt photos): puts the photos back and
+  /// returns the database inside it. Other files are returned as they are.
+  Future<String> _unpackBackup(String path) async {
+    final f = File(path);
+    final head = await f.openRead(0, 2).fold<List<int>>([], (a, b) => a..addAll(b));
+    if (head.length < 2 || head[0] != 0x50 || head[1] != 0x4B) return path; // not "PK"
+    final arch = ZipDecoder().decodeBytes(await f.readAsBytes());
+    String? dbPath;
+    final rdir = await Receipts.dir();
+    final tmp = await getTemporaryDirectory();
+    for (final e in arch.files) {
+      if (!e.isFile) continue;
+      final bytes = e.content as List<int>;
+      if (e.name.endsWith('.db')) {
+        dbPath = '${tmp.path}/restore-${DateTime.now().millisecondsSinceEpoch}.db';
+        await File(dbPath).writeAsBytes(bytes);
+      } else if (e.name.startsWith('receipts/')) {
+        final out = File('${rdir.path}/${e.name.substring(9)}');
+        if (!await out.exists()) await out.writeAsBytes(bytes);
+      }
+    }
+    if (dbPath == null) throw Exception('No data found in this backup');
+    return dbPath;
   }
 
   Future<void> markBackedUp() async {
@@ -1525,6 +1744,7 @@ class AppState extends ChangeNotifier {
   /// saved to [safetyDir] so the restore can be undone.
   Future<String> restoreFrom(String path, String safetyDir,
       {bool markBackup = true}) async {
+    path = await _unpackBackup(path);
     final info = await AppDb.inspect(path);
     if (info.version > AppDb.schemaVersion) {
       throw Exception(
@@ -1651,6 +1871,18 @@ class AppState extends ChangeNotifier {
       if (!when.isAfter(now)) when = at(now.add(const Duration(days: 1)));
       out.add(Reminder(when, '💾 Time for a backup',
           'Your data is only on this phone. Open Settings → Backup & restore.'));
+    }
+
+    // People: the day they said they would pay back (or you would).
+    for (final e in personDue.entries) {
+      final p = accountById(e.key);
+      if (p == null || p.archived || p.balance.abs() < 0.005) continue;
+      final when = at(e.value.$1);
+      if (!when.isAfter(now)) continue;
+      out.add(Reminder(
+          when,
+          p.balance > 0 ? '🤝 ${p.name} should pay you back today' : '🤝 Pay ${p.name} back today',
+          '${fmtMoneyRaw(e.value.$2, p.currency)} · balance ${fmtMoneyRaw(p.balance.abs(), p.currency)}'));
     }
 
     // Month summary: on the 1st at 9:00.
@@ -1842,6 +2074,7 @@ class AppState extends ChangeNotifier {
       await db.setSetting('online_rates', jsonEncode(onlineRates));
       rates = {for (final r in await db.rates()) r.code: r};
       version++;
+      checkGoldAlerts();
     } finally {
       refreshingRates = false;
       notifyListeners();
@@ -2470,6 +2703,7 @@ class AppState extends ChangeNotifier {
         postDate: base.postDate,
         splitId: splitId,
         tags: base.tags,
+        photo: base.photo,
         // Paid in another currency: each part gets its share.
         origAmount: base.origAmount == null || base.amount == 0
             ? null

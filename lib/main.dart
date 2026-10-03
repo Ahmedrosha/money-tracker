@@ -161,7 +161,8 @@ class _MoneyAppState extends State<MoneyApp> with WidgetsBindingObserver {
           ? TxType.income
           : TxType.expense;
       nav.push(MaterialPageRoute(
-          builder: (_) => TransactionEditScreen(initialType: type)));
+          builder: (_) => TransactionEditScreen(
+              initialType: type, startVoice: uri.queryParameters['voice'] == '1')));
     } else if (uri.host == 'open') {
       switch (uri.queryParameters['to']) {
         case 'transactions':

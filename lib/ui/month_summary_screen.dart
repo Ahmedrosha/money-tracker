@@ -14,6 +14,35 @@ import '../state/app_state.dart';
 import '../util/format.dart';
 import 'widgets.dart';
 
+/// Shares what is inside the RepaintBoundary [shot] as a one-page PDF
+/// (a picture of it, so Arabic text looks the same as on screen).
+Future<void> shareAsPdf(BuildContext context, GlobalKey shot, String fileName,
+    String subject) async {
+  try {
+    final boundary = shot.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+    if (boundary == null) return;
+    final image = await boundary.toImage(pixelRatio: 2.5);
+    final data = await image.toByteData(format: ui.ImageByteFormat.png);
+    if (data == null) return;
+    final png = data.buffer.asUint8List();
+    const width = 420.0;
+    final height = width * image.height / image.width;
+    final doc = pw.Document();
+    doc.addPage(pw.Page(
+      pageFormat: PdfPageFormat(width, height, marginAll: 0),
+      build: (_) => pw.Image(pw.MemoryImage(png), fit: pw.BoxFit.contain),
+    ));
+    final dir = await getTemporaryDirectory();
+    final f = File('${dir.path}/$fileName.pdf');
+    await f.writeAsBytes(await doc.save());
+    if (!context.mounted) return;
+    await Share.shareXFiles([XFile(f.path)],
+        subject: subject, sharePositionOrigin: shareOrigin(context));
+  } catch (e) {
+    if (context.mounted) showSnack(context, tr('Could not share: $e'));
+  }
+}
+
 class _Summary {
   double income = 0, spent = 0, prevIncome = 0, prevSpent = 0;
   double netWorthChange = 0;
@@ -135,34 +164,9 @@ class _MonthSummaryScreenState extends State<MonthSummaryScreen> {
 
   Future<void> _share() async {
     setState(() => _sharing = true);
-    try {
-      final boundary = _shot.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-      if (boundary == null) return;
-      final image = await boundary.toImage(pixelRatio: 2.5);
-      final data = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (data == null) return;
-      final png = data.buffer.asUint8List();
-      // One PDF page the shape of the summary.
-      const width = 420.0;
-      final height = width * image.height / image.width;
-      final doc = pw.Document();
-      doc.addPage(pw.Page(
-        pageFormat: PdfPageFormat(width, height, marginAll: 0),
-        build: (_) => pw.Image(pw.MemoryImage(png), fit: pw.BoxFit.contain),
-      ));
-      final dir = await getTemporaryDirectory();
-      final name = 'Summary ${_ym(_month)}.pdf';
-      final f = File('${dir.path}/$name');
-      await f.writeAsBytes(await doc.save());
-      if (!mounted) return;
-      await Share.shareXFiles([XFile(f.path)],
-          subject: tr('${monthFmt.format(_month)} summary'),
-          sharePositionOrigin: shareOrigin(context));
-    } catch (e) {
-      if (mounted) showSnack(context, tr('Could not share: $e'));
-    } finally {
-      if (mounted) setState(() => _sharing = false);
-    }
+    await shareAsPdf(context, _shot, 'Summary ${_ym(_month)}',
+        tr('${monthFmt.format(_month)} summary'));
+    if (mounted) setState(() => _sharing = false);
   }
 
   @override

@@ -32,6 +32,7 @@ class AddExpenseWidget : HomeWidgetProvider() {
             val v = RemoteViews(context.packageName, R.layout.widget_add)
             v.setTextViewText(R.id.label, widgetData.s("l_add", "Add Expense"))
             v.setOnClickPendingIntent(R.id.root, openApp(context, "ewtracker://add?type=expense", 101))
+            v.setOnClickPendingIntent(R.id.voice, openApp(context, "ewtracker://add?type=expense&voice=1", 105))
             appWidgetManager.updateAppWidget(id, v)
         }
     }

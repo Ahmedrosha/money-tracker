@@ -179,6 +179,11 @@ class TxnTile extends StatelessWidget {
               padding: EdgeInsets.only(left: 6),
               child: Icon(Icons.repeat, size: 14),
             ),
+          if (txn.photo != null)
+            const Padding(
+              padding: EdgeInsetsDirectional.only(start: 6),
+              child: Icon(Icons.receipt_long_outlined, size: 14),
+            ),
           if (late > 0)
             TagChip(tr('+$late day${late == 1 ? '' : 's'} late'),
                 color: Theme.of(context).colorScheme.error)

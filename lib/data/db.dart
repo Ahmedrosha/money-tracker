@@ -39,7 +39,7 @@ class AppDb {
 
   final Database db;
 
-  static const int schemaVersion = 22;
+  static const int schemaVersion = 23;
 
   static Future<String> dbPath() async =>
       p.join(await getDatabasesPath(), 'money_tracker.db');
@@ -128,6 +128,7 @@ class AppDb {
         await _migrateToV20(db);
         await _migrateToV21(db);
         await _migrateToV22(db);
+        await _migrateToV23(db);
         await _seed(db);
       },
       onUpgrade: (db, oldV, newV) async {
@@ -152,6 +153,7 @@ class AppDb {
         if (oldV < 20) await _migrateToV20(db);
         if (oldV < 21) await _migrateToV21(db);
         if (oldV < 22) await _migrateToV22(db);
+        if (oldV < 23) await _migrateToV23(db);
       },
     );
     return AppDb._(db);
@@ -456,6 +458,11 @@ class AppDb {
         "ALTER TABLE transactions ADD COLUMN tags TEXT NOT NULL DEFAULT ''");
   }
 
+  /// Receipt photos on transactions.
+  static Future<void> _migrateToV23(Database db) async {
+    await db.execute('ALTER TABLE transactions ADD COLUMN photo TEXT');
+  }
+
   static Future<void> _seed(Database db) async {
     const expense = [
       ['Food & Dining', 'food', 0xFFFB8C00],
@@ -642,6 +649,21 @@ class AppDb {
         orderBy: 'date DESC',
         limit: 1);
     return rows.isEmpty ? null : rows.first['account_id'] as int?;
+  }
+
+  /// Receipt photo names on transactions.
+  Future<List<String>> receiptNames() async {
+    final rows = await db.rawQuery(
+        "SELECT photo FROM transactions WHERE photo IS NOT NULL AND photo <> ''");
+    return [for (final r in rows) r['photo'] as String];
+  }
+
+  /// Payees used before, most used first (for voice entry).
+  Future<List<String>> knownPayees() async {
+    final rows = await db.rawQuery(
+        "SELECT TRIM(payee) AS p, COUNT(*) AS n FROM transactions WHERE TRIM(payee) <> '' "
+        "GROUP BY LOWER(TRIM(payee)) ORDER BY n DESC LIMIT 400");
+    return [for (final r in rows) r['p'] as String];
   }
 
   /// Every tag used, with how often (most used first).

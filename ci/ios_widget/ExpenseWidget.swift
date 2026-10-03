@@ -102,6 +102,40 @@ struct AddExpenseWidget: Widget {
   }
 }
 
+struct VoiceView: View {
+  @Environment(\.widgetFamily) var family
+  let e: Snap
+  var body: some View {
+    switch family {
+    case .accessoryCircular:
+      ZStack {
+        AccessoryWidgetBackground()
+        Image(systemName: "mic.fill").font(.system(size: 20, weight: .bold))
+      }
+      .widgetBG { Color.clear }
+    default:
+      VStack(spacing: 6) {
+        Image(systemName: "mic.circle.fill").font(.system(size: 46)).foregroundColor(.white)
+        Text(e.s("l_voice", "Say an Expense")).font(.system(size: 15, weight: .semibold))
+          .foregroundColor(.white).lineLimit(1).minimumScaleFactor(0.7)
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .widgetBG { LinearGradient(colors: [teal, tealDark], startPoint: .topLeading, endPoint: .bottomTrailing) }
+    }
+  }
+}
+
+struct VoiceExpenseWidget: Widget {
+  var body: some WidgetConfiguration {
+    StaticConfiguration(kind: "VoiceExpenseWidget", provider: Provider()) { e in
+      VoiceView(e: e).widgetURL(URL(string: "ewtracker://add?type=expense&voice=1"))
+    }
+    .configurationDisplayName("Say an Expense")
+    .description("Add an expense by voice.")
+    .supportedFamilies([.systemSmall, .accessoryCircular])
+  }
+}
+
 // MARK: Net Worth
 
 struct NetWorthView: View {
@@ -258,6 +292,7 @@ struct DueWidget: Widget {
 struct ExpenseWidgets: WidgetBundle {
   var body: some Widget {
     AddExpenseWidget()
+    VoiceExpenseWidget()
     NetWorthWidget()
     MonthWidget()
     DueWidget()

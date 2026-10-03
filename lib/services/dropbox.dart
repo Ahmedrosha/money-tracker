@@ -512,6 +512,34 @@ class DropboxSync extends ChangeNotifier {
     return (bytes: res.bodyBytes, rev: rev);
   }
 
+  // ---------------- Receipt photos ----------------
+
+  static const receiptsDir = '/receipts';
+
+  /// Uploads one receipt photo (kept next to the database copy).
+  Future<void> putReceipt(String name, List<int> bytes) async {
+    if (!connected) return;
+    final token = await _token();
+    await _put(token, bytes, '$receiptsDir/$name', {'.tag': 'overwrite'});
+  }
+
+  /// Downloads one receipt photo; null when Dropbox doesn't have it.
+  Future<List<int>?> getReceipt(String name) async {
+    if (!connected) return null;
+    final token = await _token();
+    final res = await http
+        .post(
+          Uri.parse('https://content.dropboxapi.com/2/files/download'),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Dropbox-API-Arg': jsonEncode({'path': '$receiptsDir/$name'}),
+          },
+        )
+        .timeout(const Duration(minutes: 1));
+    if (res.statusCode != 200) return null;
+    return res.bodyBytes;
+  }
+
   // ---------------- Manual download ----------------
 
   /// Downloads the Dropbox copy into [dir]; returns its path and revision,

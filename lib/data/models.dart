@@ -692,6 +692,9 @@ class Txn {
   /// Free labels, e.g. "Sahel 2026", "Work" (several per entry).
   final List<String> tags;
 
+  /// Receipt photo file name (in Documents/receipts), if any.
+  final String? photo;
+
   /// Stored as "|Sahel 2026|Work|" so one tag can be searched with LIKE.
   static String encodeTags(List<String> tags) {
     final clean = [
@@ -739,6 +742,7 @@ class Txn {
     this.fxFee,
     this.forDate,
     this.tags = const [],
+    this.photo,
   });
 
   bool get isFuture => date.isAfter(DateTime.now());
@@ -779,6 +783,7 @@ class Txn {
         'fx_fee': fxFee,
         'for_date': forDate?.millisecondsSinceEpoch,
         'tags': encodeTags(tags),
+        'photo': photo,
       };
 
   factory Txn.fromMap(Map<String, Object?> m) => Txn(
@@ -811,6 +816,7 @@ class Txn {
             ? null
             : DateTime.fromMillisecondsSinceEpoch(m['for_date'] as int),
         tags: decodeTags(m['tags'] as String?),
+        photo: m['photo'] as String?,
       );
 }
 

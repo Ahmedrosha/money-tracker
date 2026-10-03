@@ -28,6 +28,8 @@ s, n = re.subn(r"PRODUCT_BUNDLE_IDENTIFIER = (?![^;]*RunnerTests)[^;]*;", app_ta
 s = re.sub(r"PRODUCT_BUNDLE_IDENTIFIER = [^;]*\.RunnerTests;",
            f"PRODUCT_BUNDLE_IDENTIFIER = {BUNDLE_ID}.RunnerTests;", s)
 print(f"bundle id set in {n} build configurations")
+# Text recognition (receipts) needs iOS 15.5 or later.
+s = re.sub(r"IPHONEOS_DEPLOYMENT_TARGET = [0-9.]+;", "IPHONEOS_DEPLOYMENT_TARGET = 15.5;", s)
 if n == 0:
     sys.exit("could not find the app bundle id in project.pbxproj")
 open(pbx, "w").write(s)
@@ -45,12 +47,10 @@ p["UIFileSharingEnabled"] = True
 p["LSSupportsOpeningDocumentsInPlace"] = True
 # The file picker library links these frameworks; Apple requires the texts
 # even though the app only picks backup files.
-p.setdefault("NSPhotoLibraryUsageDescription",
-             "Only used if you choose a file from your photo library.")
-p.setdefault("NSCameraUsageDescription",
-             "Only used if you choose to take a photo to attach.")
-p.setdefault("NSMicrophoneUsageDescription",
-             "Not used by Expense & Wealth Tracker.")
+p["NSPhotoLibraryUsageDescription"] = "Choose a receipt photo to attach to a transaction."
+p["NSCameraUsageDescription"] = "Take a photo of a receipt to fill in a transaction."
+p["NSMicrophoneUsageDescription"] = "Say a transaction, e.g. \"Spent 450 on fuel\", to fill it in."
+p["NSSpeechRecognitionUsageDescription"] = "Turns what you say into a transaction to check and save."
 p["NSFaceIDUsageDescription"] = "Face ID unlocks Expense & Wealth Tracker."
 p.setdefault("NSLocationWhenInUseUsageDescription",
              "Not used by Expense & Wealth Tracker.")

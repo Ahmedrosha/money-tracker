@@ -82,7 +82,12 @@ jobs:
           set -o pipefail
           flutter build ios --release --config-only --build-name=$APP_VERSION --build-number=${{ github.run_number }} 2>&1 | tee -a ../build.log
           cd ios
-          if [ -f Podfile ]; then pod install 2>&1 | tee -a ../../build.log; fi
+          if [ -f Podfile ]; then
+            # Receipt text recognition (ML Kit) needs iOS 15.5.
+            sed -i '' -e "s/^#* *platform :ios.*/platform :ios, '15.5'/" Podfile
+            grep -n "platform :ios" Podfile || true
+            pod install 2>&1 | tee -a ../../build.log
+          fi
           ls
 
       - name: App Store Connect key

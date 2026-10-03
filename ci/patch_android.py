@@ -94,6 +94,7 @@ m = open(manifest).read()
 perms = (
     '<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>\n'
     '    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>\n'
+    '    <uses-permission android:name="android.permission.RECORD_AUDIO"/>\n'
 )
 m = m.replace("<application", perms + "    <application", 1)
 receivers = '''
@@ -110,6 +111,9 @@ receivers = '''
 if "</application>" not in m:
     sys.exit("No </application> in manifest")
 m = m.replace("</application>", receivers.lstrip("\n"), 1)
+# Voice entry: the phone's speech recognition service must be visible.
+m = m.replace("</manifest>",
+              '    <queries><intent><action android:name="android.speech.RecognitionService"/></intent></queries>\n</manifest>', 1)
 open(manifest, "w").write(m)
 print("Patched notifications setup")
 

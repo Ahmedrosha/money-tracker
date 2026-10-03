@@ -10,6 +10,7 @@ import 'home.dart';
 import 'pay_card.dart';
 import 'reports_extra.dart';
 import 'month_summary_screen.dart';
+import 'year_review_screen.dart';
 import 'reports_budget.dart';
 import 'charts.dart';
 import 'reports_more.dart';
@@ -388,15 +389,27 @@ class _DashboardState extends State<_Dashboard> {
                 ),
               ],
             ),
-            Center(
-              child: TextButton.icon(
-                icon: const Icon(Icons.summarize_outlined, size: 18),
-                label: Text(tr('Month Summary')),
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => MonthSummaryScreen(month: _month)),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              children: [
+                TextButton.icon(
+                  icon: const Icon(Icons.summarize_outlined, size: 18),
+                  label: Text(tr('Month Summary')),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => MonthSummaryScreen(month: _month)),
+                  ),
                 ),
-              ),
+                TextButton.icon(
+                  icon: const Icon(Icons.auto_awesome_outlined, size: 18),
+                  label: Text(tr('Year in Review')),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => YearReviewScreen(year: _month.year)),
+                  ),
+                ),
+              ],
             ),
             if (isCurrent && state.unusual.isNotEmpty)
               Card(

@@ -17,6 +17,8 @@ import 'sms_inbox_screen.dart';
 import 'cards_due.dart';
 import 'currencies_screen.dart';
 import 'month_summary_screen.dart';
+import 'people_screen.dart';
+import 'year_review_screen.dart';
 import 'reports_extra.dart' show OutlookTab;
 import '../l10n/l10n.dart';
 
@@ -51,6 +53,14 @@ class AccountsScreen extends StatelessWidget {
         title: Text(tr('Accounts')),
         actions: [
           const HideAmountsButton(),
+          IconButton(
+            tooltip: tr('People'),
+            icon: const Icon(Icons.people_alt_outlined),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PeopleScreen()),
+            ),
+          ),
           IconButton(
             tooltip: tr('Find Account'),
             icon: const Icon(Icons.search),
@@ -187,6 +197,31 @@ class AccountsScreen extends StatelessWidget {
                     context,
                     MaterialPageRoute(builder: (_) => const BackupScreen()),
                   ),
+                ),
+              ),
+            ),
+          if (state.showYearCard && state.accounts.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Card(
+                color: Theme.of(context).colorScheme.tertiaryContainer,
+                child: ListTile(
+                  leading: const Icon(Icons.auto_awesome_outlined),
+                  title: Text(tr('Your ${DateTime.now().year - 1} in review is ready')),
+                  subtitle: Text(tr('The whole year in one page')),
+                  trailing: IconButton(
+                    tooltip: tr('Hide'),
+                    icon: const Icon(Icons.close),
+                    onPressed: state.markYearSeen,
+                  ),
+                  onTap: () {
+                    state.markYearSeen();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => YearReviewScreen(year: DateTime.now().year - 1)),
+                    );
+                  },
                 ),
               ),
             ),

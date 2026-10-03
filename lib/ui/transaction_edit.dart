@@ -8,6 +8,10 @@ import '../util/currencies.dart';
 import 'account_edit.dart';
 import 'calc_pad.dart';
 import 'widgets.dart';
+import 'voice_sheet.dart';
+import 'people_screen.dart' show askPersonName;
+import '../services/voice_parser.dart';
+import '../services/receipts.dart';
 import '../l10n/l10n.dart';
 
 enum _Mode { newTxn, editTxn, editPlan, editRule, confirm }
@@ -37,6 +41,7 @@ class TransactionEditScreen extends StatefulWidget {
     this.initialForeignAmount,
     this.initialFeeSeparate,
     this.onSaved,
+    this.startVoice = false,
   });
 
   final Txn? txn;
@@ -65,6 +70,9 @@ class TransactionEditScreen extends StatefulWidget {
   /// Called with the entry as saved (e.g. to remember a merchant's
   /// choices) and, for foreign purchases, whether the fee was separate.
   final void Function(Txn saved, bool? feeSeparate)? onSaved;
+
+  /// Opened from the voice widget: start listening right away.
+  final bool startVoice;
 
   @override
   State<TransactionEditScreen> createState() => _TransactionEditScreenState();
@@ -153,6 +161,159 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
 
   /// Tags (expenses and income).
   List<String> _tags = [];
+
+  /// Receipt photo (file name in Documents/receipts).
+  String? _photo;
+
+  /// Split with someone: the person (a Money Lent account) and their share.
+  int? _splitPerson;
+  final _splitShare = TextEditingController();
+
+  bool _splitWithOn(AppState state) =>
+      _splitPerson != null &&
+      _mode == _Mode.newTxn &&
+      _type == TxType.expense &&
+      !_split &&
+      !_installments &&
+      !_repeat &&
+      !_fxActive(state);
+
+  Future<void> _voice() async {
+    final state = AppScope.read(context);
+    final text = await showVoiceSheet(context);
+    if (text == null || text.trim().isEmpty || !mounted) return;
+    final e = VoiceParser.parse(state, text, await state.db.knownPayees());
+    if (!mounted) return;
+    setState(() {
+      _type = e.type;
+      if (e.amount != null) _amount.text = _plain(e.amount!);
+      if (e.accountId != null) _accountId = e.accountId;
+      if (e.toAccountId != null) _toAccountId = e.toAccountId;
+      if (e.payee != null) _payee.text = e.payee!;
+      if (e.categoryId != null) {
+        _categoryId = e.categoryId;
+        _categoryChosen = true;
+      } else if (state.categoryById(_categoryId)?.kind != _type) {
+        _categoryId = null;
+        _categoryChosen = false;
+      }
+      if (e.date != null) _date = e.date!;
+      if (_type == TxType.transfer) _resetRate();
+    });
+    showSnack(context, tr('Heard: "$text" — check and save'));
+  }
+
+  /// Photo of a receipt: kept with the entry; the total, date and shop
+  /// are filled in when they can be read.
+  Future<void> _scan({bool fill = true}) async {
+    final camera = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: Text(tr('Take a Photo')),
+              onTap: () => Navigator.pop(ctx, true),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: Text(tr('Choose from Photos')),
+              onTap: () => Navigator.pop(ctx, false),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (camera == null || !mounted) return;
+    String? name;
+    try {
+      name = await Receipts.pick(camera: camera);
+    } catch (e) {
+      if (mounted) showSnack(context, tr('Could not open the camera: $e'));
+      return;
+    }
+    if (name == null || !mounted) return;
+    setState(() => _photo = name);
+    if (!fill) return;
+    try {
+      final info = await ReceiptReader.read((await Receipts.file(name)).path);
+      if (!mounted) return;
+      if (!info.any) {
+        showSnack(context, tr('Photo attached. Couldn\'t read the amount — please type it.'));
+        return;
+      }
+      setState(() {
+        if (info.total != null) _amount.text = _plain(info.total!);
+        if (info.date != null) _date = info.date!;
+        if (info.shop != null && _payee.text.trim().isEmpty) _payee.text = info.shop!;
+      });
+      showSnack(context, tr('Read from the receipt — check and save'));
+    } catch (_) {
+      if (mounted) showSnack(context, tr('Photo attached. Couldn\'t read the amount — please type it.'));
+    }
+  }
+
+  Future<void> _viewPhoto() async {
+    final f = await Receipts.file(_photo!);
+    if (!mounted) return;
+    if (!await f.exists()) {
+      if (mounted) showSnack(context, tr('The photo isn\'t on this phone yet'));
+      return;
+    }
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(backgroundColor: Colors.black, foregroundColor: Colors.white),
+          body: InteractiveViewer(child: Center(child: Image.file(f))),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickSplitPerson() async {
+    final state = AppScope.read(context);
+    final people = state.people;
+    final id = await showModalBottomSheet<int>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final p in people)
+              ListTile(
+                leading: const Icon(Icons.person_outline),
+                title: Text(p.name),
+                onTap: () => Navigator.pop(ctx, p.id),
+              ),
+            ListTile(
+              leading: const Icon(Icons.person_add_alt),
+              title: Text(tr('New Person…')),
+              onTap: () => Navigator.pop(ctx, -1),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (id == null || !mounted) return;
+    var pid = id;
+    if (id == -1) {
+      final name = await askPersonName(context);
+      if (name == null || !mounted) return;
+      pid = await state.addPerson(name);
+    }
+    final total = parseAmount(_amount.text)?.abs() ?? 0;
+    setState(() {
+      _splitPerson = pid;
+      if (_splitShare.text.trim().isEmpty && total > 0) _splitShare.text = _plain(total / 2);
+    });
+  }
 
   /// Recurring expense shown in Subscriptions.
   late bool _subscription = widget.rule?.subscription ?? false;
@@ -577,6 +738,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     if (t.postedLater) _postDate = t.postDate;
     if (t.recurringId != null) _forDate = t.forDate ?? t.date;
     _tags = [...t.tags];
+    _photo = t.photo;
     if (t.isForeign) {
       _fxCur = t.origCurrency;
       _fxAmount.text = _plain(t.origAmount!.abs());
@@ -708,7 +870,11 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_initialized) return;
-    if (_mode == _Mode.newTxn &&
+    if (widget.startVoice) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _voice();
+      });
+    } else if (_mode == _Mode.newTxn &&
         widget.initialAmount == null &&
         widget.initialForeignAmount == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -768,6 +934,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     _note.dispose();
     _fee.dispose();
     _fxAmount.dispose();
+    _splitShare.dispose();
     _fxFeeCtl.dispose();
     _interval.dispose();
     _endCount.dispose();
@@ -953,6 +1120,12 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     final raw = parseAmount(_amount.text)!;
     final amount =
         (_type == TxType.transfer || _installments || _repeat) ? raw.abs() : raw;
+    // Split with someone: only my share is my expense.
+    final share = _splitWithOn(state) ? (parseAmount(_splitShare.text)?.abs() ?? 0) : 0.0;
+    if (share > 0 && share >= amount.abs()) {
+      showSnack(context, tr('Their share must be less than the total'));
+      return;
+    }
     double? toAmount;
     if (_type == TxType.transfer && _currenciesDiffer(state)) {
       toAmount = parseAmount(_toAmount.text)?.abs();
@@ -996,7 +1169,8 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       id: widget.txn?.id,
       type: _type,
       date: _date,
-      amount: amount,
+      amount: amount - share,
+      photo: isTransfer ? null : _photo,
       accountId: _accountId!,
       toAccountId: isTransfer ? _toAccountId : null,
       toAmount: isTransfer ? toAmount : null,
@@ -1119,6 +1293,25 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
             note: 'Foreign fee for $what (${fmtMoneyRaw(fxPaid ?? 0, _fxCur!)})',
             foreign: true);
       }
+    }
+    // Their share goes onto the person's balance (they owe it).
+    if (share > 0 && _splitPerson != null) {
+      final person = state.accountById(_splitPerson);
+      final from = state.accountById(_accountId);
+      final what = template.payee.isNotEmpty
+          ? template.payee
+          : (state.categoryById(_categoryId)?.name ?? '');
+      await state.saveTxn(Txn(
+        type: TxType.transfer,
+        date: _date,
+        amount: share,
+        accountId: _accountId!,
+        toAccountId: _splitPerson,
+        toAmount: person != null && from != null && person.currency != from.currency
+            ? state.convert(share, from.currency, person.currency)
+            : null,
+        note: 'Share of $what',
+      ));
     }
     widget.onSaved?.call(template, fxOn && _type == TxType.expense ? fxSep : null);
     if (!mounted) return;
@@ -1282,6 +1475,18 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       appBar: AppBar(
         title: Text(_title),
         actions: [
+          if (_mode == _Mode.newTxn)
+            IconButton(
+              tooltip: tr('Say it'),
+              icon: const Icon(Icons.mic_none),
+              onPressed: _voice,
+            ),
+          if ((_mode == _Mode.newTxn || _mode == _Mode.editTxn) && _type != TxType.transfer)
+            IconButton(
+              tooltip: tr('Scan a Receipt'),
+              icon: const Icon(Icons.document_scanner_outlined),
+              onPressed: () => _scan(fill: _mode == _Mode.newTxn),
+            ),
           IconButton(
             tooltip: _mode == _Mode.confirm ? tr('Confirm') : tr('Save'),
             icon: const Icon(Icons.check),
@@ -1588,6 +1793,71 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                           : null),
                 ),
               ),
+            ],
+            if (_mode == _Mode.newTxn &&
+                _type == TxType.expense &&
+                !_split &&
+                !_installments &&
+                !_repeat &&
+                !_fxActive(state)) ...[
+              gap,
+              if (_splitPerson == null)
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.group_outlined, size: 18),
+                    label: Text(tr('Split with someone')),
+                    onPressed: _pickSplitPerson,
+                  ),
+                )
+              else
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _splitShare,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        onChanged: (_) => setState(() {}),
+                        decoration: InputDecoration(
+                          labelText: tr('${state.accountById(_splitPerson)?.name ?? ''}\'s share'),
+                          helperText: tr('Your part: ${fmtAmountRaw(((parseAmount(_amount.text)?.abs() ?? 0) - (parseAmount(_splitShare.text)?.abs() ?? 0)))} · theirs goes on their balance'),
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: tr('Remove'),
+                      icon: const Icon(Icons.close),
+                      onPressed: () => setState(() => _splitPerson = null),
+                    ),
+                  ],
+                ),
+            ],
+            if (_type != TxType.transfer &&
+                (_mode == _Mode.newTxn || _mode == _Mode.editTxn)) ...[
+              gap,
+              if (_photo == null)
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.add_a_photo_outlined, size: 18),
+                    label: Text(tr('Attach Receipt Photo')),
+                    onPressed: () => _scan(fill: false),
+                  ),
+                )
+              else
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.receipt_long_outlined),
+                  title: Text(tr('Receipt Photo')),
+                  subtitle: Text(tr('Tap to view')),
+                  onTap: _viewPhoto,
+                  trailing: IconButton(
+                    tooltip: tr('Remove'),
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: () => setState(() => _photo = null),
+                  ),
+                ),
             ],
             if (_type != TxType.transfer &&
                 !_repeat &&

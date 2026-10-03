@@ -14,8 +14,9 @@ class HomeWidgets {
   static const appGroup = 'group.com.rashad.moneytracker';
 
   // iOS widget kinds and Android provider classes.
-  static const _ios = ['AddExpenseWidget', 'NetWorthWidget', 'MonthWidget', 'DueWidget'];
+  static const _ios = ['AddExpenseWidget', 'VoiceExpenseWidget', 'NetWorthWidget', 'MonthWidget', 'DueWidget'];
   static const _android = [
+    'com.rashad.money_tracker.AddExpenseWidget',
     'com.rashad.money_tracker.AddExpenseWidget',
     'com.rashad.money_tracker.NetWorthWidget',
     'com.rashad.money_tracker.MonthWidget',
@@ -121,6 +122,7 @@ class HomeWidgets {
       'unit': unit,
       'updated': '${tr('Updated')} ${two(now.hour)}:${two(now.minute)}',
       'l_add': tr('Add Expense'),
+      'l_voice': tr('Say an Expense'),
       'l_networth': tr('Net Worth'),
       'l_month': tr('This Month'),
       'l_spent': tr('Spent'),

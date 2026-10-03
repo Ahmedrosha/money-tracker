@@ -1454,6 +1454,8 @@ class AppState extends ChangeNotifier {
     return latest;
   }
 
+  DateTime? _lastRateTry;
+
   /// Refreshes rates if they are older than [maxAge]. Errors are swallowed.
   Future<void> autoRefreshRates(
       {Duration maxAge = const Duration(hours: 12)}) async {
@@ -1470,6 +1472,11 @@ class AppState extends ChangeNotifier {
     // A currency in use with no rate yet (e.g. a new gold karat): refresh now.
     final missing = usedCurrencies.any((c) => c != 'USD' && !rates.containsKey(c));
     if (!missing && last != null && DateTime.now().difference(last) < maxAge) return;
+    // At most one try every 10 minutes (e.g. offline, or a currency the
+    // online source doesn't have).
+    final tried = _lastRateTry;
+    if (tried != null && DateTime.now().difference(tried).inMinutes < 10) return;
+    _lastRateTry = DateTime.now();
     try {
       await refreshRates();
     } catch (_) {

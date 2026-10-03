@@ -6,6 +6,14 @@ import '../util/format.dart';
 import 'widgets.dart';
 import '../l10n/l10n.dart';
 
+String _ago(DateTime t) {
+  final d = DateTime.now().difference(t);
+  if (d.inMinutes < 1) return tr('just now');
+  if (d.inHours < 1) return tr('${d.inMinutes} min ago');
+  if (d.inDays < 1) return tr('${d.inHours} h ago');
+  return tr('${d.inDays} days ago');
+}
+
 class CurrenciesScreen extends StatelessWidget {
   const CurrenciesScreen({super.key});
 
@@ -55,7 +63,7 @@ class CurrenciesScreen extends StatelessWidget {
               last == null
                   ? tr('Online rates have not been downloaded yet. Tap refresh.')
                   : tr('Online rates updated ${shortDateFmt.format(last)} '
-                      '${TimeOfDay.fromDateTime(last).format(context)}. '
+                      '${TimeOfDay.fromDateTime(last).format(context)} (${_ago(last)}). '
                       'Tap a currency to set your own rate; manual rates are kept when refreshing.'),
               style: Theme.of(context).textTheme.bodySmall,
             ),

@@ -264,6 +264,8 @@ class _MoneyAppState extends State<MoneyApp> with WidgetsBindingObserver {
       dbx.flush();
     } else if (s == AppLifecycleState.resumed) {
       state.refreshForToday();
+      // Back in the app: rates older than 12 hours or missing.
+      state.autoRefreshRates();
       state.readAndroidSms();
       _readIncoming();
       // Coming back to the app: pick up changes from the other phone

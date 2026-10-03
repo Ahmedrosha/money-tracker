@@ -3,6 +3,12 @@
 // ignore_for_file: prefer_single_quotes
 
 const Map<String, String> kArabic = {
+  "Totals skip these. Tap to set rates, or refresh.": "الإجماليات تتجاهلها. اضغط لتحديد الأسعار، أو حدّث.",
+  "Couldn't refresh — no internet": "تعذر التحديث — لا يوجد إنترنت",
+  "{0} isn't available online — set it by hand": "{0} غير متاح على الإنترنت — حدده يدويًا",
+  "Set Rate": "تحديد السعر",
+  "{0} days ago": "منذ {0} يوم",
+  "Online rates updated {0} {1} ({2}). Tap a currency to set your own rate; manual rates are kept when refreshing.": "تم تحديث الأسعار {0} {1} ({2}). اضغط على عملة لتحديد سعرك؛ الأسعار اليدوية تبقى عند التحديث.",
   "Version 0.43 — due vs paid dates, loan first & last payment": "الإصدار 0.43 — تاريخ الاستحقاق والسداد، أول وآخر قسط",
   "Confirm — paid today": "تأكيد — مدفوع اليوم",
   "Kept as for {0}": "يُحتسب عن {0}",

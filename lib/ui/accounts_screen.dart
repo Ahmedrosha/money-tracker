@@ -15,6 +15,7 @@ import 'statement_detail.dart';
 import 'widgets.dart';
 import 'sms_inbox_screen.dart';
 import 'cards_due.dart';
+import 'currencies_screen.dart';
 import '../l10n/l10n.dart';
 
 class AccountsScreen extends StatelessWidget {
@@ -196,7 +197,19 @@ class AccountsScreen extends StatelessWidget {
                   leading: const Icon(Icons.warning_amber),
                   title: Text(tr('No exchange rate for ${missing.join(', ')}')),
                   subtitle: Text(
-                      tr('Totals skip these. Refresh or set rates in Settings → Currencies.')),
+                      tr('Totals skip these. Tap to set rates, or refresh.')),
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const CurrenciesScreen())),
+                  trailing: state.refreshingRates
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : IconButton(
+                          tooltip: tr('Refresh Online Rates'),
+                          icon: const Icon(Icons.refresh),
+                          onPressed: () => _refreshRates(context, state),
+                        ),
                 ),
               ),
             ),
@@ -436,4 +449,30 @@ class _AccountTile extends StatelessWidget {
       ),
     );
   }
+}
+
+
+/// Refresh from the missing-rate warning, then say what happened.
+Future<void> _refreshRates(BuildContext context, AppState state) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final nav = Navigator.of(context);
+  try {
+    await state.refreshRates();
+  } catch (_) {
+    messenger.showSnackBar(SnackBar(content: Text(tr("Couldn't refresh — no internet"))));
+    return;
+  }
+  final still = state.missingRates;
+  if (still.isEmpty) {
+    messenger.showSnackBar(SnackBar(content: Text(tr('Rates updated'))));
+    return;
+  }
+  messenger.showSnackBar(SnackBar(
+    content: Text(tr("${still.join(', ')} isn't available online — set it by hand")),
+    action: SnackBarAction(
+      label: tr('Set Rate'),
+      onPressed: () => nav.push(
+          MaterialPageRoute(builder: (_) => const CurrenciesScreen())),
+    ),
+  ));
 }
